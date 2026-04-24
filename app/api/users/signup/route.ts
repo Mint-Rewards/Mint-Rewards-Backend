@@ -125,8 +125,11 @@ export async function POST(req: Request) {
       await referralUser.save();
     }
 
-    // TODO: fix
-    // await sendSignupEmail(email, verificationLink);
+    try {
+      await sendSignupEmail(email, verificationLink);
+    } catch (emailErr) {
+      console.error("Signup email failed to send:", emailErr);
+    }
 
     if (!JWT_SECRET) {
       return Response.json(

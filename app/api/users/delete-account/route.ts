@@ -1,29 +1,30 @@
 import connectToDatabase from "@/lib/mongodb";
-import { getAuthenticatedUserId } from "@/lib/auth";
 import { UserModel } from "@/lib/models";
 
-export async function GET() {
-  return Response.json({
-    message:
-      "This is a delete route for testing purposes. Use the same route with the DELETE method and auth cookie to delete the user",
-  });
-}
+// export async function GET() {
+//   return Response.json({
+//     message:
+//       "This is a delete route for testing purposes. Use the same route with the DELETE method and provide email in request body to delete the user",
+//   });
+// }
 
 export async function DELETE(req: Request) {
   try {
     await connectToDatabase();
 
-    const userId = await getAuthenticatedUserId({
-      headers: {
-        authorization: req.headers.get("authorization") ?? undefined,
-      },
-    });
+    const body = await req.json();
+    const email = body?.email;
 
-    if (!userId) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    if (!email) {
+      return Response.json(
+        { error: "You must enter an email." },
+        { status: 400 },
+      );
     }
 
-    const user = await UserModel.findByIdAndDelete(userId);
+    const normalizedEmail = email.toLowerCase();
+
+    const user = await UserModel.findOneAndDelete({ email: normalizedEmail });
 
     if (!user) {
       return Response.json({ error: "User not found" }, { status: 404 });

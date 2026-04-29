@@ -27,8 +27,6 @@ export async function GET(req: Request) {
       brands.map((b) => [normalize(b.registrationNumber), b]),
     );
 
-    const userObjectId = new mongoose.Types.ObjectId(userId);
-
     const discounts = campaigns
       .map((campaign) => {
         const brand = brandByRegistration.get(normalize(campaign.brandRegistration));
@@ -47,9 +45,7 @@ export async function GET(req: Request) {
           },
           startDate: campaign.startDate,
           endDate: campaign.endDate,
-          isAvailed: campaign.users?.some(
-            (u) => u.toString() === userObjectId.toString(),
-          ) ?? false,
+          isAvailed: false,
         };
       })
       .filter(Boolean);
@@ -81,11 +77,10 @@ export async function PATCH(req: Request) {
       return Response.json({ error: "discountId is required." }, { status: 400 });
     }
 
-    const campaign = await CampaignModel.findOneAndUpdate(
-      { _id: discountId, status: { $ne: "EXPIRED" } },
-      { $addToSet: { users: new mongoose.Types.ObjectId(userId) } },
-      { new: true },
-    );
+    const campaign = await CampaignModel.findOne({
+      _id: discountId,
+      status: { $ne: "EXPIRED" },
+    }).lean();
 
     if (!campaign) {
       return Response.json({ error: "Campaign not found." }, { status: 404 });
@@ -100,6 +95,43 @@ export async function PATCH(req: Request) {
       : campaign.discountCodes[Math.floor(Math.random() * campaign.discountCodes.length)];
 
     return Response.json({ code });
+  } catch (error: any) {
+    return Response.json(
+      { error: error?.message || "Your request could not be processed. Please try again." },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    await connectToDatabase();
+
+    const userId = await getAuthenticatedUserId({
+      headers: { authorization: req.headers.get("authorization") ?? undefined },
+    });
+
+    if (!userId) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { discountId } = await req.json();
+
+    if (!discountId) {
+      return Response.json({ error: "discountId is required." }, { status: 400 });
+    }
+
+    const campaign = await CampaignModel.findOneAndUpdate(
+      { _id: discountId, status: { $ne: "EXPIRED" } },
+      { $addToSet: { users: new mongoose.Types.ObjectId(userId) } },
+      { new: true },
+    );
+
+    if (!campaign) {
+      return Response.json({ error: "Campaign not found." }, { status: 404 });
+    }
+
+    return Response.json({ success: true });
   } catch (error: any) {
     return Response.json(
       { error: error?.message || "Your request could not be processed. Please try again." },

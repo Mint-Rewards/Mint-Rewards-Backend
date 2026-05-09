@@ -4,6 +4,14 @@ import dbConnect from '@/lib/mongodb';
 import { UserModel } from '@/lib/models';
 import { SignOptions } from 'jsonwebtoken';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+
+async function generateMintId(): Promise<string> {
+  const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
+  const existing = await UserModel.findOne({ mintId });
+  return existing ? generateMintId() : mintId;
+}
 
 const client = new OAuth2Client(process.env.GOOGLE_IOS_CLIENT_ID);
 
@@ -42,13 +50,20 @@ export async function POST(req: NextRequest) {
 
     await dbConnect();
 
-    // Find user by email
-    const user = await UserModel.findOne({ email: email?.toLowerCase() });
+    // Find or create user
+    let user = await UserModel.findOne({ email: email?.toLowerCase() });
 
     if (!user) {
-      return NextResponse.json({
-        Status: 'Error',
-        ErrorMessage: 'No account found with this Google email. Please register first.',
+      const mintId = await generateMintId();
+      const randomPassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+      user = await UserModel.create({
+        userName: name || email?.split('@')[0] || 'User',
+        email: email?.toLowerCase(),
+        password: randomPassword,
+        avatar: picture || '',
+        mintId,
+        emailVerified: true,
+        firstTimeLogin: true,
       });
     }
     if (!JWT_SECRET) {

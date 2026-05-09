@@ -12,7 +12,8 @@ export async function DELETE(req: Request) {
   try {
     await connectToDatabase();
 
-    const body = await req.json();
+    let body: any = {};
+    try { body = await req.json(); } catch { /* no body */ }
     const email = body?.email;
 
     if (!email) {

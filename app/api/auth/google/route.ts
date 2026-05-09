@@ -60,10 +60,10 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Google auth error:', error.message);
+    console.error('Google auth error:', error.message, error.stack);
     return NextResponse.json(
-      { Status: 'Error', ErrorMessage: 'Authentication failed' },
-      { status: 500 }
+        { Status: 'Error', ErrorMessage: error.message }, // ← surface real error
+        { status: 500 }
     );
-  }
+    }
 }

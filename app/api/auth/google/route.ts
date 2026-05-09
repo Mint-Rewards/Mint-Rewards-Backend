@@ -10,7 +10,6 @@ const client = new OAuth2Client(process.env.GOOGLE_IOS_CLIENT_ID);
 const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
-
 export async function POST(req: NextRequest) {
   try {
     const { idToken } = await req.json();

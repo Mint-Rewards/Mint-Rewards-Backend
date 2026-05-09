@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OAuth2Client } from 'google-auth-library';
+import dbConnect from '@/lib/mongodb';
+import { UserModel } from '@/lib/models';
 
 const client = new OAuth2Client(process.env.GOOGLE_IOS_CLIENT_ID);
 
@@ -28,22 +30,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { email, name, picture, sub: googleId } = payload;
+    const { email, name, picture } = payload;
 
-    // TODO: Find or create user in MongoDB
-    // const user = await User.findOneAndUpdate(
-    //   { googleId },
-    //   { email, name, picture, googleId },
-    //   { upsert: true, new: true }
-    // );
+    await dbConnect();
+
+    // Find user by email
+    const user = await UserModel.findOne({ email: email?.toLowerCase() });
+
+    if (!user) {
+      return NextResponse.json({
+        Status: 'Error',
+        ErrorMessage: 'No account found with this Google email. Please register first.',
+      });
+    }
 
     return NextResponse.json({
       Status: 'Success',
       data: {
-        email,
-        name,
-        picture,
-        googleId,
+        _id: user._id,
+        userName: user.userName,
+        email: user.email,
+        avatar: user.avatar,
+        points: user.points,
+        mintId: user.mintId,
+        role: user.role,
+        firstTimeLogin: user.firstTimeLogin,
+        picture, // from Google, in case you want to use it as fallback avatar
       },
     });
 

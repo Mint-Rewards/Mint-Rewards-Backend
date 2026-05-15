@@ -32,6 +32,9 @@ export async function GET(req: Request) {
         const brand = brandByRegistration.get(normalize(campaign.brandRegistration));
         if (!brand) return null;
 
+        const isAvailed = Array.isArray(campaign.users) &&
+          campaign.users.some((u) => u.toString() === userId);
+
         return {
           _id: campaign._id,
           name: campaign.name,
@@ -45,7 +48,7 @@ export async function GET(req: Request) {
           },
           startDate: campaign.startDate,
           endDate: campaign.endDate,
-          isAvailed: false,
+          isAvailed,
         };
       })
       .filter(Boolean);

@@ -307,6 +307,7 @@ const UserSchema = new Schema<UserDocument>(
     otpVerification: String,
     emailVerified: { type: Boolean, default: false },
     verificationToken: String,
+    appleId: { type: String, sparse: true, unique: true },
   },
   { timestamps: false },
 );

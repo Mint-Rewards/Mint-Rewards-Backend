@@ -194,6 +194,7 @@ export interface User {
   otpVerification?: string;
   emailVerified: boolean;
   verificationToken?: string;
+  appleId?: string;
 }
 
 export interface UserDocument extends User, Document {}

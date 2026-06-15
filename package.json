@@ -48,6 +48,12 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
+    "setupFiles": [
+      "dotenv/config"
+    ],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1"
+    },
     "testMatch": [
       "**/__tests__/**/*.test.ts"
     ]

@@ -30,15 +30,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify the token with Google
-    const ticket = await client.verifyIdToken({
-      idToken,
-      audience: [
-            process.env.GOOGLE_IOS_CLIENT_ID!,
-            process.env.GOOGLE_WEB_CLIENT_ID!,
-      ]
-    });
+    let payload;
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: [
+              process.env.GOOGLE_IOS_CLIENT_ID!,
+              process.env.GOOGLE_WEB_CLIENT_ID!,
+        ]
+      });
+      payload = ticket.getPayload();
+    } catch {
+      payload = null;
+    }
 
-    const payload = ticket.getPayload();
     if (!payload) {
       return NextResponse.json(
         { Status: 'Error', ErrorMessage: 'Invalid token' },

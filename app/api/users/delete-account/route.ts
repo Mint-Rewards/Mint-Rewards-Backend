@@ -10,8 +10,6 @@ import { UserModel } from "@/lib/models";
 
 export async function DELETE(req: Request) {
   try {
-    await connectToDatabase();
-
     let body: any = {};
     try { body = await req.json(); } catch { /* no body */ }
     const email = body?.email;
@@ -22,6 +20,8 @@ export async function DELETE(req: Request) {
         { status: 400 },
       );
     }
+
+    await connectToDatabase();
 
     const normalizedEmail = email.toLowerCase();
 

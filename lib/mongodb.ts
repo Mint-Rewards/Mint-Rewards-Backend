@@ -1,10 +1,12 @@
 import mongoose from "mongoose";
 
+type MongooseCache = {
+  conn: typeof import("mongoose") | null;
+  promise: Promise<typeof import("mongoose")> | null;
+};
+
 declare global {
-  var mongoose: {
-    conn: typeof import("mongoose") | null;
-    promise: Promise<typeof import("mongoose")> | null;
-  };
+  var mongoose: MongooseCache | undefined;
 }
 
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -19,12 +21,16 @@ if (!MONGODB_URI) {
  * Global is used here to maintain a cached connection across hot reloads
  * in development. This prevents connections growing exponentially
  * during API Route usage.
+ *
+ * Under Jest, writing this cache onto `global` trips jest-util's
+ * cross-test-file global leak detection: a late write to `cached.promise`
+ * (e.g. after a rejected connection) lands on a "soft deleted" global and
+ * crashes the worker with "Maximum call stack size exceeded". Tests don't
+ * need the hot-reload behavior, so use a plain module-level cache instead.
  */
-let cached = global.mongoose;
-
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
-}
+const cached: MongooseCache = process.env.JEST_WORKER_ID
+  ? { conn: null, promise: null }
+  : (global.mongoose ??= { conn: null, promise: null });
 
 // Primary database connection
 async function connectToDatabase() {

@@ -77,8 +77,7 @@ export async function POST(req: NextRequest) {
       expiresIn: JWT_EXPIRES_IN as SignOptions['expiresIn'],
     });
 
-    const userResponse = user.toObject();
-    delete userResponse.password;
+    const { password: _password, ...userResponse } = user.toObject();
 
     return NextResponse.json({
       Status: 'Success',

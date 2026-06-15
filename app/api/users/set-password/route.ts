@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     }
 
     user.password = hashedPassword;
-    user.otpVerification = null;
+    user.otpVerification = undefined;
     await user.save();
 
     return Response.json({

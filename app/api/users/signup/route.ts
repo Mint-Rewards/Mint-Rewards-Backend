@@ -143,8 +143,7 @@ export async function POST(req: Request) {
       expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
     });
 
-    const userResponse = newUser.toObject();
-    delete userResponse.password;
+    const { password: _password, ...userResponse } = newUser.toObject();
 
     return Response.json({
       success: true,

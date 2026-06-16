@@ -30,15 +30,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify the token with Google
-    const ticket = await client.verifyIdToken({
-      idToken,
-      audience: [
-            process.env.GOOGLE_IOS_CLIENT_ID!,
-            process.env.GOOGLE_WEB_CLIENT_ID!,
-      ]
-    });
+    let payload;
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: [
+              process.env.GOOGLE_IOS_CLIENT_ID!,
+              process.env.GOOGLE_WEB_CLIENT_ID!,
+        ]
+      });
+      payload = ticket.getPayload();
+    } catch {
+      payload = null;
+    }
 
-    const payload = ticket.getPayload();
     if (!payload) {
       return NextResponse.json(
         { Status: 'Error', ErrorMessage: 'Invalid token' },
@@ -77,8 +82,7 @@ export async function POST(req: NextRequest) {
       expiresIn: JWT_EXPIRES_IN as SignOptions['expiresIn'],
     });
 
-    const userResponse = user.toObject();
-    delete userResponse.password;
+    const { password: _password, ...userResponse } = user.toObject();
 
     return NextResponse.json({
       Status: 'Success',

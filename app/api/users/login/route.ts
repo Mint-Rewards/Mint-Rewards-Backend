@@ -96,8 +96,7 @@ export async function POST(req: Request) {
 
     const userCount = await UserModel.countDocuments();
 
-    const userResponse = user.toObject();
-    delete userResponse.password;
+    const { password: _password, ...userResponse } = user.toObject();
 
     return Response.json({
       users: userCount,

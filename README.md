@@ -369,3 +369,4 @@ Email is sent via Nodemailer over SMTP (configured through `NEXT_SMTP_*` env var
 | `paswordReset`              | Password reset OTP                   |
 | `referralEmail`             | Referral invitations                 |
 | `profileNotComplete`        | Profile completion reminder          |
+# pipeline verified

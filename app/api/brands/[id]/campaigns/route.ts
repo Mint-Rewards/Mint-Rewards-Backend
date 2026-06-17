@@ -45,12 +45,12 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (brand.status !== "APPROVED") {
-      return Response.json(
-        { success: false, message: "Only approved brands can create campaigns" },
-        { status: 403 },
-      );
-    }
+    // if (brand.status !== "APPROVED") {
+    //   return Response.json(
+    //     { success: false, message: "Only approved brands can create campaigns" },
+    //     { status: 403 },
+    //   );
+    // }
 
     let body: Record<string, unknown> = {};
     try {
@@ -96,13 +96,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       brand: id,
       brandRegistration: brand.registrationNumber,
       status: "PENDING",
-      description: body.description ?? undefined,
-      campaignType: body.campaignType ?? undefined,
-      targetAudience: body.targetAudience ?? undefined,
-      budget: typeof body.budget === "number" ? body.budget : undefined,
-      backgroundColor: body.backgroundColor ?? undefined,
-      badge: body.badge ?? undefined,
-      subtitle: body.subtitle ?? undefined,
+      ...(typeof body.description === "string" && { description: body.description }),
+      ...(typeof body.campaignType === "string" && { campaignType: body.campaignType }),
+      ...(typeof body.targetAudience === "string" && { targetAudience: body.targetAudience }),
+      ...(typeof body.budget === "number" && { budget: body.budget }),
+      ...(typeof body.backgroundColor === "string" && { backgroundColor: body.backgroundColor }),
+      ...(typeof body.badge === "string" && { badge: body.badge }),
+      ...(typeof body.subtitle === "string" && { subtitle: body.subtitle }),
     });
 
     return Response.json({ success: true, campaign }, { status: 201 });

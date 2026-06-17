@@ -81,16 +81,8 @@ const CampaignSchema = new Schema<CampaignDocument>(
     name: stringRequired,
     startDate: stringRequired,
     endDate: stringRequired,
-    discountCodes: {
-      type: [String],
-      required: true,
-      validate: {
-        validator: (codes: string[]) =>
-          Array.isArray(codes) && codes.length > 0,
-        message: "Discount codes must be a non empty array.",
-      },
-    },
-    isSingleCode: { type: Boolean, required: true },
+    discountCodes: { type: [String], default: [] },
+    isSingleCode: { type: Boolean, default: false },
     discountPercentage: String,
     addresses: [
       {
@@ -106,18 +98,21 @@ const CampaignSchema = new Schema<CampaignDocument>(
       default: "PENDING",
       required: true,
     },
-    users: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
+    users: [{ type: Schema.Types.ObjectId, ref: "User" }],
     brand: {
       type: Schema.Types.ObjectId,
       ref: "Brand",
       required: true,
     },
-    brandRegistration: stringRequired,
+    brandRegistration: { type: String, default: "" },
+    // Brand-portal fields (set at creation time)
+    description: String,
+    campaignType: String,
+    targetAudience: String,
+    budget: Number,
+    backgroundColor: String,
+    badge: String,
+    subtitle: String,
   },
   { timestamps: false },
 );

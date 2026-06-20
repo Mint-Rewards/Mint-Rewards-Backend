@@ -5,6 +5,7 @@ import {
   BrandThemeDocument,
   CampaignDocument,
   CollectionDocument,
+  DealDocument,
   DiscountDocument,
   LocationDocument,
   LogisticsDocument,
@@ -407,11 +408,36 @@ export const Log = mongoose.model<ILog>("Log", LogSchema);
 
 export const UserModel = getModel<UserDocument>("User", UserSchema, "users");
 
+const DealSchema = new Schema<DealDocument>(
+  {
+    brand: { type: Schema.Types.ObjectId, ref: "Brand", required: true },
+    title: stringRequired,
+    description: stringDefaultEmpty,
+    discountPercentage: { type: Number, default: null },
+    discountAmount: { type: Number, default: null },
+    promoCode: { type: String, default: null },
+    startDate: { type: String, default: null },
+    endDate: { type: String, default: null },
+    maxUses: { type: Number, default: null },
+    currentUses: { type: Number, default: 0 },
+    minimumPurchase: { type: Number, default: null },
+    status: {
+      type: String,
+      enum: ["active", "inactive", "expired"],
+      default: "active",
+    },
+  },
+  { timestamps: true },
+);
+
+export const DealModel = getModel<DealDocument>("Deal", DealSchema, "deals");
+
 export type {
   BrandDocument,
   CampaignDocument,
   CaptainDocument,
   CollectionDocument,
+  DealDocument,
   DiscountDocument,
   LocationDocument,
   LogisticsDocument,

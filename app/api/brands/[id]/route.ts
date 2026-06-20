@@ -2,6 +2,17 @@ import { NextResponse, type NextRequest } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel } from "@/lib/models";
 
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, PATCH, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
+}
+
 interface RouteParams {
   params: Promise<{
     id: string;

@@ -205,3 +205,20 @@ export interface User {
 }
 
 export interface UserDocument extends User, Document {}
+
+export interface Deal {
+  brand: Types.ObjectId;
+  title: string;
+  description?: string;
+  discountPercentage?: number | null;
+  discountAmount?: number | null;
+  promoCode?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  maxUses?: number | null;
+  currentUses: number;
+  minimumPurchase?: number | null;
+  status: "active" | "inactive" | "expired";
+}
+
+export interface DealDocument extends Deal, Document {}

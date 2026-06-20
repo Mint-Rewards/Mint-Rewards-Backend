@@ -38,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: RouteParams
 ) {
   // Temporary admin guardard - replace with proper auth in the future
   const authHeader = req.headers.get("authorization");
@@ -46,6 +46,7 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
+  const { id } = await params;
   const { status, reason } = await req.json();
 
   const validStatuses = ["APPROVED", "REJECTED"];
@@ -62,7 +63,7 @@ export async function PATCH(
   if (reason) update.rejectionReason = reason;
 
   const brand = await BrandModel.findByIdAndUpdate(
-    params.id,
+    id,
     { $set: update },
     { new: true, runValidators: true }
   ).select("-password -verificationToken");

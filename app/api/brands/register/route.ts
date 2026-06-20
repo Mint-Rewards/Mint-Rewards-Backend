@@ -86,6 +86,7 @@ export async function POST(req: Request) {
       const blob = await put(`brands/${uniqueName}`, fileBuffer, {
         access: "public",
         contentType: logoFile.type || "application/octet-stream",
+        token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
       });
 
       logoUrl = blob.url;

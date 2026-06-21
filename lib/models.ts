@@ -80,8 +80,8 @@ const BrandSchema = new Schema<BrandDocument>(
 const CampaignSchema = new Schema<CampaignDocument>(
   {
     name: stringRequired,
-    startDate: stringRequired,
-    endDate: stringRequired,
+    startDate: String,
+    endDate: String,
     discountCodes: { type: [String], default: [] },
     isSingleCode: { type: Boolean, default: false },
     discountPercentage: String,
@@ -114,6 +114,7 @@ const CampaignSchema = new Schema<CampaignDocument>(
     backgroundColor: String,
     badge: String,
     subtitle: String,
+    banner: String,
   },
   { timestamps: false },
 );

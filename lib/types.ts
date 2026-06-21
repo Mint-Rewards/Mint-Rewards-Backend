@@ -60,6 +60,7 @@ export interface Campaign {
   backgroundColor?: string;
   badge?: string;
   subtitle?: string;
+  banner?: string;
 }
 
 export interface CampaignDocument extends Campaign, Document {}

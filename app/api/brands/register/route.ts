@@ -94,6 +94,23 @@ export async function POST(req: Request) {
 
     const normalizedEmail = payload.contactEmail.toLowerCase();
 
+    const existing = await BrandModel.findOne({
+      $or: [
+        { email: normalizedEmail },
+        { registrationNumber: payload.registrationNumber },
+      ],
+    }).lean();
+
+    if (existing) {
+      return Response.json(
+        {
+          success: false,
+          message: "A brand with this email or registration number already exists",
+        },
+        { status: 409 },
+      );
+    }
+
     const brand = await BrandModel.create({
       companyName: payload.companyName,
       brandName: payload.brandName,

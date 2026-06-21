@@ -88,7 +88,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         const blob = await put(
           `campaigns/${id}/banner-${Date.now()}${ext}`,
           Buffer.from(await bannerFile.arrayBuffer()),
-          { access: "public", contentType: bannerFile.type || "image/jpeg" },
+          {
+            access: "public",
+            contentType: bannerFile.type || "image/jpeg",
+            token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
+          },
         );
         bannerUrl = blob.url;
       }

@@ -1,9 +1,22 @@
 import { type NextRequest } from "next/server";
+import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel, CampaignModel } from "@/lib/models";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
+
 interface RouteParams {
   params: Promise<{ id: string }>;
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
@@ -45,54 +58,64 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // if (brand.status !== "APPROVED") {
-    //   return Response.json(
-    //     { success: false, message: "Only approved brands can create campaigns" },
-    //     { status: 403 },
-    //   );
-    // }
-
+    const contentType = req.headers.get("content-type") ?? "";
     let body: Record<string, unknown> = {};
-    try {
-      body = (await req.json()) as Record<string, unknown>;
-    } catch {
-      return Response.json(
-        { success: false, message: "Invalid JSON body" },
-        { status: 400 },
-      );
+    let bannerUrl = "";
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      for (const [key, value] of formData.entries()) {
+        if (key !== "banner") body[key] = value;
+      }
+
+      const bannerFile = formData.get("banner");
+      if (bannerFile instanceof File && bannerFile.size > 0) {
+        if (!bannerFile.type.startsWith("image/")) {
+          return Response.json(
+            { success: false, message: "Banner must be an image file" },
+            { status: 400 },
+          );
+        }
+        if (bannerFile.size > MAX_BANNER_BYTES) {
+          return Response.json(
+            { success: false, message: "Banner must be under 5 MB" },
+            { status: 400 },
+          );
+        }
+        const ext = bannerFile.name.includes(".")
+          ? `.${bannerFile.name.split(".").pop()?.toLowerCase()}`
+          : "";
+        const blob = await put(
+          `campaigns/${id}/banner-${Date.now()}${ext}`,
+          Buffer.from(await bannerFile.arrayBuffer()),
+          { access: "public", contentType: bannerFile.type || "image/jpeg" },
+        );
+        bannerUrl = blob.url;
+      }
+    } else {
+      try {
+        body = (await req.json()) as Record<string, unknown>;
+      } catch {
+        return Response.json(
+          { success: false, message: "Invalid request body" },
+          { status: 400 },
+        );
+      }
     }
 
     const { name, startDate, endDate } = body;
 
-    if (!name || typeof name !== "string" || name.trim() === "") {
+    if (!name || typeof name !== "string" || (name as string).trim() === "") {
       return Response.json(
         { success: false, message: "name is required" },
         { status: 400 },
       );
     }
-    if (!startDate || typeof startDate !== "string") {
-      return Response.json(
-        { success: false, message: "startDate is required" },
-        { status: 400 },
-      );
-    }
-    if (!endDate || typeof endDate !== "string") {
-      return Response.json(
-        { success: false, message: "endDate is required" },
-        { status: 400 },
-      );
-    }
-    if (new Date(endDate) <= new Date(startDate)) {
-      return Response.json(
-        { success: false, message: "endDate must be after startDate" },
-        { status: 400 },
-      );
-    }
 
     const campaign = await CampaignModel.create({
-      name: name.trim(),
-      startDate,
-      endDate,
+      name: (name as string).trim(),
+      ...(typeof startDate === "string" && startDate && { startDate }),
+      ...(typeof endDate === "string" && endDate && { endDate }),
       brand: id,
       brandRegistration: brand.registrationNumber,
       status: "PENDING",
@@ -100,9 +123,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       ...(typeof body.campaignType === "string" && { campaignType: body.campaignType }),
       ...(typeof body.targetAudience === "string" && { targetAudience: body.targetAudience }),
       ...(typeof body.budget === "number" && { budget: body.budget }),
+      ...(body.budget && !Number.isNaN(Number(body.budget)) && typeof body.budget !== "number"
+        ? { budget: Number(body.budget) }
+        : {}),
       ...(typeof body.backgroundColor === "string" && { backgroundColor: body.backgroundColor }),
       ...(typeof body.badge === "string" && { badge: body.badge }),
       ...(typeof body.subtitle === "string" && { subtitle: body.subtitle }),
+      ...(bannerUrl && { banner: bannerUrl }),
     });
 
     return Response.json({ success: true, campaign }, { status: 201 });

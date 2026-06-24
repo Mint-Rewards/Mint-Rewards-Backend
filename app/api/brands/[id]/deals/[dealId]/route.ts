@@ -1,6 +1,7 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { DealModel } from "@/lib/models";
+import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -43,6 +44,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         { success: false, message: "Invalid JSON body" },
         { status: 400 },
       );
+    }
+
+    if ("status" in body) {
+      const auth = requireAdminAuth(req);
+      if (auth instanceof NextResponse) return auth;
     }
 
     const update: Record<string, unknown> = {};

@@ -792,7 +792,6 @@ async function testAdminViews() {
 
 console.log(`\n${BOLD}MintRewards API Test Runner${RESET}`);
 console.log(`${DIM}Target: ${BASE}${RESET}`);
-console.log(`${DIM}Admin:  ${ADMIN_SECRET.slice(0, 8)}…${RESET}`);
 
 try {
   await testRegistration();

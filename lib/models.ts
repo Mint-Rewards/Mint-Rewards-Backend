@@ -5,6 +5,7 @@ import {
   BrandThemeDocument,
   CampaignDocument,
   CollectionDocument,
+  DealDocument,
   DiscountDocument,
   LocationDocument,
   LogisticsDocument,
@@ -79,18 +80,10 @@ const BrandSchema = new Schema<BrandDocument>(
 const CampaignSchema = new Schema<CampaignDocument>(
   {
     name: stringRequired,
-    startDate: stringRequired,
-    endDate: stringRequired,
-    discountCodes: {
-      type: [String],
-      required: true,
-      validate: {
-        validator: (codes: string[]) =>
-          Array.isArray(codes) && codes.length > 0,
-        message: "Discount codes must be a non empty array.",
-      },
-    },
-    isSingleCode: { type: Boolean, required: true },
+    startDate: String,
+    endDate: String,
+    discountCodes: { type: [String], default: [] },
+    isSingleCode: { type: Boolean, default: false },
     discountPercentage: String,
     addresses: [
       {
@@ -106,18 +99,22 @@ const CampaignSchema = new Schema<CampaignDocument>(
       default: "PENDING",
       required: true,
     },
-    users: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
+    users: [{ type: Schema.Types.ObjectId, ref: "User" }],
     brand: {
       type: Schema.Types.ObjectId,
       ref: "Brand",
       required: true,
     },
-    brandRegistration: stringRequired,
+    brandRegistration: { type: String, default: "" },
+    // Brand-portal fields (set at creation time)
+    description: String,
+    campaignType: String,
+    targetAudience: String,
+    budget: Number,
+    backgroundColor: String,
+    badge: String,
+    subtitle: String,
+    banner: String,
   },
   { timestamps: false },
 );
@@ -412,11 +409,36 @@ export const Log = mongoose.model<ILog>("Log", LogSchema);
 
 export const UserModel = getModel<UserDocument>("User", UserSchema, "users");
 
+const DealSchema = new Schema<DealDocument>(
+  {
+    brand: { type: Schema.Types.ObjectId, ref: "Brand", required: true },
+    title: stringRequired,
+    description: stringDefaultEmpty,
+    discountPercentage: { type: Number, default: null },
+    discountAmount: { type: Number, default: null },
+    promoCode: { type: String, default: null },
+    startDate: { type: String, default: null },
+    endDate: { type: String, default: null },
+    maxUses: { type: Number, default: null },
+    currentUses: { type: Number, default: 0 },
+    minimumPurchase: { type: Number, default: null },
+    status: {
+      type: String,
+      enum: ["active", "inactive", "expired"],
+      default: "active",
+    },
+  },
+  { timestamps: true },
+);
+
+export const DealModel = getModel<DealDocument>("Deal", DealSchema, "deals");
+
 export type {
   BrandDocument,
   CampaignDocument,
   CaptainDocument,
   CollectionDocument,
+  DealDocument,
   DiscountDocument,
   LocationDocument,
   LogisticsDocument,

@@ -39,20 +39,28 @@ export interface CampaignAddress {
   town: string;
 }
 
-export type CampaignStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type CampaignStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED";
 
 export interface Campaign {
   name: string;
   startDate: string;
   endDate: string;
-  discountCodes: string[];
-  isSingleCode: boolean;
+  discountCodes?: string[];
+  isSingleCode?: boolean;
   discountPercentage?: string;
-  addresses: CampaignAddress[];
+  addresses?: CampaignAddress[];
   status: CampaignStatus;
-  users: Types.ObjectId[];
+  users?: Types.ObjectId[];
   brand: Types.ObjectId;
-  brandRegistration: string;
+  brandRegistration?: string;
+  description?: string;
+  campaignType?: string;
+  targetAudience?: string;
+  budget?: number;
+  backgroundColor?: string;
+  badge?: string;
+  subtitle?: string;
+  banner?: string;
 }
 
 export interface CampaignDocument extends Campaign, Document {}
@@ -198,3 +206,20 @@ export interface User {
 }
 
 export interface UserDocument extends User, Document {}
+
+export interface Deal {
+  brand: Types.ObjectId;
+  title: string;
+  description?: string;
+  discountPercentage?: number | null;
+  discountAmount?: number | null;
+  promoCode?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  maxUses?: number | null;
+  currentUses: number;
+  minimumPurchase?: number | null;
+  status: "active" | "inactive" | "expired";
+}
+
+export interface DealDocument extends Deal, Document {}

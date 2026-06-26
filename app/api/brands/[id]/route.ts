@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel } from "@/lib/models";
+import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 export async function OPTIONS() {
   return new Response(null, {
@@ -51,11 +52,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: RouteParams
 ) {
-  // Temporary admin guardard - replace with proper auth in the future
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.ADMIN_SECRET}`) {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = requireAdminAuth(req);
+  if (auth instanceof NextResponse) return auth;
 
   const { id } = await params;
   const { status, reason } = await req.json();

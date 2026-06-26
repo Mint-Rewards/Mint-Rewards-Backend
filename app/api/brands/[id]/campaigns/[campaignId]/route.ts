@@ -1,7 +1,8 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
 import { CampaignModel } from "@/lib/models";
+import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -9,7 +10,6 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET ?? process.env.VITE_ADMIN_SECRET;
 const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
 
 interface RouteParams {
@@ -41,9 +41,6 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     await connectToDatabase();
 
     const { id, campaignId } = await params;
-
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const isAdmin = ADMIN_SECRET && authHeader === `Bearer ${ADMIN_SECRET}`;
 
     const contentType = req.headers.get("content-type") ?? "";
     let body: Record<string, unknown> = {};
@@ -96,14 +93,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     const update: Record<string, unknown> = {};
 
+    const hasAdminField = Object.keys(body).some((k) => ADMIN_ONLY.has(k));
+    if (hasAdminField) {
+      const auth = requireAdminAuth(req);
+      if (auth instanceof NextResponse) return auth;
+    }
+
     for (const [key, value] of Object.entries(body)) {
       if (ADMIN_ONLY.has(key)) {
-        if (!isAdmin) {
-          return Response.json(
-            { success: false, message: "Unauthorized: admin access required to change status" },
-            { status: 403 },
-          );
-        }
         update[key] = typeof value === "string" ? value.toUpperCase() : value;
       } else if (BRAND_EDITABLE.has(key) && value !== undefined && value !== null) {
         update[key] = typeof value === "string" ? value.trim() : value;

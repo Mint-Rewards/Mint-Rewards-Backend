@@ -12,12 +12,13 @@ const BASE = USE_LOCAL
   ? "http://localhost:3000/api"
   : "https://mint-rewards-backend-git-feature-b-78cea7-mint-rewards-projects.vercel.app/api";
 
-// For deployed Vercel: pass the secret from the Vercel dashboard via env var:
-//   ADMIN_SECRET=<vercel-secret> node scripts/test-api.mjs
-// For local: the value from .env is used automatically (loaded externally or hardcoded below).
-const ADMIN_SECRET =
-  process.env.ADMIN_SECRET ||
-  "7076e391c7dbe7da0b96bb660b0fa265ecf1055b3b2f32990745723205ccabec";
+// Pass the secret via env var (from .env for local, or Vercel dashboard for deployed):
+//   ADMIN_SECRET=<secret> node scripts/test-api.mjs
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
+if (!ADMIN_SECRET) {
+  console.error("Error: ADMIN_SECRET env var is required.");
+  process.exit(1);
+}
 
 // ─── Shared state populated during the run ───────────────────────────────────
 let BRAND_ID = "";
@@ -791,7 +792,6 @@ async function testAdminViews() {
 
 console.log(`\n${BOLD}MintRewards API Test Runner${RESET}`);
 console.log(`${DIM}Target: ${BASE}${RESET}`);
-console.log(`${DIM}Admin:  ${ADMIN_SECRET.slice(0, 8)}…${RESET}`);
 
 try {
   await testRegistration();

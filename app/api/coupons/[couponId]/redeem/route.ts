@@ -67,9 +67,10 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       ? await BrandModel.findById(campaign.brand).lean()
       : null;
 
+    const codes = campaign.discountCodes ?? [];
     const couponCode = campaign.isSingleCode
-      ? campaign.discountCodes[0]
-      : campaign.discountCodes[Math.floor(Math.random() * campaign.discountCodes.length)];
+      ? codes[0]
+      : codes[Math.floor(Math.random() * codes.length)];
 
     const referenceCode = generateReferenceCode(couponId);
 

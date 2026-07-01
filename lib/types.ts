@@ -1,4 +1,5 @@
 import { Document, Types } from "mongoose";
+import type { OrgRole, ModuleAccessEntry } from "@/lib/modules";
 
 export type Role =
   | "ADMIN"
@@ -223,3 +224,21 @@ export interface Deal {
 }
 
 export interface DealDocument extends Deal, Document {}
+
+export interface Organization {
+  name: string;
+  plan: "starter" | "growth" | "enterprise";
+  subscribedModules: string[];
+}
+
+export interface OrganizationDocument extends Organization, Document {}
+
+export interface BrandUser {
+  orgId: Types.ObjectId;
+  email: string;
+  passwordHash: string;
+  orgRole: OrgRole;
+  moduleAccess: ModuleAccessEntry[];
+}
+
+export interface BrandUserDocument extends BrandUser, Document {}

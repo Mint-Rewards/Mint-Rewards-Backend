@@ -11,7 +11,10 @@ import {
   LogisticsDocument,
   CaptainDocument,
   UserDocument,
+  OrganizationDocument,
+  BrandUserDocument,
 } from "@/lib/types";
+import { PERMISSION_LEVELS, ORG_ROLES } from "@/lib/modules";
 
 // Kick off the shared connection once per process. Mongoose will buffer
 // operations until the underlying driver is connected.
@@ -433,6 +436,62 @@ const DealSchema = new Schema<DealDocument>(
 
 export const DealModel = getModel<DealDocument>("Deal", DealSchema, "deals");
 
+const ModuleAccessSchema = new Schema(
+  {
+    module: stringRequired,
+    permissions: [{ type: String, enum: PERMISSION_LEVELS }],
+  },
+  { _id: false },
+);
+
+const OrganizationSchema = new Schema<OrganizationDocument>(
+  {
+    name: stringRequired,
+    plan: {
+      type: String,
+      enum: ["starter", "growth", "enterprise"],
+      default: "starter",
+    },
+    subscribedModules: {
+      type: [String],
+      default: ["settings"],
+      validate: {
+        validator: (v: string[]) => v.includes("settings"),
+        message: "settings module cannot be removed",
+      },
+    },
+  },
+  { timestamps: true },
+);
+
+export const OrganizationModel = getModel<OrganizationDocument>(
+  "Organization",
+  OrganizationSchema,
+  "organizations",
+);
+
+const BrandUserSchema = new Schema<BrandUserDocument>(
+  {
+    orgId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      required: true,
+      index: true,
+    },
+    email: { ...stringRequired, unique: true, lowercase: true, trim: true },
+    passwordHash: stringRequired,
+    orgRole: { type: String, enum: ORG_ROLES, required: true },
+    moduleAccess: { type: [ModuleAccessSchema], default: [] },
+  },
+  { timestamps: true },
+);
+
+export const BrandUserModel = getModel<BrandUserDocument>(
+  "BrandUser",
+  BrandUserSchema,
+  "brandusers",
+);
+
 export type {
   BrandDocument,
   CampaignDocument,
@@ -444,4 +503,6 @@ export type {
   LogisticsDocument,
   BrandThemeDocument,
   UserDocument,
+  OrganizationDocument,
+  BrandUserDocument,
 };

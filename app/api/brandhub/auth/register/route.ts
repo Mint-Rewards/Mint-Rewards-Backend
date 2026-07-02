@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import connectToDatabase from "@/lib/mongodb";
-import { OrganizationModel, BrandUserModel } from "@/lib/models";
+import { Types } from "mongoose";
+import { OrganizationModel, BrandUserModel, BrandModel } from "@/lib/models";
 import { signBrandToken } from "@/lib/brandJwt";
 
 export async function OPTIONS() {
@@ -17,18 +18,21 @@ export async function OPTIONS() {
 
 /**
  * POST /api/brandhub/auth/register
- * Body:    { orgName: string; email: string; password: string }
+ * Body:    { orgName: string; email: string; password: string; brandName?: string }
  * Creates a new Organization and its first BrandUser as orgRole "owner".
- * Returns: { token: string; orgId: string; userId: string }
+ * If brandName is provided, also creates the org's first Brand.
+ * Returns: { token, orgId, userId, brands, defaultBrandId } — same shape as
+ * login whether or not a brand was created, so the frontend handles one contract.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const body = (await req.json().catch(() => null)) as {
     orgName?: string;
     email?: string;
     password?: string;
+    brandName?: string;
   } | null;
 
-  const { orgName, email, password } = body ?? {};
+  const { orgName, email, password, brandName } = body ?? {};
 
   if (!orgName || !email || !password) {
     return NextResponse.json(
@@ -73,8 +77,46 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     moduleAccess: [],
   });
 
+  const brands: {
+    id: string;
+    brandName: string;
+    companyName: string;
+    logo: string | null;
+  }[] = [];
+
+  if (brandName) {
+    // The legacy Brand schema requires several fields (with unique indexes
+    // on email and registrationNumber) that don't exist at registration
+    // time — fill them with unique placeholders keyed to the brand id.
+    const brandId = new Types.ObjectId();
+    const brand = await BrandModel.create({
+      _id: brandId,
+      orgId: org._id,
+      brandName,
+      companyName: orgName,
+      email: `brand-${brandId.toString()}@brandhub.local`,
+      category: "general",
+      webLink: "https://example.com",
+      contactName: normalizedEmail,
+      phone: "N/A",
+      registrationNumber: `BH-${brandId.toString()}`,
+    });
+    brands.push({
+      id: brand._id.toString(),
+      brandName: brand.brandName,
+      companyName: brand.companyName,
+      logo: brand.logo ?? null,
+    });
+  }
+
   return NextResponse.json(
-    { token, orgId: org._id.toString(), userId: user._id.toString() },
+    {
+      token,
+      orgId: org._id.toString(),
+      userId: user._id.toString(),
+      brands,
+      defaultBrandId: brands[0]?.id ?? null,
+    },
     { status: 201 },
   );
 }

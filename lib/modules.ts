@@ -2,10 +2,12 @@
 // or remove modules — module IDs are validated at the application layer via
 // isValidModuleId, not locked into a schema enum, so this is a one-line edit.
 
+import type { ModuleSubscription } from "@/lib/types";
+
 export interface ModuleDefinition {
   id: string;
   name: string;
-  locked?: boolean; // true = always in org.subscribedModules, cannot be removed
+  locked?: boolean; // true = org always has an active subscription, cannot be removed
 }
 
 export const MODULE_CATALOGUE: ModuleDefinition[] = [
@@ -53,6 +55,21 @@ export type OrgRole = (typeof ORG_ROLES)[number];
 export interface ModuleAccessEntry {
   module: ModuleId;
   permissions: PermissionLevel[];
+}
+
+// Single place subscription semantics live — middleware and any future
+// billing code both call this. Trial counts as access-granting, and expiry
+// is checked lazily at request time (no cron needed to flip statuses).
+export function hasActiveSubscription(
+  subscriptions: ModuleSubscription[],
+  moduleId: string,
+  now: Date = new Date(),
+): boolean {
+  const sub = subscriptions.find((s) => s.module === moduleId);
+  if (!sub) return false;
+  if (sub.status !== "active" && sub.status !== "trial") return false;
+  if (sub.expiresAt && new Date(sub.expiresAt) < now) return false;
+  return true;
 }
 
 export interface BrandJwtPayload {

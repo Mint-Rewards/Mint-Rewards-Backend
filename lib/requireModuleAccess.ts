@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { OrganizationModel } from "@/lib/models";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
-import { hasPermission, type ModuleId, type PermissionLevel } from "@/lib/modules";
+import {
+  hasActiveSubscription,
+  hasPermission,
+  type ModuleId,
+  type PermissionLevel,
+} from "@/lib/modules";
 import type { BrandJwtPayload } from "@/lib/modules";
 
 type AuthOk = { brandUser: BrandJwtPayload };
@@ -29,12 +34,12 @@ export async function requireModuleAccess(
   await connectToDatabase();
 
   const org = await OrganizationModel.findById(brandUser.orgId)
-    .select("subscribedModules")
+    .select("moduleSubscriptions")
     .lean();
 
-  if (!org || !org.subscribedModules.includes(moduleName)) {
+  if (!org || !hasActiveSubscription(org.moduleSubscriptions, moduleName)) {
     return NextResponse.json(
-      { error: "Not subscribed to this module" },
+      { error: "No active subscription for this module" },
       { status: 402 },
     );
   }

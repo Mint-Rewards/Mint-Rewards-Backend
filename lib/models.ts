@@ -13,6 +13,7 @@ import {
   UserDocument,
   OrganizationDocument,
   BrandUserDocument,
+  ModuleSubscription,
 } from "@/lib/types";
 import { PERMISSION_LEVELS, ORG_ROLES } from "@/lib/modules";
 
@@ -52,6 +53,8 @@ const stringDefaultEmpty = { type: String, default: "" } as const;
 
 const BrandSchema = new Schema<BrandDocument>(
   {
+    // Optional: legacy brands predate organizations and must stay valid.
+    orgId: { type: Schema.Types.ObjectId, ref: "Organization", index: true },
     companyName: stringRequired,
     brandName: stringRequired,
     email: { ...stringRequired, unique: true },
@@ -452,12 +455,32 @@ const OrganizationSchema = new Schema<OrganizationDocument>(
       enum: ["starter", "growth", "enterprise"],
       default: "starter",
     },
-    subscribedModules: {
-      type: [String],
-      default: ["settings"],
+    moduleSubscriptions: {
+      type: [
+        {
+          module: stringRequired,
+          status: {
+            type: String,
+            enum: ["active", "trial", "expired", "cancelled"],
+            required: true,
+          },
+          activatedAt: { type: Date, required: true },
+          expiresAt: { type: Date, default: null },
+          _id: false,
+        },
+      ],
+      default: () => [
+        {
+          module: "settings",
+          status: "active",
+          activatedAt: new Date(),
+          expiresAt: null,
+        },
+      ],
       validate: {
-        validator: (v: string[]) => v.includes("settings"),
-        message: "settings module cannot be removed",
+        validator: (subs: ModuleSubscription[]) =>
+          subs.some((s) => s.module === "settings" && s.status === "active"),
+        message: "settings module must always have an active subscription",
       },
     },
   },

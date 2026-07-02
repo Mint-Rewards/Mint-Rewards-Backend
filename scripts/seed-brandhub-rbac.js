@@ -13,24 +13,77 @@ if (!MONGODB_URI) {
 const DEMO_ORG_NAME = "Mint Rewards Demo";
 const DEMO_EMAILS = ["owner@demo.com", "admin@demo.com", "member@demo.com"];
 const DEMO_PASSWORD = "password123";
+const DEMO_BRAND_NAMES = [
+  "Demo Brand Alpha",
+  "Demo Brand Beta",
+  "Legacy Orphan Brand",
+];
+
+const DAY = 24 * 60 * 60 * 1000;
 
 async function main() {
   await mongoose.connect(MONGODB_URI, { bufferCommands: false });
 
   const organizations = mongoose.connection.collection("organizations");
   const brandusers = mongoose.connection.collection("brandusers");
+  const brands = mongoose.connection.collection("brands");
 
   await organizations.deleteMany({ name: DEMO_ORG_NAME });
   await brandusers.deleteMany({ email: { $in: DEMO_EMAILS } });
+  await brands.deleteMany({ brandName: { $in: DEMO_BRAND_NAMES } });
 
   const now = new Date();
   const { insertedId: orgId } = await organizations.insertOne({
     name: DEMO_ORG_NAME,
     plan: "growth",
-    subscribedModules: ["b2c", "analytics", "settings"],
+    moduleSubscriptions: [
+      { module: "settings", status: "active", activatedAt: now, expiresAt: null },
+      { module: "b2c", status: "active", activatedAt: now, expiresAt: null },
+      // trial path: access-granting until expiresAt
+      {
+        module: "analytics",
+        status: "trial",
+        activatedAt: now,
+        expiresAt: new Date(now.getTime() + 14 * DAY),
+      },
+      // lazy-expiry path: subscribed but expired must 402
+      {
+        module: "rewards",
+        status: "active",
+        activatedAt: new Date(now.getTime() - 60 * DAY),
+        expiresAt: new Date(now.getTime() - 30 * DAY),
+      },
+    ],
     createdAt: now,
     updatedAt: now,
   });
+
+  const demoBrand = (name, suffix, withOrg) => ({
+    ...(withOrg ? { orgId } : {}),
+    companyName: DEMO_ORG_NAME,
+    brandName: name,
+    email: `demo-brand-${suffix}@brandhub.local`,
+    category: "general",
+    description: "",
+    address: "",
+    webLink: "https://example.com",
+    appLink: "",
+    contactName: "Demo Contact",
+    phone: "N/A",
+    registrationNumber: `DEMO-${suffix}`,
+    domain: "",
+    themeColor: "#3B82F6",
+    status: "APPROVED",
+    role: "BRAND",
+    emailVerified: true,
+  });
+
+  const { insertedIds: brandIds } = await brands.insertMany([
+    demoBrand("Demo Brand Alpha", "alpha", true),
+    demoBrand("Demo Brand Beta", "beta", true),
+    // Legacy brand with NO orgId — verifies the 404-on-unowned-brand path
+    demoBrand("Legacy Orphan Brand", "orphan", false),
+  ]);
 
   const hash = (pw) => bcrypt.hash(pw, 10);
 
@@ -73,7 +126,12 @@ async function main() {
   console.log("Admin:   admin@demo.com  (orgRole: admin — all subscribed modules, full access)");
   console.log("Member:  member@demo.com (b2c:write, analytics:read)");
   console.log(`\nTest credentials: ${DEMO_PASSWORD} for all three accounts`);
-  console.log("Note: b2b and minttrace are NOT subscribed — 402 expected for those modules\n");
+  console.log("\nSubscriptions: settings+b2c active, analytics trial (14d),");
+  console.log("rewards EXPIRED (402 expected), b2b/minttrace never subscribed (402 expected)");
+  console.log("\nBrand IDs:");
+  console.log("  Alpha (org-owned): ", brandIds[0].toString());
+  console.log("  Beta  (org-owned): ", brandIds[1].toString());
+  console.log("  Orphan (no orgId): ", brandIds[2].toString(), "— 404 expected via brandhub\n");
 
   await mongoose.disconnect();
 }

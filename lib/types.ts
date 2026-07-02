@@ -11,6 +11,8 @@ export type Role =
   | "BRAND";
 
 export interface Brand {
+  // Optional: legacy brands predate organizations and have no owning org.
+  orgId?: Types.ObjectId;
   companyName: string;
   brandName: string;
   email: string;
@@ -225,10 +227,19 @@ export interface Deal {
 
 export interface DealDocument extends Deal, Document {}
 
+export type SubscriptionStatus = "active" | "trial" | "expired" | "cancelled";
+
+export interface ModuleSubscription {
+  module: string; // validated against MODULE_CATALOGUE at runtime, no enum
+  status: SubscriptionStatus;
+  activatedAt: Date;
+  expiresAt?: Date | null; // null/undefined = no expiry (e.g. locked modules, lifetime plans)
+}
+
 export interface Organization {
   name: string;
   plan: "starter" | "growth" | "enterprise";
-  subscribedModules: string[];
+  moduleSubscriptions: ModuleSubscription[];
 }
 
 export interface OrganizationDocument extends Organization, Document {}

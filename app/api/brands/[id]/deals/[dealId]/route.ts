@@ -2,16 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { DealModel } from "@/lib/models";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
-
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
-}
+import { requireBrandAuth } from "@/lib/requireBrandAuth";
+import { requireBrandScope } from "@/lib/requireBrandScope";
 
 interface RouteParams {
   params: Promise<{ id: string; dealId: string }>;
@@ -32,9 +24,15 @@ const ALLOWED_FIELDS = new Set([
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
-    await connectToDatabase();
-
     const { id, dealId } = await params;
+
+    const auth = requireBrandAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
+    const scope = await requireBrandScope(auth.brandUser, id);
+    if (scope instanceof NextResponse) return scope;
+
+    await connectToDatabase();
 
     let body: Record<string, unknown> = {};
     try {
@@ -85,11 +83,17 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
+export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
-    await connectToDatabase();
-
     const { id, dealId } = await params;
+
+    const auth = requireBrandAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
+    const scope = await requireBrandScope(auth.brandUser, id);
+    if (scope instanceof NextResponse) return scope;
+
+    await connectToDatabase();
 
     const deal = await DealModel.findOneAndDelete({ _id: dealId, brand: id });
 

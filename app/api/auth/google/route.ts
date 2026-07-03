@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Google auth error:', error.message, error.stack);
     return NextResponse.json(
-        { Status: 'Error', ErrorMessage: error.message }, // ← surface real error
+        { Status: 'Error', ErrorMessage: 'Authentication failed' },
         { status: 500 }
     );
     }

@@ -202,7 +202,12 @@ export interface User {
   pickupHistory: PickupHistoryEntry[];
   created: Date;
   firstTimeLogin: boolean;
-  otpVerification?: string;
+  passwordReset?: {
+    otpHash?: string;
+    expiresAt?: Date;
+    attempts?: number;
+    lastSentAt?: Date;
+  };
   emailVerified: boolean;
   verificationToken?: string;
   appleId?: string;

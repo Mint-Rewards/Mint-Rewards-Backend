@@ -1,7 +1,9 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel, CampaignModel } from "@/lib/models";
 import type { CampaignDocument } from "@/lib/types";
+import { requireBrandAuth } from "@/lib/requireBrandAuth";
+import { requireBrandScope } from "@/lib/requireBrandScope";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -13,11 +15,17 @@ function isActive(campaign: CampaignDocument): boolean {
   return campaign.startDate <= today && campaign.endDate >= today;
 }
 
-export async function GET(_req: NextRequest, { params }: RouteParams) {
+export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    await connectToDatabase();
-
     const { id } = await params;
+
+    const auth = requireBrandAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
+    const scope = await requireBrandScope(auth.brandUser, id);
+    if (scope instanceof NextResponse) return scope;
+
+    await connectToDatabase();
 
     const brand = await BrandModel.findById(id).lean();
     if (!brand) {

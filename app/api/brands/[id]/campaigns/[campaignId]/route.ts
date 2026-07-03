@@ -3,12 +3,8 @@ import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
 import { CampaignModel } from "@/lib/models";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "PATCH, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
+import { requireBrandAuth } from "@/lib/requireBrandAuth";
+import { requireBrandScope } from "@/lib/requireBrandScope";
 
 const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -32,15 +28,17 @@ const BRAND_EDITABLE = new Set([
 
 const ADMIN_ONLY = new Set(["status"]);
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
-}
-
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
-    await connectToDatabase();
-
     const { id, campaignId } = await params;
+
+    const auth = requireBrandAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
+    const scope = await requireBrandScope(auth.brandUser, id);
+    if (scope instanceof NextResponse) return scope;
+
+    await connectToDatabase();
 
     const contentType = req.headers.get("content-type") ?? "";
     let body: Record<string, unknown> = {};
@@ -138,11 +136,17 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
+export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
-    await connectToDatabase();
-
     const { id, campaignId } = await params;
+
+    const auth = requireBrandAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
+    const scope = await requireBrandScope(auth.brandUser, id);
+    if (scope instanceof NextResponse) return scope;
+
+    await connectToDatabase();
 
     const campaign = await CampaignModel.findOneAndDelete({
       _id: campaignId,

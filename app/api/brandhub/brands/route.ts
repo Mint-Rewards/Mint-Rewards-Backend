@@ -4,17 +4,6 @@ import connectToDatabase from "@/lib/mongodb";
 import { BrandModel } from "@/lib/models";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    },
-  });
-}
-
 /**
  * GET /api/brandhub/brands
  * Lists the caller's org's brands. requireBrandAuth only — no module gate,

@@ -1,13 +1,9 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel, CampaignModel } from "@/lib/models";
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
+import { requireBrandAuth } from "@/lib/requireBrandAuth";
+import { requireBrandScope } from "@/lib/requireBrandScope";
 
 const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -15,15 +11,17 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-export async function OPTIONS() {
-  return new Response(null, { status: 204, headers: CORS_HEADERS });
-}
-
-export async function GET(_req: NextRequest, { params }: RouteParams) {
+export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
-    await connectToDatabase();
-
     const { id } = await params;
+
+    const auth = requireBrandAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
+    const scope = await requireBrandScope(auth.brandUser, id);
+    if (scope instanceof NextResponse) return scope;
+
+    await connectToDatabase();
 
     const brand = await BrandModel.findById(id).lean();
     if (!brand) {
@@ -46,9 +44,15 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
-    await connectToDatabase();
-
     const { id } = await params;
+
+    const auth = requireBrandAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
+    const scope = await requireBrandScope(auth.brandUser, id);
+    if (scope instanceof NextResponse) return scope;
+
+    await connectToDatabase();
 
     const brand = await BrandModel.findById(id).lean();
     if (!brand) {

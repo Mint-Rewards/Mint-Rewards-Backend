@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Apple auth error:', error.message, error.stack);
     return NextResponse.json(
-      { Status: 'Error', ErrorMessage: error.message },
+      { Status: 'Error', ErrorMessage: 'Authentication failed' },
       { status: 500 }
     );
   }

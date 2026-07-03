@@ -5,17 +5,6 @@ import { Types } from "mongoose";
 import { OrganizationModel, BrandUserModel, BrandModel } from "@/lib/models";
 import { signBrandToken } from "@/lib/brandJwt";
 
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    },
-  });
-}
-
 /**
  * POST /api/brandhub/auth/register
  * Body:    { orgName: string; email: string; password: string; brandName?: string }

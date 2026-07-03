@@ -25,22 +25,23 @@ export async function checkAuth(
       return null;
     }
 
-    const [, bearerToken] = authorization.split(" ");
-    const rawToken = bearerToken || authorization;
+    const [scheme, bearerToken] = authorization.split(" ");
+
+    if (scheme !== "Bearer" || !bearerToken) {
+      return null;
+    }
 
     const jwtSecret =
       process.env.JWT_SECRET ||
       process.env.NEXTAUTH_SECRET ||
       process.env.NEXT_JWT_SECRET;
 
-    if (jwtSecret) {
-      const verified = jwt.verify(rawToken, jwtSecret);
-      return verified ?? null;
+    if (!jwtSecret) {
+      return null;
     }
 
-    const decoded = jwt.decode(rawToken);
-
-    return decoded ?? rawToken ?? null;
+    const verified = jwt.verify(bearerToken, jwtSecret);
+    return verified ?? null;
   } catch (error) {
     return null;
   }

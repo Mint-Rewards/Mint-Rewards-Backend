@@ -2,4 +2,5 @@ node_modules
 .env
 .vercel
 .next
-tsconfig.tsbuildinfo
+tsconfig.tsbuildinfographify-out/
+graphify-out/

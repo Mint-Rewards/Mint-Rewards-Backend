@@ -11,7 +11,11 @@ import {
   LogisticsDocument,
   CaptainDocument,
   UserDocument,
+  OrganizationDocument,
+  BrandUserDocument,
+  ModuleSubscription,
 } from "@/lib/types";
+import { PERMISSION_LEVELS, ORG_ROLES } from "@/lib/modules";
 
 // Kick off the shared connection once per process. Mongoose will buffer
 // operations until the underlying driver is connected.
@@ -49,6 +53,8 @@ const stringDefaultEmpty = { type: String, default: "" } as const;
 
 const BrandSchema = new Schema<BrandDocument>(
   {
+    // Optional: legacy brands predate organizations and must stay valid.
+    orgId: { type: Schema.Types.ObjectId, ref: "Organization", index: true },
     companyName: stringRequired,
     brandName: stringRequired,
     email: { ...stringRequired, unique: true },
@@ -433,6 +439,82 @@ const DealSchema = new Schema<DealDocument>(
 
 export const DealModel = getModel<DealDocument>("Deal", DealSchema, "deals");
 
+const ModuleAccessSchema = new Schema(
+  {
+    module: stringRequired,
+    permissions: [{ type: String, enum: PERMISSION_LEVELS }],
+  },
+  { _id: false },
+);
+
+const OrganizationSchema = new Schema<OrganizationDocument>(
+  {
+    name: stringRequired,
+    plan: {
+      type: String,
+      enum: ["starter", "growth", "enterprise"],
+      default: "starter",
+    },
+    moduleSubscriptions: {
+      type: [
+        {
+          module: stringRequired,
+          status: {
+            type: String,
+            enum: ["active", "trial", "expired", "cancelled"],
+            required: true,
+          },
+          activatedAt: { type: Date, required: true },
+          expiresAt: { type: Date, default: null },
+          _id: false,
+        },
+      ],
+      default: () => [
+        {
+          module: "settings",
+          status: "active",
+          activatedAt: new Date(),
+          expiresAt: null,
+        },
+      ],
+      validate: {
+        validator: (subs: ModuleSubscription[]) =>
+          subs.some((s) => s.module === "settings" && s.status === "active"),
+        message: "settings module must always have an active subscription",
+      },
+    },
+  },
+  { timestamps: true },
+);
+
+export const OrganizationModel = getModel<OrganizationDocument>(
+  "Organization",
+  OrganizationSchema,
+  "organizations",
+);
+
+const BrandUserSchema = new Schema<BrandUserDocument>(
+  {
+    orgId: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      required: true,
+      index: true,
+    },
+    email: { ...stringRequired, unique: true, lowercase: true, trim: true },
+    passwordHash: stringRequired,
+    orgRole: { type: String, enum: ORG_ROLES, required: true },
+    moduleAccess: { type: [ModuleAccessSchema], default: [] },
+  },
+  { timestamps: true },
+);
+
+export const BrandUserModel = getModel<BrandUserDocument>(
+  "BrandUser",
+  BrandUserSchema,
+  "brandusers",
+);
+
 export type {
   BrandDocument,
   CampaignDocument,
@@ -444,4 +526,6 @@ export type {
   LogisticsDocument,
   BrandThemeDocument,
   UserDocument,
+  OrganizationDocument,
+  BrandUserDocument,
 };

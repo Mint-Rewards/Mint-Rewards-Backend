@@ -26,11 +26,16 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   try {
     const { id, dealId } = await params;
 
-    const auth = requireBrandAuth(req);
-    if (auth instanceof NextResponse) return auth;
+    // Admins moderate any brand's deals without holding brand-org
+    // credentials for that brand; everyone else must own the brand.
+    const isAdmin = !(requireAdminAuth(req) instanceof NextResponse);
+    if (!isAdmin) {
+      const auth = requireBrandAuth(req);
+      if (auth instanceof NextResponse) return auth;
 
-    const scope = await requireBrandScope(auth.brandUser, id);
-    if (scope instanceof NextResponse) return scope;
+      const scope = await requireBrandScope(auth.brandUser, id);
+      if (scope instanceof NextResponse) return scope;
+    }
 
     await connectToDatabase();
 

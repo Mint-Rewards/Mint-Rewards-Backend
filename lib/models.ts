@@ -1,5 +1,4 @@
 import mongoose, { Model, Schema } from "mongoose";
-import connectToDatabase from "@/lib/mongodb";
 import {
   BrandDocument,
   BrandThemeDocument,
@@ -17,9 +16,11 @@ import {
 } from "@/lib/types";
 import { PERMISSION_LEVELS, ORG_ROLES } from "@/lib/modules";
 
-// Kick off the shared connection once per process. Mongoose will buffer
-// operations until the underlying driver is connected.
-void connectToDatabase();
+// INVARIANT: this module never opens the DB connection at import time.
+// The driver runs with bufferCommands:false (see lib/mongodb.ts), so every
+// caller MUST `await connectToDatabase()` before issuing a query — routes do
+// this at the top of each handler, and shared helpers (requireBrandScope,
+// requireModuleAccess) await it before their first query.
 
 export interface ILog extends mongoose.Document {
   // Event classification

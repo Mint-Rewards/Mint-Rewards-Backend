@@ -125,11 +125,13 @@ export async function POST(req: Request) {
     if (referralUsers.length > 0) {
       const referralUser = referralUsers[0];
 
-      newUser.points = 150;
-      await newUser.save();
+      if (referralUser.email !== newUser.email) {
+        newUser.points = 150;
+        await newUser.save();
 
-      referralUser.points += 50;
-      await referralUser.save();
+        referralUser.points += 50;
+        await referralUser.save();
+      }
     }
 
     try {

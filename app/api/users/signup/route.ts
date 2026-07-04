@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       });
       return Response.json(
         { error: "All fields are required." },
-        { status: 410 },
+        { status: 400 },
       );
     }
 
@@ -59,14 +59,14 @@ export async function POST(req: Request) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       console.log(`Invalid email format: ${email}`);
-      return Response.json({ error: "Invalid email format." }, { status: 411 });
+      return Response.json({ error: "Invalid email format." }, { status: 400 });
     }
 
     if (password !== confirmPassword) {
       console.log(`Password mismatch for email: ${email}`);
       return Response.json(
         { error: "Passwords do not match." },
-        { status: 412 },
+        { status: 400 },
       );
     }
 
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       console.log(`Signup attempt with existing email: ${email}`);
       return Response.json(
         { error: "This email is already in use." },
-        { status: 413 },
+        { status: 409 },
       );
     }
 

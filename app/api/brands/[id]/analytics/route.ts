@@ -4,6 +4,7 @@ import { BrandModel, CampaignModel } from "@/lib/models";
 import type { CampaignDocument } from "@/lib/types";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
+import { isCampaignActive } from "@/lib/campaignDates";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -11,8 +12,7 @@ interface RouteParams {
 
 function isActive(campaign: CampaignDocument): boolean {
   if (campaign.status !== "APPROVED") return false;
-  const today = new Date().toISOString().split("T")[0];
-  return campaign.startDate <= today && campaign.endDate >= today;
+  return isCampaignActive(campaign);
 }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
@@ -88,7 +88,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         },
         campaigns: {
           byStatus,
-          active: campaignList.filter((c) => c.status === "APPROVED"),
+          active: campaignList.filter(
+            (c) => c.status === "APPROVED" && isCampaignActive(c),
+          ),
           list: campaignList,
         },
       },

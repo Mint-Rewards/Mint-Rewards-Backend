@@ -21,7 +21,7 @@ import { PERMISSION_LEVELS, ORG_ROLES } from "@/lib/modules";
 // operations until the underlying driver is connected.
 void connectToDatabase();
 
-export interface ILog extends Document {
+export interface ILog extends mongoose.Document {
   // Event classification
   event: string;
   level: "info" | "warn" | "error";
@@ -423,7 +423,7 @@ LogSchema.index({ deviceId: 1, timestamp: -1 });
 // TTL index — automatically purge logs older than 90 days
 LogSchema.index({ timestamp: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });
 
-export const Log = mongoose.model<ILog>("Log", LogSchema);
+export const Log = getModel<ILog>("Log", LogSchema);
 
 export const UserModel = getModel<UserDocument>("User", UserSchema, "users");
 

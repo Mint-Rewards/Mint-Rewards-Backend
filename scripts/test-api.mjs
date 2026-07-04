@@ -4,6 +4,9 @@
  * Usage: node scripts/test-api.mjs [--local]
  *
  * --local  targets http://localhost:3000/api instead of the deployed branch URL
+ *
+ * For --local runs, start the server with `npm run dev:testdb` so writes go
+ * to the isolated MONGODB_URI_TEST database instead of production.
  */
 
 const USE_LOCAL = process.argv.includes("--local");
@@ -40,7 +43,6 @@ let registeredRegNumber = "";
 // for the getAuthenticatedUserId-gated routes (my-profile, my-discounts,
 // referrals, active-campaigns, coupons/redeem, update-profile).
 let USER_TOKEN = "";
-let USER_ID = "";
 let USER_EMAIL = "";
 let USER_PASSWORD = "";
 // A newly created brandhub brand id (from POST /brandhub/brands) — kept
@@ -1001,7 +1003,6 @@ async function registerAppUser() {
   });
   if (status === 200 && data.token) {
     USER_TOKEN = data.token; // already "Bearer <jwt>"
-    USER_ID = String(data.user?._id ?? data.user?.id ?? "");
     log("App user signup", "PASS", `mintId=${data.user?.mintId} points=${data.user?.points}`);
   } else {
     log("App user signup", "FAIL", `status=${status} msg="${data.error}"`);
@@ -1054,50 +1055,50 @@ async function testUserSignup() {
     else log("GET liveness → alive", "FAIL", `status=${status}`);
   }
 
-  // Missing required fields → 410 (this API uses non-standard 41x codes)
+  // Missing required fields → 400 (standard codes)
   {
     const { status } = await call("POST", "/users/signup", { body: { email: "x@y.com" } });
-    if (status === 410) log("Missing fields → 410", "PASS");
-    else log("Missing fields → 410", "FAIL", `status=${status}`);
+    if (status === 400) log("Missing fields → 400", "PASS");
+    else log("Missing fields → 400", "FAIL", `status=${status}`);
   }
 
-  // Invalid email format → 411
+  // Invalid email format → 400
   {
     const { status } = await call("POST", "/users/signup", {
       body: { userName: "Bad Email", email: "not-an-email", password: "Password123!", confirmPassword: "Password123!" },
     });
-    if (status === 411) log("Invalid email format → 411", "PASS");
-    else log("Invalid email format → 411", "FAIL", `status=${status}`);
+    if (status === 400) log("Invalid email format → 400", "PASS");
+    else log("Invalid email format → 400", "FAIL", `status=${status}`);
   }
 
-  // Password mismatch → 412
+  // Password mismatch → 400
   {
     const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
     const { status } = await call("POST", "/users/signup", {
       body: { userName: "Mismatch", email: `mismatch${unique}@testuser.com`, password: "Password123!", confirmPassword: "Different123!" },
     });
-    if (status === 412) log("Password mismatch → 412", "PASS");
-    else log("Password mismatch → 412", "FAIL", `status=${status}`);
+    if (status === 400) log("Password mismatch → 400", "PASS");
+    else log("Password mismatch → 400", "FAIL", `status=${status}`);
   }
 
-  // Duplicate email → 413 (reuse the main app user's email)
+  // Duplicate email → 409 (reuse the main app user's email)
   if (USER_EMAIL) {
     const { status } = await call("POST", "/users/signup", {
       body: { userName: "Dupe", email: USER_EMAIL, password: "Password123!", confirmPassword: "Password123!" },
     });
-    if (status === 413) log("Duplicate email → 413", "PASS");
-    else log("Duplicate email → 413", "FAIL", `status=${status}`);
+    if (status === 409) log("Duplicate email → 409", "PASS");
+    else log("Duplicate email → 409", "FAIL", `status=${status}`);
   } else {
-    log("Duplicate email → 413", "SKIP", "no USER_EMAIL");
+    log("Duplicate email → 409", "SKIP", "no USER_EMAIL");
   }
 
-  // Email case-insensitivity: signup lowercases, so an uppercased dupe also 413s
+  // Email case-insensitivity: signup lowercases, so an uppercased dupe also 409s
   if (USER_EMAIL) {
     const { status } = await call("POST", "/users/signup", {
       body: { userName: "DupeUpper", email: USER_EMAIL.toUpperCase(), password: "Password123!", confirmPassword: "Password123!" },
     });
-    if (status === 413) log("Duplicate email (uppercased) → 413", "PASS");
-    else log("Duplicate email (uppercased) → 413", "FAIL", `status=${status}`);
+    if (status === 409) log("Duplicate email (uppercased) → 409", "PASS");
+    else log("Duplicate email (uppercased) → 409", "FAIL", `status=${status}`);
   }
 }
 

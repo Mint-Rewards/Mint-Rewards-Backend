@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:testdb": "node scripts/dev-testdb.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -52,7 +53,8 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "setupFiles": [
-      "dotenv/config"
+      "dotenv/config",
+      "<rootDir>/jest.setup.js"
     ],
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1"

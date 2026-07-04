@@ -14,9 +14,14 @@ const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 async function generateMintId(): Promise<string> {
-  const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
-  const existing = await UserModel.findOne({ mintId });
-  return existing ? generateMintId() : mintId;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
+    const existing = await UserModel.findOne({ mintId });
+    if (!existing) {
+      return mintId;
+    }
+  }
+  throw new Error('Unable to allocate a unique mint ID');
 }
 
 export async function POST(req: NextRequest) {

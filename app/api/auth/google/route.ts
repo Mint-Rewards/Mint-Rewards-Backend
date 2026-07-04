@@ -8,9 +8,14 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
 async function generateMintId(): Promise<string> {
-  const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
-  const existing = await UserModel.findOne({ mintId });
-  return existing ? generateMintId() : mintId;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
+    const existing = await UserModel.findOne({ mintId });
+    if (!existing) {
+      return mintId;
+    }
+  }
+  throw new Error('Unable to allocate a unique mint ID');
 }
 
 const client = new OAuth2Client(process.env.GOOGLE_IOS_CLIENT_ID);

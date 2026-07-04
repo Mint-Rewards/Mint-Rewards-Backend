@@ -10,13 +10,15 @@ const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
 async function generateMintId() {
-  while (true) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
     const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
     const existingUser = await UserModel.findOne({ mintId });
     if (!existingUser) {
       return mintId;
     }
   }
+
+  throw new Error("Unable to generate a unique mint ID after 20 attempts.");
 }
 
 export async function GET() {
@@ -25,14 +27,14 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    await connectToDatabase();
-
     if (!JWT_SECRET) {
       return Response.json(
         { error: "Server JWT configuration is missing." },
         { status: 500 },
       );
     }
+
+    await connectToDatabase();
 
     const body = await req.json();
     const {

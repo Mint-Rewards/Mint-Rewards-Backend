@@ -36,6 +36,18 @@ let CAMPAIGN_ID = "";
 let DEAL_ID = "";
 let registeredRegNumber = "";
 
+// USER_*: a MintRewards *app* user (id-based JWT via /users/signup), required
+// for the getAuthenticatedUserId-gated routes (my-profile, my-discounts,
+// referrals, active-campaigns, coupons/redeem, update-profile).
+let USER_TOKEN = "";
+let USER_ID = "";
+let USER_EMAIL = "";
+let USER_PASSWORD = "";
+// A newly created brandhub brand id (from POST /brandhub/brands) — kept
+// separate from HUB_BRAND_ID so brand-creation tests don't disturb the
+// brand the campaign/deal suites rely on.
+let NEW_HUB_BRAND_ID = "";
+
 // ─── Minimal 1×1 white PNG (no external files needed for upload tests) ───────
 const TINY_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==",
@@ -96,6 +108,12 @@ function adminHeaders() {
 
 function brandHeaders() {
   return { Authorization: `Bearer ${BRAND_TOKEN}` };
+}
+
+// The /users/signup + social routes return the token already prefixed with
+// "Bearer " (e.g. "Bearer eyJ..."), so USER_TOKEN is the full header value.
+function userHeaders() {
+  return { Authorization: USER_TOKEN };
 }
 
 // ─── Auth setup ──────────────────────────────────────────────────────────────
@@ -957,6 +975,810 @@ async function testAdminViews() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Additional coverage: admin-login negatives, MintRewards app-user auth &
+// profile, social sign-in, BrandHub auth/brands/modules, coupons, logs.
+// All data is created fresh per run (unique emails/reg numbers) so nothing
+// depends on external/production state.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Signs up a fresh MintRewards *app* user and captures its id-based JWT.
+// Not fatal if it fails — dependent suites simply SKIP.
+async function registerAppUser() {
+  section("Auth  POST /users/signup (app user setup)");
+  const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  USER_EMAIL = `appuser${unique}@testuser.com`;
+  USER_PASSWORD = "AppUserPass123!";
+  const { status, data } = await call("POST", "/users/signup", {
+    body: {
+      userName: `App User ${unique}`,
+      email: USER_EMAIL,
+      password: USER_PASSWORD,
+      confirmPassword: USER_PASSWORD,
+      phone: "+27 82 111 2222",
+      address: "1 App Street, Cape Town",
+    },
+  });
+  if (status === 200 && data.token) {
+    USER_TOKEN = data.token; // already "Bearer <jwt>"
+    USER_ID = String(data.user?._id ?? data.user?.id ?? "");
+    log("App user signup", "PASS", `mintId=${data.user?.mintId} points=${data.user?.points}`);
+  } else {
+    log("App user signup", "FAIL", `status=${status} msg="${data.error}"`);
+  }
+}
+
+async function testAdminLoginNegative() {
+  section("Admin Login negatives  POST /admin/login");
+
+  // Missing password → 400
+  {
+    const { status } = await call("POST", "/admin/login", { body: { email: ADMIN_EMAIL } });
+    if (status === 400) log("Missing password → 400", "PASS");
+    else log("Missing password → 400", "FAIL", `status=${status}`);
+  }
+
+  // Empty body → 400
+  {
+    const { status } = await call("POST", "/admin/login", { body: {} });
+    if (status === 400) log("Empty body → 400", "PASS");
+    else log("Empty body → 400", "FAIL", `status=${status}`);
+  }
+
+  // Wrong password → 401
+  {
+    const { status } = await call("POST", "/admin/login", {
+      body: { email: ADMIN_EMAIL, password: "definitely-wrong-password" },
+    });
+    if (status === 401) log("Wrong password → 401", "PASS");
+    else log("Wrong password → 401", "FAIL", `status=${status}`);
+  }
+
+  // Unknown email → 401
+  {
+    const { status } = await call("POST", "/admin/login", {
+      body: { email: `nobody${Date.now()}@nowhere.com`, password: "whatever123" },
+    });
+    if (status === 401) log("Unknown email → 401", "PASS");
+    else log("Unknown email → 401", "FAIL", `status=${status}`);
+  }
+}
+
+async function testUserSignup() {
+  section("User Signup  POST /users/signup");
+
+  // GET liveness probe
+  {
+    const { status, data } = await call("GET", "/users/signup");
+    if (status === 200 && /alive/i.test(data.message || "")) log("GET liveness → alive", "PASS");
+    else log("GET liveness → alive", "FAIL", `status=${status}`);
+  }
+
+  // Missing required fields → 410 (this API uses non-standard 41x codes)
+  {
+    const { status } = await call("POST", "/users/signup", { body: { email: "x@y.com" } });
+    if (status === 410) log("Missing fields → 410", "PASS");
+    else log("Missing fields → 410", "FAIL", `status=${status}`);
+  }
+
+  // Invalid email format → 411
+  {
+    const { status } = await call("POST", "/users/signup", {
+      body: { userName: "Bad Email", email: "not-an-email", password: "Password123!", confirmPassword: "Password123!" },
+    });
+    if (status === 411) log("Invalid email format → 411", "PASS");
+    else log("Invalid email format → 411", "FAIL", `status=${status}`);
+  }
+
+  // Password mismatch → 412
+  {
+    const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const { status } = await call("POST", "/users/signup", {
+      body: { userName: "Mismatch", email: `mismatch${unique}@testuser.com`, password: "Password123!", confirmPassword: "Different123!" },
+    });
+    if (status === 412) log("Password mismatch → 412", "PASS");
+    else log("Password mismatch → 412", "FAIL", `status=${status}`);
+  }
+
+  // Duplicate email → 413 (reuse the main app user's email)
+  if (USER_EMAIL) {
+    const { status } = await call("POST", "/users/signup", {
+      body: { userName: "Dupe", email: USER_EMAIL, password: "Password123!", confirmPassword: "Password123!" },
+    });
+    if (status === 413) log("Duplicate email → 413", "PASS");
+    else log("Duplicate email → 413", "FAIL", `status=${status}`);
+  } else {
+    log("Duplicate email → 413", "SKIP", "no USER_EMAIL");
+  }
+
+  // Email case-insensitivity: signup lowercases, so an uppercased dupe also 413s
+  if (USER_EMAIL) {
+    const { status } = await call("POST", "/users/signup", {
+      body: { userName: "DupeUpper", email: USER_EMAIL.toUpperCase(), password: "Password123!", confirmPassword: "Password123!" },
+    });
+    if (status === 413) log("Duplicate email (uppercased) → 413", "PASS");
+    else log("Duplicate email (uppercased) → 413", "FAIL", `status=${status}`);
+  }
+}
+
+async function testUserLogin() {
+  section("User Login  POST /users/login");
+
+  // GET liveness probe
+  {
+    const { status, data } = await call("GET", "/users/login");
+    if (status === 200 && /alive/i.test(data.message || "")) log("GET liveness → alive", "PASS");
+    else log("GET liveness → alive", "FAIL", `status=${status}`);
+  }
+
+  // Missing email → 400
+  {
+    const { status } = await call("POST", "/users/login", { body: { password: "x" } });
+    if (status === 400) log("Missing email → 400", "PASS");
+    else log("Missing email → 400", "FAIL", `status=${status}`);
+  }
+
+  // Missing password → 400
+  {
+    const { status } = await call("POST", "/users/login", { body: { email: "x@y.com" } });
+    if (status === 400) log("Missing password → 400", "PASS");
+    else log("Missing password → 400", "FAIL", `status=${status}`);
+  }
+
+  // Wrong password for existing user → 401 (kept under the 5/15min email limit)
+  if (USER_EMAIL) {
+    const { status } = await call("POST", "/users/login", {
+      body: { email: USER_EMAIL, password: "wrong-password-here" },
+    });
+    if (status === 401) log("Wrong password → 401", "PASS");
+    else log("Wrong password → 401", "FAIL", `status=${status}`);
+  }
+
+  // Successful login → 200 + Bearer token
+  if (USER_EMAIL) {
+    const { status, data } = await call("POST", "/users/login", {
+      body: { email: USER_EMAIL, password: USER_PASSWORD },
+    });
+    if (status === 200 && data.success && String(data.token).startsWith("Bearer ")) {
+      log("Valid login → 200 + token", "PASS");
+    } else {
+      log("Valid login → 200 + token", "FAIL", `status=${status}`);
+    }
+  } else {
+    log("Valid login → 200 + token", "SKIP", "no USER_EMAIL");
+  }
+
+  // Login with unknown email returns the same 401 (no user enumeration)
+  {
+    const { status } = await call("POST", "/users/login", {
+      body: { email: `ghost${Date.now()}@nowhere.com`, password: "whatever123" },
+    });
+    if (status === 401) log("Unknown email → 401 (no enumeration)", "PASS");
+    else log("Unknown email → 401 (no enumeration)", "FAIL", `status=${status}`);
+  }
+}
+
+async function testPasswordReset() {
+  section("Password Reset  /users/reset-password · verify-otp · set-password");
+
+  // reset-password missing email → 400
+  {
+    const { status } = await call("POST", "/users/reset-password", { body: {} });
+    if (status === 400) log("reset-password missing email → 400", "PASS");
+    else log("reset-password missing email → 400", "FAIL", `status=${status}`);
+  }
+
+  // reset-password non-string email → 400
+  {
+    const { status } = await call("POST", "/users/reset-password", { body: { email: 12345 } });
+    if (status === 400) log("reset-password non-string email → 400", "PASS");
+    else log("reset-password non-string email → 400", "FAIL", `status=${status}`);
+  }
+
+  // reset-password unknown email → 200 generic (no enumeration)
+  {
+    const { status, data } = await call("POST", "/users/reset-password", {
+      body: { email: `ghost${Date.now()}@nowhere.com` },
+    });
+    if (status === 200 && /if an account exists/i.test(data.message || "")) {
+      log("reset-password unknown email → 200 generic", "PASS");
+    } else {
+      log("reset-password unknown email → 200 generic", "FAIL", `status=${status}`);
+    }
+  }
+
+  // reset-password existing email → 200 generic (same response shape)
+  if (USER_EMAIL) {
+    const { status, data } = await call("POST", "/users/reset-password", { body: { email: USER_EMAIL } });
+    if (status === 200 && /if an account exists/i.test(data.message || "")) {
+      log("reset-password existing email → 200 generic", "PASS");
+    } else {
+      log("reset-password existing email → 200 generic", "FAIL", `status=${status}`);
+    }
+  }
+
+  // verify-otp missing fields → 400
+  {
+    const { status } = await call("POST", "/users/verify-otp", { body: { email: USER_EMAIL || "x@y.com" } });
+    if (status === 400) log("verify-otp missing otp → 400", "PASS");
+    else log("verify-otp missing otp → 400", "FAIL", `status=${status}`);
+  }
+
+  // verify-otp wrong code → 400 generic (can't know the real emailed OTP)
+  {
+    const { status } = await call("POST", "/users/verify-otp", {
+      body: { email: USER_EMAIL || `nobody${Date.now()}@x.com`, otp: "000000" },
+    });
+    if (status === 400) log("verify-otp wrong code → 400 generic", "PASS");
+    else log("verify-otp wrong code → 400 generic", "FAIL", `status=${status}`);
+  }
+
+  // set-password missing password → 400
+  {
+    const { status } = await call("POST", "/users/set-password", { body: { resetToken: "x" } });
+    if (status === 400) log("set-password missing password → 400", "PASS");
+    else log("set-password missing password → 400", "FAIL", `status=${status}`);
+  }
+
+  // set-password too short → 400
+  {
+    const { status } = await call("POST", "/users/set-password", {
+      body: { resetToken: "x", password: "short" },
+    });
+    if (status === 400) log("set-password < 8 chars → 400", "PASS");
+    else log("set-password < 8 chars → 400", "FAIL", `status=${status}`);
+  }
+
+  // set-password missing token → 401
+  {
+    const { status } = await call("POST", "/users/set-password", { body: { password: "longenough123" } });
+    if (status === 401) log("set-password missing token → 401", "PASS");
+    else log("set-password missing token → 401", "FAIL", `status=${status}`);
+  }
+
+  // set-password invalid/forged token → 401
+  {
+    const { status } = await call("POST", "/users/set-password", {
+      body: { password: "longenough123", resetToken: "not.a.valid.jwt" },
+    });
+    if (status === 401) log("set-password invalid token → 401", "PASS");
+    else log("set-password invalid token → 401", "FAIL", `status=${status}`);
+  }
+}
+
+async function testUserProfile() {
+  section("User Profile  /users/my-profile · update-profile");
+
+  // GET my-profile without auth → 401
+  {
+    const { status } = await call("GET", "/users/my-profile");
+    if (status === 401) log("GET my-profile without auth → 401", "PASS");
+    else log("GET my-profile without auth → 401", "FAIL", `status=${status}`);
+  }
+
+  // GET my-profile with a malformed token → 401
+  {
+    const { status } = await call("GET", "/users/my-profile", {
+      headers: { Authorization: "Bearer not.a.jwt" },
+    });
+    if (status === 401) log("GET my-profile malformed token → 401", "PASS");
+    else log("GET my-profile malformed token → 401", "FAIL", `status=${status}`);
+  }
+
+  if (!USER_TOKEN) {
+    log("Authenticated profile tests", "SKIP", "no USER_TOKEN");
+    return;
+  }
+
+  // GET my-profile authenticated → 200, password never leaks
+  {
+    const { status, data } = await call("GET", "/users/my-profile", { headers: userHeaders() });
+    if (status === 200 && data.user && data.user.password === undefined) {
+      log("GET my-profile authenticated → 200 (no password)", "PASS", `email=${data.user.email}`);
+    } else {
+      log("GET my-profile authenticated → 200 (no password)", "FAIL", `status=${status} hasPw=${data.user?.password !== undefined}`);
+    }
+  }
+
+  // PUT update-profile without auth → 401
+  {
+    const { status } = await call("PUT", "/users/update-profile", { body: { userName: "Nope" } });
+    if (status === 401) log("PUT update-profile without auth → 401", "PASS");
+    else log("PUT update-profile without auth → 401", "FAIL", `status=${status}`);
+  }
+
+  // PUT update-profile authenticated → 200 + fields applied
+  {
+    const { status, data } = await call("PUT", "/users/update-profile", {
+      body: { userName: "Updated App User", phone: "+27 21 555 0000", city: "Cape Town", firstTimeLogin: false },
+      headers: userHeaders(),
+    });
+    if (status === 200 && data.userName === "Updated App User") {
+      log("PUT update-profile → 200 (fields applied)", "PASS");
+    } else {
+      log("PUT update-profile → 200 (fields applied)", "FAIL", `status=${status}`);
+    }
+  }
+}
+
+async function testDeleteAccount() {
+  section("Delete Account  DELETE /users/delete-account");
+
+  // No auth → 401
+  {
+    const { status } = await call("DELETE", "/users/delete-account");
+    if (status === 401) log("DELETE without auth → 401", "PASS");
+    else log("DELETE without auth → 401", "FAIL", `status=${status}`);
+  }
+
+  // Create a throwaway user, delete it, then confirm its token is dead.
+  const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const throwawayEmail = `throwaway${unique}@testuser.com`;
+  const pw = "ThrowawayPass123!";
+  const signup = await call("POST", "/users/signup", {
+    body: { userName: `Throwaway ${unique}`, email: throwawayEmail, password: pw, confirmPassword: pw },
+  });
+
+  if (signup.status !== 200 || !signup.data.token) {
+    log("Delete own account → 200", "SKIP", "could not create throwaway user");
+    return;
+  }
+  const throwawayHeaders = { Authorization: signup.data.token };
+
+  // Delete own account → 200
+  {
+    const { status, data } = await call("DELETE", "/users/delete-account", { headers: throwawayHeaders });
+    if (status === 200 && /deleted/i.test(data.message || "")) {
+      log("Delete own account → 200", "PASS");
+    } else {
+      log("Delete own account → 200", "FAIL", `status=${status}`);
+    }
+  }
+
+  // Deleting again with the same (now-orphaned) token → 404
+  {
+    const { status } = await call("DELETE", "/users/delete-account", { headers: throwawayHeaders });
+    if (status === 404) log("Delete already-deleted account → 404", "PASS");
+    else log("Delete already-deleted account → 404", "FAIL", `status=${status}`);
+  }
+}
+
+async function testUserDiscounts() {
+  section("User Discounts  /users/my-discounts (GET · PATCH · PUT)");
+
+  // GET no auth → 401
+  {
+    const { status } = await call("GET", "/users/my-discounts");
+    if (status === 401) log("GET my-discounts no auth → 401", "PASS");
+    else log("GET my-discounts no auth → 401", "FAIL", `status=${status}`);
+  }
+
+  if (!USER_TOKEN) {
+    log("Authenticated discount tests", "SKIP", "no USER_TOKEN");
+    return;
+  }
+
+  // GET → 200 with discounts array
+  {
+    const { status, data } = await call("GET", "/users/my-discounts", { headers: userHeaders() });
+    if (status === 200 && Array.isArray(data.discounts)) {
+      log("GET my-discounts → 200 array", "PASS", `count=${data.discounts.length}`);
+    } else {
+      log("GET my-discounts → 200 array", "FAIL", `status=${status}`);
+    }
+  }
+
+  // PATCH no auth → 401
+  {
+    const { status } = await call("PATCH", "/users/my-discounts", { body: { discountId: "x" } });
+    if (status === 401) log("PATCH my-discounts no auth → 401", "PASS");
+    else log("PATCH my-discounts no auth → 401", "FAIL", `status=${status}`);
+  }
+
+  // PATCH missing discountId → 400
+  {
+    const { status } = await call("PATCH", "/users/my-discounts", { body: {}, headers: userHeaders() });
+    if (status === 400) log("PATCH missing discountId → 400", "PASS");
+    else log("PATCH missing discountId → 400", "FAIL", `status=${status}`);
+  }
+
+  // PATCH non-existent campaign → 404
+  {
+    const { status } = await call("PATCH", "/users/my-discounts", {
+      body: { discountId: "000000000000000000000000" }, headers: userHeaders(),
+    });
+    if (status === 404) log("PATCH non-existent campaign → 404", "PASS");
+    else log("PATCH non-existent campaign → 404", "FAIL", `status=${status}`);
+  }
+
+  // PUT missing discountId → 400
+  {
+    const { status } = await call("PUT", "/users/my-discounts", { body: {}, headers: userHeaders() });
+    if (status === 400) log("PUT missing discountId → 400", "PASS");
+    else log("PUT missing discountId → 400", "FAIL", `status=${status}`);
+  }
+
+  // PUT non-existent campaign → 404
+  {
+    const { status } = await call("PUT", "/users/my-discounts", {
+      body: { discountId: "000000000000000000000000" }, headers: userHeaders(),
+    });
+    if (status === 404) log("PUT non-existent campaign → 404", "PASS");
+    else log("PUT non-existent campaign → 404", "FAIL", `status=${status}`);
+  }
+}
+
+async function testReferrals() {
+  section("Referrals  POST /users/referrals");
+
+  // No auth → 401
+  {
+    const { status } = await call("POST", "/users/referrals", { body: { emails: ["a@b.com"] } });
+    if (status === 401) log("referrals no auth → 401", "PASS");
+    else log("referrals no auth → 401", "FAIL", `status=${status}`);
+  }
+
+  if (!USER_TOKEN) {
+    log("Authenticated referral tests", "SKIP", "no USER_TOKEN");
+    return;
+  }
+
+  // Empty / missing emails → 400
+  {
+    const { status } = await call("POST", "/users/referrals", { body: { emails: [] }, headers: userHeaders() });
+    if (status === 400) log("referrals empty list → 400", "PASS");
+    else log("referrals empty list → 400", "FAIL", `status=${status}`);
+  }
+
+  // Non-array emails → 400 (normalizes to empty)
+  {
+    const { status } = await call("POST", "/users/referrals", { body: { emails: "not-array" }, headers: userHeaders() });
+    if (status === 400) log("referrals non-array → 400", "PASS");
+    else log("referrals non-array → 400", "FAIL", `status=${status}`);
+  }
+
+  // Valid fresh emails → 200 success
+  {
+    const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const { status } = await call("POST", "/users/referrals", {
+      body: { emails: [`referral${unique}@friend.com`, `referral2${unique}@friend.com`] },
+      headers: userHeaders(),
+    });
+    if (status === 200) log("referrals valid emails → 200", "PASS");
+    else log("referrals valid emails → 200", "FAIL", `status=${status}`);
+  }
+}
+
+async function testActiveCampaigns() {
+  section("Active Campaigns  GET /users/active-campaigns");
+
+  // No auth → 401
+  {
+    const { status } = await call("GET", "/users/active-campaigns");
+    if (status === 401) log("active-campaigns no auth → 401", "PASS");
+    else log("active-campaigns no auth → 401", "FAIL", `status=${status}`);
+  }
+
+  if (!USER_TOKEN) {
+    log("Authenticated active-campaigns test", "SKIP", "no USER_TOKEN");
+    return;
+  }
+
+  // Authenticated → 200 with activeBrands + activeCampaigns arrays
+  {
+    const { status, data } = await call("GET", "/users/active-campaigns", { headers: userHeaders() });
+    if (status === 200 && Array.isArray(data.activeBrands) && Array.isArray(data.activeCampaigns)) {
+      log("active-campaigns → 200 arrays", "PASS",
+        `brands=${data.activeBrands.length} campaigns=${data.activeCampaigns.length}`);
+    } else {
+      log("active-campaigns → 200 arrays", "FAIL", `status=${status}`);
+    }
+  }
+}
+
+async function testSocialAuth() {
+  section("Social Auth  POST /auth/google · /auth/apple");
+
+  // Google: no idToken → 400
+  {
+    const { status } = await call("POST", "/auth/google", { body: {} });
+    if (status === 400) log("google missing idToken → 400", "PASS");
+    else log("google missing idToken → 400", "FAIL", `status=${status}`);
+  }
+
+  // Google: bogus idToken → 401 (fails Google verification)
+  {
+    const { status } = await call("POST", "/auth/google", { body: { idToken: "clearly-not-a-real-google-token" } });
+    if (status === 401) log("google invalid idToken → 401", "PASS");
+    else log("google invalid idToken → 401", "FAIL", `status=${status}`);
+  }
+
+  // Apple: no identityToken → 400
+  {
+    const { status } = await call("POST", "/auth/apple", { body: {} });
+    if (status === 400) log("apple missing identityToken → 400", "PASS");
+    else log("apple missing identityToken → 400", "FAIL", `status=${status}`);
+  }
+
+  // Apple: bogus identityToken → not a success (401 config-missing sub, or 500 verify throw)
+  {
+    const { status } = await call("POST", "/auth/apple", { body: { identityToken: "clearly-not-a-real-apple-token" } });
+    if (status === 401 || status === 500) log("apple invalid identityToken → 401/500", "PASS", `status=${status}`);
+    else log("apple invalid identityToken → 401/500", "FAIL", `status=${status}`);
+  }
+}
+
+async function testBrandhubAuth() {
+  section("BrandHub Auth  /brandhub/auth/register · login");
+
+  // register missing fields → 400
+  {
+    const { status } = await call("POST", "/brandhub/auth/register", { body: { email: "x@y.com" } });
+    if (status === 400) log("register missing fields → 400", "PASS");
+    else log("register missing fields → 400", "FAIL", `status=${status}`);
+  }
+
+  // register short password → 400
+  {
+    const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const { status } = await call("POST", "/brandhub/auth/register", {
+      body: { orgName: `Org ${unique}`, email: `short${unique}@org.com`, password: "short" },
+    });
+    if (status === 400) log("register short password → 400", "PASS");
+    else log("register short password → 400", "FAIL", `status=${status}`);
+  }
+
+  // register duplicate email → 409 (the brand owner from setup)
+  {
+    // Re-register the same email used in registerBrandUser is tricky (unique
+    // per run); instead register once, then again, to force the 409.
+    const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const email = `dupbrand${unique}@org.com`;
+    const first = await call("POST", "/brandhub/auth/register", {
+      body: { orgName: `Org ${unique}`, email, password: "ValidPass123!" },
+    });
+    const second = await call("POST", "/brandhub/auth/register", {
+      body: { orgName: `Org2 ${unique}`, email, password: "ValidPass123!" },
+    });
+    if (first.status === 201 && second.status === 409) {
+      log("register duplicate email → 409", "PASS");
+    } else {
+      log("register duplicate email → 409", "FAIL", `first=${first.status} second=${second.status}`);
+    }
+  }
+
+  // login missing fields → 400
+  {
+    const { status } = await call("POST", "/brandhub/auth/login", { body: { email: "x@y.com" } });
+    if (status === 400) log("login missing password → 400", "PASS");
+    else log("login missing password → 400", "FAIL", `status=${status}`);
+  }
+
+  // login wrong credentials → 401
+  {
+    const { status } = await call("POST", "/brandhub/auth/login", {
+      body: { email: `nobody${Date.now()}@org.com`, password: "whatever123" },
+    });
+    if (status === 401) log("login wrong credentials → 401", "PASS");
+    else log("login wrong credentials → 401", "FAIL", `status=${status}`);
+  }
+}
+
+async function testBrandhubBrands() {
+  section("BrandHub Brands  /brandhub/brands · /brandhub/brands/:id");
+
+  // GET list no auth → 401
+  {
+    const { status } = await call("GET", "/brandhub/brands");
+    if (status === 401) log("GET brandhub brands no auth → 401", "PASS");
+    else log("GET brandhub brands no auth → 401", "FAIL", `status=${status}`);
+  }
+
+  if (!BRAND_TOKEN) {
+    log("Authenticated brandhub brand tests", "SKIP", "no BRAND_TOKEN");
+    return;
+  }
+
+  // GET list authenticated → 200 with brands array
+  {
+    const { status, data } = await call("GET", "/brandhub/brands", { headers: brandHeaders() });
+    if (status === 200 && Array.isArray(data.brands)) {
+      log("GET brandhub brands → 200 array", "PASS", `count=${data.brands.length}`);
+    } else {
+      log("GET brandhub brands → 200 array", "FAIL", `status=${status}`);
+    }
+  }
+
+  // POST create no auth → 401
+  {
+    const { status } = await call("POST", "/brandhub/brands", { body: { brandName: "X", companyName: "Y" } });
+    if (status === 401) log("POST brandhub brand no auth → 401", "PASS");
+    else log("POST brandhub brand no auth → 401", "FAIL", `status=${status}`);
+  }
+
+  // POST missing fields → 400
+  {
+    const { status } = await call("POST", "/brandhub/brands", { body: { brandName: "OnlyName" }, headers: brandHeaders() });
+    if (status === 400) log("POST brandhub brand missing companyName → 400", "PASS");
+    else log("POST brandhub brand missing companyName → 400", "FAIL", `status=${status}`);
+  }
+
+  // POST valid (owner) → 201
+  {
+    const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const { status, data } = await call("POST", "/brandhub/brands", {
+      body: { brandName: `Hub Brand ${unique}`, companyName: `Hub Co ${unique}` },
+      headers: brandHeaders(),
+    });
+    if (status === 201 && data.brand?.id) {
+      NEW_HUB_BRAND_ID = String(data.brand.id);
+      log("POST brandhub brand (owner) → 201", "PASS", `id=${NEW_HUB_BRAND_ID}`);
+    } else {
+      log("POST brandhub brand (owner) → 201", "FAIL", `status=${status}`);
+    }
+  }
+
+  // GET one brand no auth → 401
+  if (HUB_BRAND_ID) {
+    const { status } = await call("GET", `/brandhub/brands/${HUB_BRAND_ID}`);
+    if (status === 401) log("GET brandhub brand :id no auth → 401", "PASS");
+    else log("GET brandhub brand :id no auth → 401", "FAIL", `status=${status}`);
+  }
+
+  // GET own brand → 200
+  if (HUB_BRAND_ID) {
+    const { status, data } = await call("GET", `/brandhub/brands/${HUB_BRAND_ID}`, { headers: brandHeaders() });
+    if (status === 200 && data.brand?.id) {
+      log("GET brandhub own brand → 200", "PASS");
+    } else {
+      log("GET brandhub own brand → 200", "FAIL", `status=${status}`);
+    }
+  }
+
+  // GET brand outside caller's org (nonexistent id) → 404 (scope hides existence)
+  {
+    const { status } = await call("GET", "/brandhub/brands/000000000000000000000000", { headers: brandHeaders() });
+    if (status === 404) log("GET brandhub foreign/nonexistent brand → 404", "PASS");
+    else log("GET brandhub foreign/nonexistent brand → 404", "FAIL", `status=${status}`);
+  }
+
+  // GET brand with malformed id → 404 (invalid ObjectId short-circuits in scope)
+  {
+    const { status } = await call("GET", "/brandhub/brands/not-an-object-id", { headers: brandHeaders() });
+    if (status === 404) log("GET brandhub malformed brand id → 404", "PASS");
+    else log("GET brandhub malformed brand id → 404", "FAIL", `status=${status}`);
+  }
+}
+
+async function testBrandhubModules() {
+  section("BrandHub Modules  GET/POST /brandhub/modules/:module");
+
+  // Unknown module → 404 (checked before auth, so no token needed)
+  {
+    const { status } = await call("GET", "/brandhub/modules/definitely-not-a-module");
+    if (status === 404) log("unknown module → 404", "PASS");
+    else log("unknown module → 404", "FAIL", `status=${status}`);
+  }
+
+  // Valid module, no auth → 401
+  {
+    const { status } = await call("GET", "/brandhub/modules/b2c");
+    if (status === 401) log("valid module no auth → 401", "PASS");
+    else log("valid module no auth → 401", "FAIL", `status=${status}`);
+  }
+
+  if (!BRAND_TOKEN) {
+    log("Authenticated module tests", "SKIP", "no BRAND_TOKEN");
+    return;
+  }
+
+  // Valid module, authenticated, but org has no active subscription → 402
+  {
+    const { status } = await call("GET", "/brandhub/modules/b2c", { headers: brandHeaders() });
+    if (status === 402) log("valid module, no subscription → 402 (GET)", "PASS");
+    else log("valid module, no subscription → 402 (GET)", "FAIL", `status=${status}`);
+  }
+
+  // POST (write) same story → 402
+  {
+    const { status } = await call("POST", "/brandhub/modules/analytics", { body: { foo: "bar" }, headers: brandHeaders() });
+    if (status === 402) log("valid module, no subscription → 402 (POST)", "PASS");
+    else log("valid module, no subscription → 402 (POST)", "FAIL", `status=${status}`);
+  }
+
+  // Unknown module still 404 even with a valid token
+  {
+    const { status } = await call("POST", "/brandhub/modules/bogus", { body: {}, headers: brandHeaders() });
+    if (status === 404) log("unknown module (authed) → 404", "PASS");
+    else log("unknown module (authed) → 404", "FAIL", `status=${status}`);
+  }
+}
+
+async function testCoupons() {
+  section("Coupons  PATCH /coupons/:couponId/redeem");
+
+  // No auth → 401
+  {
+    const { status } = await call("PATCH", "/coupons/000000000000000000000000/redeem");
+    if (status === 401) log("redeem no auth → 401", "PASS");
+    else log("redeem no auth → 401", "FAIL", `status=${status}`);
+  }
+
+  if (!USER_TOKEN) {
+    log("Authenticated coupon tests", "SKIP", "no USER_TOKEN");
+    return;
+  }
+
+  // Malformed coupon id → 400
+  {
+    const { status } = await call("PATCH", "/coupons/not-an-object-id/redeem", { headers: userHeaders() });
+    if (status === 400) log("redeem malformed id → 400", "PASS");
+    else log("redeem malformed id → 400", "FAIL", `status=${status}`);
+  }
+
+  // Valid-format but non-existent coupon → 404
+  {
+    const { status } = await call("PATCH", "/coupons/000000000000000000000000/redeem", { headers: userHeaders() });
+    if (status === 404) log("redeem non-existent coupon → 404", "PASS");
+    else log("redeem non-existent coupon → 404", "FAIL", `status=${status}`);
+  }
+}
+
+async function testLogs() {
+  section("Logs  POST /logs (public) · GET /logs (admin)");
+
+  // POST missing required fields → 400
+  {
+    const { status } = await call("POST", "/logs", { body: { event: "app_open" } });
+    if (status === 400) log("POST logs missing fields → 400", "PASS");
+    else log("POST logs missing fields → 400", "FAIL", `status=${status}`);
+  }
+
+  // POST valid → 201 (public, no auth)
+  {
+    const { status, data } = await call("POST", "/logs", {
+      body: {
+        event: "app_open",
+        deviceId: `test-device-${Date.now()}`,
+        platform: "ios",
+        appVersion: "1.0.0",
+        buildNumber: "42",
+        level: "info",
+        route: "/home",
+      },
+    });
+    if (status === 201 && data.ok) log("POST logs valid → 201", "PASS");
+    else log("POST logs valid → 201", "FAIL", `status=${status}`);
+  }
+
+  // GET logs no auth → 401
+  {
+    const { status } = await call("GET", "/logs");
+    if (status === 401) log("GET logs no auth → 401", "PASS");
+    else log("GET logs no auth → 401", "FAIL", `status=${status}`);
+  }
+
+  // GET logs as admin → 200 with logs array + total
+  {
+    const { status, data } = await call("GET", "/logs", { headers: adminHeaders() });
+    if (status === 200 && Array.isArray(data.logs) && typeof data.total === "number") {
+      log("GET logs (admin) → 200", "PASS", `total=${data.total}`);
+    } else {
+      log("GET logs (admin) → 200", "FAIL", `status=${status}`);
+    }
+  }
+
+  // GET logs with filters (admin) → 200
+  {
+    const { status, data } = await call("GET", "/logs?event=app_open&level=info", { headers: adminHeaders() });
+    if (status === 200 && Array.isArray(data.logs)) {
+      log("GET logs filtered (admin) → 200", "PASS", `count=${data.logs.length}`);
+    } else {
+      log("GET logs filtered (admin) → 200", "FAIL", `status=${status}`);
+    }
+  }
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 console.log(`\n${BOLD}MintRewards API Test Runner${RESET}`);
@@ -965,6 +1787,7 @@ console.log(`${DIM}Target: ${BASE}${RESET}`);
 try {
   await authenticateAdmin();
   await registerBrandUser();
+  await registerAppUser();
   await testRegistration();
   await testBrandRetrieval();
   await testBrandAdmin();
@@ -973,6 +1796,23 @@ try {
   await testCampaigns();
   await testDeals();
   await testAdminViews();
+
+  // ── Additional endpoint coverage ──
+  await testAdminLoginNegative();
+  await testUserSignup();
+  await testUserLogin();
+  await testPasswordReset();
+  await testUserProfile();
+  await testUserDiscounts();
+  await testReferrals();
+  await testActiveCampaigns();
+  await testDeleteAccount();
+  await testSocialAuth();
+  await testBrandhubAuth();
+  await testBrandhubBrands();
+  await testBrandhubModules();
+  await testCoupons();
+  await testLogs();
 } catch (err) {
   console.error(`\n${RED}${BOLD}Unexpected error — test run aborted${RESET}`);
   console.error(err);

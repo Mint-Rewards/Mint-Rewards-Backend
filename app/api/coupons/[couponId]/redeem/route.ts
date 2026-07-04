@@ -33,20 +33,46 @@ export async function PATCH(req: Request, { params }: RouteParams) {
 
     const userObjectId = new mongoose.Types.ObjectId(userId);
 
-    // "Already used" = this user's ID is already in campaign.users
-    const existing = await CampaignModel.findOne({
-      _id: couponId,
-      users: userObjectId,
-    }).lean();
+    // Load the campaign first so we can validate it BEFORE marking it used.
+    // Marking used prematurely (issue #20) permanently locks the user out even
+    // when no code can be handed back.
+    const campaign = await CampaignModel.findById(couponId).lean();
 
-    if (existing) {
+    if (!campaign) {
       return Response.json(
-        { error: "Coupon already used." },
-        { status: 400 },
+        { error: "Coupon not found or has already expired." },
+        { status: 404 },
       );
     }
 
-    const campaign = await CampaignModel.findOneAndUpdate(
+    if (campaign.status === "EXPIRED") {
+      return Response.json(
+        { error: "Coupon not found or has already expired." },
+        { status: 404 },
+      );
+    }
+
+    // "Already used" = this user's ID is already in campaign.users
+    const alreadyUsed = (campaign.users ?? []).some((u) =>
+      u.equals(userObjectId),
+    );
+    if (alreadyUsed) {
+      return Response.json({ error: "Coupon already used." }, { status: 400 });
+    }
+
+    // No code to hand back: do NOT consume the redemption, so the user can try
+    // again once the brand adds codes (issue #20).
+    const codes = campaign.discountCodes ?? [];
+    if (codes.length === 0) {
+      return Response.json(
+        { error: "This coupon has no discount codes available." },
+        { status: 409 },
+      );
+    }
+
+    // Atomic commit: only mark used if the user is still absent and the
+    // campaign has not expired. This preserves the no-double-redeem guarantee.
+    const committed = await CampaignModel.findOneAndUpdate(
       {
         _id: couponId,
         status: { $ne: "EXPIRED" },
@@ -56,18 +82,16 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       { new: true },
     ).lean();
 
-    if (!campaign) {
-      return Response.json(
-        { error: "Coupon not found or has already expired." },
-        { status: 404 },
-      );
+    // Matched nothing => a concurrent request redeemed for this user first
+    // (or the campaign expired in the meantime). Treat as already used.
+    if (!committed) {
+      return Response.json({ error: "Coupon already used." }, { status: 400 });
     }
 
     const brand = campaign.brand
       ? await BrandModel.findById(campaign.brand).lean()
       : null;
 
-    const codes = campaign.discountCodes ?? [];
     const couponCode = campaign.isSingleCode
       ? codes[0]
       : codes[Math.floor(Math.random() * codes.length)];

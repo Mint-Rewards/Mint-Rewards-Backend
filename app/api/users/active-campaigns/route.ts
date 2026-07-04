@@ -1,6 +1,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
 import { BrandModel, CampaignModel } from "@/lib/models";
+import { isCampaignActive } from "@/lib/campaignDates";
 
 export async function GET(req: Request) {
   try {
@@ -20,9 +21,14 @@ export async function GET(req: Request) {
       status: "APPROVED",
     });
 
-    const activeCampaigns = await CampaignModel.find({
+    // APPROVED alone is not enough: an expired-but-still-APPROVED campaign
+    // must not be reported as active. Filter by real start/end dates too.
+    const approvedCampaigns = await CampaignModel.find({
       status: "APPROVED",
     });
+    const activeCampaigns = approvedCampaigns.filter((c) =>
+      isCampaignActive(c),
+    );
 
     return Response.json({
       activeBrands,

@@ -27,6 +27,13 @@ export async function POST(req: Request) {
   try {
     await connectToDatabase();
 
+    if (!JWT_SECRET) {
+      return Response.json(
+        { error: "Server JWT configuration is missing." },
+        { status: 500 },
+      );
+    }
+
     const body = await req.json();
     const {
       userName,
@@ -129,13 +136,6 @@ export async function POST(req: Request) {
       await sendSignupEmail(email, verificationLink);
     } catch (emailErr) {
       console.error("Signup email failed to send:", emailErr);
-    }
-
-    if (!JWT_SECRET) {
-      return Response.json(
-        { error: "Server JWT configuration is missing." },
-        { status: 500 },
-      );
     }
 
     const payload = { id: newUser.id };

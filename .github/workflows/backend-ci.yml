@@ -33,8 +33,12 @@ jobs:
       - name: Run tests
         run: npm test
         env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI_TEST }}
+          # jest.setup.js requires MONGODB_URI_TEST by name and remaps it
+          # onto MONGODB_URI itself — passing it as MONGODB_URI trips the
+          # refuse-to-run guard.
+          MONGODB_URI_TEST: ${{ secrets.MONGODB_URI_TEST }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          BRANDHUB_JWT_SECRET: ${{ secrets.BRANDHUB_JWT_SECRET }}
           NODE_ENV: test
 
       - name: Build check

@@ -37,22 +37,13 @@ async function main() {
     name: DEMO_ORG_NAME,
     plan: "growth",
     moduleSubscriptions: [
-      { module: "settings", status: "active", activatedAt: now, expiresAt: null },
-      { module: "b2c", status: "active", activatedAt: now, expiresAt: null },
-      // trial path: access-granting until expiresAt
       {
-        module: "analytics",
-        status: "trial",
-        activatedAt: now,
-        expiresAt: new Date(now.getTime() + 14 * DAY),
-      },
-      // lazy-expiry path: subscribed but expired must 402
-      {
-        module: "rewards",
+        module: "consumer-reporting",
         status: "active",
-        activatedAt: new Date(now.getTime() - 60 * DAY),
-        expiresAt: new Date(now.getTime() - 30 * DAY),
+        activatedAt: now,
+        expiresAt: null,
       },
+      // esg deliberately NOT subscribed — even owners hit 402 there.
     ],
     createdAt: now,
     updatedAt: now,
@@ -111,10 +102,7 @@ async function main() {
       email: "member@demo.com",
       passwordHash: await hash(DEMO_PASSWORD),
       orgRole: "member",
-      moduleAccess: [
-        { module: "b2c", permissions: ["write"] },
-        { module: "analytics", permissions: ["read"] },
-      ],
+      moduleAccess: [{ module: "consumer-reporting", permissions: ["write"] }],
       createdAt: now,
       updatedAt: now,
     },
@@ -124,10 +112,9 @@ async function main() {
   console.log("Org ID:  ", orgId.toString());
   console.log("Owner:   owner@demo.com  (orgRole: owner — all subscribed modules, full access)");
   console.log("Admin:   admin@demo.com  (orgRole: admin — all subscribed modules, full access)");
-  console.log("Member:  member@demo.com (b2c:write, analytics:read)");
+  console.log("Member:  member@demo.com (consumer-reporting:write)");
   console.log(`\nTest credentials: ${DEMO_PASSWORD} for all three accounts`);
-  console.log("\nSubscriptions: settings+b2c active, analytics trial (14d),");
-  console.log("rewards EXPIRED (402 expected), b2b/minttrace never subscribed (402 expected)");
+  console.log("\nSubscriptions: consumer-reporting active, esg never subscribed (402 expected)");
   console.log("\nBrand IDs:");
   console.log("  Alpha (org-owned): ", brandIds[0].toString());
   console.log("  Beta  (org-owned): ", brandIds[1].toString());

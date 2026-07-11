@@ -12,7 +12,6 @@ import {
   UserDocument,
   OrganizationDocument,
   BrandUserDocument,
-  ModuleSubscription,
 } from "@/lib/types";
 import { PERMISSION_LEVELS, ORG_ROLES } from "@/lib/modules";
 
@@ -482,19 +481,9 @@ const OrganizationSchema = new Schema<OrganizationDocument>(
           _id: false,
         },
       ],
-      default: () => [
-        {
-          module: "settings",
-          status: "active",
-          activatedAt: new Date(),
-          expiresAt: null,
-        },
-      ],
-      validate: {
-        validator: (subs: ModuleSubscription[]) =>
-          subs.some((s) => s.module === "settings" && s.status === "active"),
-        message: "settings module must always have an active subscription",
-      },
+      // Settings is not a module anymore (brand-profile editing gates on
+      // org role, not a subscription) — new orgs start unsubscribed.
+      default: () => [],
     },
   },
   { timestamps: true },

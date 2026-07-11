@@ -18,7 +18,7 @@ type AuthOk = { brandUser: BrandJwtPayload };
  * owner/admin bypass -> per-user module access -> permission level.
  *
  * Usage:
- *   const auth = await requireModuleAccess(req, "b2c", "write");
+ *   const auth = await requireModuleAccess(req, "consumer-reporting", "write");
  *   if (auth instanceof NextResponse) return auth;
  *   // auth.brandUser is now available
  */

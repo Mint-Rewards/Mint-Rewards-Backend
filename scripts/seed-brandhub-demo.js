@@ -157,6 +157,17 @@ async function main() {
     status: "APPROVED",
     role: "BRAND",
     emailVerified: true,
+    // Provisional aggregate until collections can be linked to brands.
+    environmentalStats: {
+      totalWasteKg: 1240,
+      co2AvoidedKg: 1860,
+      materialBreakdown: [
+        { material: "Plastic", weightKg: 520 },
+        { material: "Aluminum", weightKg: 260 },
+        { material: "Paper", weightKg: 300 },
+        { material: "Glass", weightKg: 160 },
+      ],
+    },
     createdAt: now,
     updatedAt: now,
   });

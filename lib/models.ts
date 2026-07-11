@@ -51,6 +51,28 @@ export interface ILog extends mongoose.Document {
 const stringRequired = { type: String, required: true } as const;
 const stringDefaultEmpty = { type: String, default: "" } as const;
 
+// Provisional brand-level impact snapshot pending the brand↔collection data
+// pipeline. Once collections are brand-scoped, these figures can be derived.
+const EnvironmentalStatsSchema = new Schema(
+  {
+    totalWasteKg: { type: Number, required: true },
+    co2AvoidedKg: { type: Number, required: true },
+    materialBreakdown: {
+      type: [
+        new Schema(
+          {
+            material: stringRequired,
+            weightKg: { type: Number, required: true },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
+  },
+  { _id: false },
+);
+
 const BrandSchema = new Schema<BrandDocument>(
   {
     // Optional: legacy brands predate organizations and must stay valid.
@@ -79,6 +101,7 @@ const BrandSchema = new Schema<BrandDocument>(
     role: { type: String, default: "BRAND" },
     emailVerified: { type: Boolean, default: false },
     verificationToken: String,
+    environmentalStats: { type: EnvironmentalStatsSchema, default: undefined },
   },
   { timestamps: false },
 );

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { CampaignModel, DealModel } from "@/lib/models";
+import { BrandModel, CampaignModel, DealModel } from "@/lib/models";
 import type { CampaignDocument } from "@/lib/types";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
@@ -27,11 +27,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const [campaigns, deals] = await Promise.all([
+    const [campaigns, deals, brand] = await Promise.all([
       CampaignModel.find({ brand: brandId })
         .sort({ _id: -1 })
         .lean<CampaignDocument[]>(),
       DealModel.find({ brand: brandId }).select("status").lean(),
+      BrandModel.findById(brandId).select("environmentalStats").lean(),
     ]);
 
     // Campaign status breakdown
@@ -96,6 +97,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           list: campaignList,
         },
         dealStats,
+        ...(brand?.environmentalStats
+          ? { environmental: brand.environmentalStats }
+          : {}),
       },
     });
   } catch (error: unknown) {

@@ -78,6 +78,10 @@ describe("BrandHub demo features", () => {
     await Promise.all([
       CampaignModel.deleteMany({ brand: brandId }),
       DealModel.deleteMany({ brand: brandId }),
+      BrandModel.updateOne(
+        { _id: brandId },
+        { $unset: { environmentalStats: 1 } },
+      ),
     ]);
   });
 
@@ -285,5 +289,52 @@ describe("BrandHub demo features", () => {
       inactive: 1,
       expired: 1,
     });
+  });
+
+  it("returns seeded environmental figures when the brand has impact data", async () => {
+    const environmentalStats = {
+      totalWasteKg: 1240,
+      co2AvoidedKg: 1860,
+      materialBreakdown: [
+        { material: "Plastic", weightKg: 520 },
+        { material: "Aluminum", weightKg: 260 },
+        { material: "Paper", weightKg: 300 },
+        { material: "Glass", weightKg: 160 },
+      ],
+    };
+    await BrandModel.updateOne(
+      { _id: brandId },
+      { $set: { environmentalStats } },
+    );
+
+    const response = await getAnalytics(
+      jsonRequest(
+        `http://localhost/api/brandhub/brands/${brandId}/analytics`,
+        ownerToken,
+      ),
+      { params: Promise.resolve({ brandId }) },
+    );
+    const body = (await response.json()) as {
+      analytics: { environmental?: typeof environmentalStats };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.analytics.environmental).toEqual(environmentalStats);
+  });
+
+  it("omits environmental when the brand has no impact data", async () => {
+    const response = await getAnalytics(
+      jsonRequest(
+        `http://localhost/api/brandhub/brands/${brandId}/analytics`,
+        ownerToken,
+      ),
+      { params: Promise.resolve({ brandId }) },
+    );
+    const body = (await response.json()) as {
+      analytics: Record<string, unknown>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.analytics).not.toHaveProperty("environmental");
   });
 });

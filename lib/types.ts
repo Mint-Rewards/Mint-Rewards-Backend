@@ -10,6 +10,17 @@ export type Role =
   | "CAPTAIN"
   | "BRAND";
 
+export interface EnvironmentalMaterialStat {
+  material: string;
+  weightKg: number;
+}
+
+export interface EnvironmentalStats {
+  totalWasteKg: number;
+  co2AvoidedKg: number;
+  materialBreakdown: EnvironmentalMaterialStat[];
+}
+
 export interface Brand {
   // Optional: legacy brands predate organizations and have no owning org.
   orgId?: Types.ObjectId;
@@ -32,6 +43,7 @@ export interface Brand {
   role: Role;
   emailVerified: boolean;
   verificationToken?: string;
+  environmentalStats?: EnvironmentalStats;
 }
 
 export interface BrandDocument extends Brand, Document {}

@@ -4,6 +4,7 @@ import connectToDatabase from "@/lib/mongodb";
 import { Types } from "mongoose";
 import { OrganizationModel, BrandUserModel, BrandModel } from "@/lib/models";
 import { signBrandToken } from "@/lib/brandJwt";
+import { MODULE_CATALOGUE, hasActiveSubscription } from "@/lib/modules";
 
 /**
  * POST /api/brandhub/auth/register
@@ -105,6 +106,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       userId: user._id.toString(),
       brands,
       defaultBrandId: brands[0]?.id ?? null,
+      // Same contract as login. New orgs are created with no subscriptions,
+      // so this is [] until an admin/billing flow activates modules.
+      subscribedModules: MODULE_CATALOGUE.filter((m) =>
+        hasActiveSubscription(org.moduleSubscriptions ?? [], m.id),
+      ).map((m) => m.id),
     },
     { status: 201 },
   );

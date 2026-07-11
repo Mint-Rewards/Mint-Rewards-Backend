@@ -1,5 +1,5 @@
 // Demo-world seed for the BrandHub scoped-routes demo: one org subscribed to
-// consumer-reporting (NOT esg), three personas (owner/admin/member), one
+// consumer-reporting, ESG, and MintTrace; three personas (owner/admin/member); one
 // brand, and enough campaign/deal/redemption history that analytics returns
 // non-trivial data. Idempotent: re-running resets the demo org to exactly
 // this state.
@@ -29,7 +29,7 @@ const DEMO_BRAND_NAME = "Mint Demo Brand";
 
 // Modules the demo org subscribes to (all active). Drop an ID from this list
 // to demo the locked-tab 402 state for that module — a one-line edit.
-const SUBSCRIBED_MODULES = ["consumer-reporting", "esg", "collections", "minttrace"];
+const SUBSCRIBED_MODULES = ["consumer-reporting", "esg", "minttrace"];
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -83,7 +83,7 @@ async function main() {
   const now = new Date();
 
   // 1. Organization — active subscription for every module in
-  //    SUBSCRIBED_MODULES (currently all four).
+  //    SUBSCRIBED_MODULES (currently all three catalogue modules).
   const { insertedId: orgId } = await organizations.insertOne({
     name: DEMO_ORG_NAME,
     plan: "growth",
@@ -124,11 +124,10 @@ async function main() {
       passwordHash: hash,
       orgRole: "member",
       // write => can create/edit campaigns and deals, 403 on DELETE (manage).
-      // Read-only on collections/esg keeps the dashboard rich while the
+      // Read-only ESG access keeps the dashboard rich while the
       // delete/settings restrictions still demo.
       moduleAccess: [
         { module: "consumer-reporting", permissions: ["write"] },
-        { module: "collections", permissions: ["read"] },
         { module: "esg", permissions: ["read"] },
       ],
       createdAt: now,
@@ -260,7 +259,7 @@ async function main() {
   console.log("Brand ID:", brandId.toString());
   console.log("Owner:   owner@demo.com  (orgRole: owner — full access to subscribed modules)");
   console.log("Admin:   admin@demo.com  (orgRole: admin — same bypass as owner)");
-  console.log("Member:  member@demo.com (consumer-reporting: write, collections: read, esg: read — 403 on DELETE/settings)");
+  console.log("Member:  member@demo.com (consumer-reporting: write, esg: read — 403 on DELETE/settings)");
   console.log(`Password: ${DEMO_PASSWORD} for all three`);
   console.log(`Subscriptions (all active): ${SUBSCRIBED_MODULES.join(", ")}`);
   console.log("Content: 6 campaigns (3 APPROVED / 2 PENDING / 1 REJECTED, 12 redemptions, 8 unique users), 4 deals (2 active / 1 inactive / 1 expired)\n");

@@ -14,7 +14,6 @@ export const MODULE_CATALOGUE: ModuleDefinition[] = [
   // Campaigns, deals, and the impact/analytics overview.
   { id: "consumer-reporting", name: "Consumer Reporting" },
   { id: "esg", name: "ESG Reporting" },
-  { id: "collections", name: "Collections" },
   { id: "minttrace", name: "MintTrace" },
 ];
 

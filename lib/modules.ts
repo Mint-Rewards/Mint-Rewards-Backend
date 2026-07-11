@@ -11,12 +11,10 @@ export interface ModuleDefinition {
 }
 
 export const MODULE_CATALOGUE: ModuleDefinition[] = [
-  { id: "b2c", name: "Consumer campaigns" },
-  { id: "b2b", name: "Partner management" },
-  { id: "analytics", name: "Reporting & dashboards" },
-  { id: "minttrace", name: "Blockchain traceability" },
-  { id: "rewards", name: "Reward catalog" },
-  { id: "settings", name: "Org configuration", locked: true },
+  // Campaigns, deals, and the impact/analytics overview.
+  { id: "consumer-reporting", name: "Consumer Reporting" },
+  // Subscribable but nothing gates on it yet — demos the unsubscribed 402 state.
+  { id: "esg", name: "ESG Reporting" },
 ];
 
 export const MODULE_IDS: string[] = MODULE_CATALOGUE.map((m) => m.id);

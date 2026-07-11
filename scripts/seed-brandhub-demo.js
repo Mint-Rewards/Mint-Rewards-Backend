@@ -1,5 +1,5 @@
 // Demo-world seed for the BrandHub scoped-routes demo: one org subscribed to
-// consumer-reporting (NOT esg), three personas (owner/admin/member), one
+// consumer-reporting, ESG, and MintTrace; three personas (owner/admin/member); one
 // brand, and enough campaign/deal/redemption history that analytics returns
 // non-trivial data. Idempotent: re-running resets the demo org to exactly
 // this state.
@@ -26,6 +26,10 @@ const DEMO_ORG_NAME = "Mint Rewards Demo Co";
 const DEMO_EMAILS = ["owner@demo.com", "admin@demo.com", "member@demo.com"];
 const DEMO_PASSWORD = "password123";
 const DEMO_BRAND_NAME = "Mint Demo Brand";
+
+// Modules the demo org subscribes to (all active). Drop an ID from this list
+// to demo the locked-tab 402 state for that module — a one-line edit.
+const SUBSCRIBED_MODULES = ["consumer-reporting", "esg", "minttrace"];
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -78,19 +82,17 @@ async function main() {
 
   const now = new Date();
 
-  // 1. Organization — consumer-reporting active, esg deliberately absent so
-  //    even the owner hits the 402/locked state on ESG.
+  // 1. Organization — active subscription for every module in
+  //    SUBSCRIBED_MODULES (currently all three catalogue modules).
   const { insertedId: orgId } = await organizations.insertOne({
     name: DEMO_ORG_NAME,
     plan: "growth",
-    moduleSubscriptions: [
-      {
-        module: "consumer-reporting",
-        status: "active",
-        activatedAt: new Date(now.getTime() - 90 * DAY),
-        expiresAt: null,
-      },
-    ],
+    moduleSubscriptions: SUBSCRIBED_MODULES.map((module) => ({
+      module,
+      status: "active",
+      activatedAt: new Date(now.getTime() - 90 * DAY),
+      expiresAt: null,
+    })),
     createdAt: now,
     updatedAt: now,
   });
@@ -122,7 +124,12 @@ async function main() {
       passwordHash: hash,
       orgRole: "member",
       // write => can create/edit campaigns and deals, 403 on DELETE (manage).
-      moduleAccess: [{ module: "consumer-reporting", permissions: ["write"] }],
+      // Read-only ESG access keeps the dashboard rich while the
+      // delete/settings restrictions still demo.
+      moduleAccess: [
+        { module: "consumer-reporting", permissions: ["write"] },
+        { module: "esg", permissions: ["read"] },
+      ],
       createdAt: now,
       updatedAt: now,
     },
@@ -150,6 +157,17 @@ async function main() {
     status: "APPROVED",
     role: "BRAND",
     emailVerified: true,
+    // Provisional aggregate until collections can be linked to brands.
+    environmentalStats: {
+      totalWasteKg: 1240,
+      co2AvoidedKg: 1860,
+      materialBreakdown: [
+        { material: "Plastic", weightKg: 520 },
+        { material: "Aluminum", weightKg: 260 },
+        { material: "Paper", weightKg: 300 },
+        { material: "Glass", weightKg: 160 },
+      ],
+    },
     createdAt: now,
     updatedAt: now,
   });
@@ -252,9 +270,9 @@ async function main() {
   console.log("Brand ID:", brandId.toString());
   console.log("Owner:   owner@demo.com  (orgRole: owner — full access to subscribed modules)");
   console.log("Admin:   admin@demo.com  (orgRole: admin — same bypass as owner)");
-  console.log("Member:  member@demo.com (consumer-reporting: write — 403 on DELETE)");
+  console.log("Member:  member@demo.com (consumer-reporting: write, esg: read — 403 on DELETE/settings)");
   console.log(`Password: ${DEMO_PASSWORD} for all three`);
-  console.log("Subscriptions: consumer-reporting active; esg NOT subscribed (402 even for owner)");
+  console.log(`Subscriptions (all active): ${SUBSCRIBED_MODULES.join(", ")}`);
   console.log("Content: 6 campaigns (3 APPROVED / 2 PENDING / 1 REJECTED, 12 redemptions, 8 unique users), 4 deals (2 active / 1 inactive / 1 expired)\n");
 
   await mongoose.disconnect();

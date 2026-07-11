@@ -10,6 +10,17 @@ export type Role =
   | "CAPTAIN"
   | "BRAND";
 
+export interface EnvironmentalMaterialStat {
+  material: string;
+  weightKg: number;
+}
+
+export interface EnvironmentalStats {
+  totalWasteKg: number;
+  co2AvoidedKg: number;
+  materialBreakdown: EnvironmentalMaterialStat[];
+}
+
 export interface Brand {
   // Optional: legacy brands predate organizations and have no owning org.
   orgId?: Types.ObjectId;
@@ -32,6 +43,7 @@ export interface Brand {
   role: Role;
   emailVerified: boolean;
   verificationToken?: string;
+  environmentalStats?: EnvironmentalStats;
 }
 
 export interface BrandDocument extends Brand, Document {}
@@ -221,6 +233,9 @@ export interface Deal {
   description?: string;
   discountPercentage?: number | null;
   discountAmount?: number | null;
+  // Full code inventory. promoCode stays populated with codes[0] for
+  // backward compatibility with legacy/admin/mobile readers.
+  codes: string[];
   promoCode?: string | null;
   startDate?: string | null;
   endDate?: string | null;

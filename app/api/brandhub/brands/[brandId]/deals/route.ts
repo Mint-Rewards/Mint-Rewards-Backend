@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import { DealModel } from "@/lib/models";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
+import { cleanSuppliedCodes, generateDealCodes } from "@/lib/dealCodes";
 
 interface RouteParams {
   params: Promise<{ brandId: string }>;
@@ -24,7 +25,17 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       .sort({ _id: -1 })
       .lean();
 
-    return Response.json({ success: true, deals, total: deals.length });
+    const withCounts = deals.map((d) => ({
+      ...d,
+      codes: d.codes ?? [],
+      codeCount: d.codes?.length ?? 0,
+    }));
+
+    return Response.json({
+      success: true,
+      deals: withCounts,
+      total: withCounts.length,
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unexpected error";
     return Response.json({ success: false, message }, { status: 500 });
@@ -65,13 +76,39 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Exactly one code source: brand-supplied `codes` or server `generateCodes`.
+    const hasSupplied = body.codes !== undefined;
+    const hasGenerate = body.generateCodes !== undefined;
+    if (hasSupplied === hasGenerate) {
+      return Response.json(
+        {
+          success: false,
+          message:
+            "Provide exactly one of codes (string[]) or generateCodes ({ count, prefix? })",
+        },
+        { status: 400 },
+      );
+    }
+    const codeResult = hasSupplied
+      ? cleanSuppliedCodes(body.codes)
+      : generateDealCodes(body.generateCodes);
+    if ("error" in codeResult) {
+      return Response.json(
+        { success: false, message: codeResult.error },
+        { status: 400 },
+      );
+    }
+    const codes = codeResult.codes;
+
     const deal = await DealModel.create({
       brand: brandId,
       title: title.trim(),
+      codes,
+      // Legacy readers (admin/mobile) expect the single promoCode field.
+      promoCode: codes[0],
       ...(typeof body.description === "string" && { description: body.description }),
       ...(typeof body.discountPercentage === "number" && { discountPercentage: body.discountPercentage }),
       ...(typeof body.discountAmount === "number" && { discountAmount: body.discountAmount }),
-      ...(typeof body.promoCode === "string" && body.promoCode && { promoCode: body.promoCode }),
       ...(typeof body.startDate === "string" && body.startDate && { startDate: body.startDate }),
       ...(typeof body.endDate === "string" && body.endDate && { endDate: body.endDate }),
       ...(typeof body.maxUses === "number" && { maxUses: body.maxUses }),

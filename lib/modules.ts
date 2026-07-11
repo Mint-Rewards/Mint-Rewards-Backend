@@ -13,8 +13,8 @@ export interface ModuleDefinition {
 export const MODULE_CATALOGUE: ModuleDefinition[] = [
   // Campaigns, deals, and the impact/analytics overview.
   { id: "consumer-reporting", name: "Consumer Reporting" },
-  // Subscribable but nothing gates on it yet — demos the unsubscribed 402 state.
   { id: "esg", name: "ESG Reporting" },
+  { id: "minttrace", name: "MintTrace" },
 ];
 
 export const MODULE_IDS: string[] = MODULE_CATALOGUE.map((m) => m.id);

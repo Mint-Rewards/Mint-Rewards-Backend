@@ -110,6 +110,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Any successful brand-initiated edit sends the campaign back through
+    // moderation — approved campaigns included. Admin approve/reject stays
+    // on the legacy admin PATCH path and is unaffected.
+    update.status = "PENDING";
+
     const campaign = await CampaignModel.findOneAndUpdate(
       { _id: campaignId, brand: brandId },
       { $set: update },

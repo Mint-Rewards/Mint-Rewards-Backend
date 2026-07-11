@@ -3,6 +3,7 @@ import connectToDatabase from "@/lib/mongodb";
 import { DealModel } from "@/lib/models";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
+import { cleanSuppliedCodes, generateDealCodes } from "@/lib/dealCodes";
 
 interface RouteParams {
   params: Promise<{ brandId: string; dealId: string }>;
@@ -15,7 +16,6 @@ const ALLOWED_FIELDS = new Set([
   "description",
   "discountPercentage",
   "discountAmount",
-  "promoCode",
   "startDate",
   "endDate",
   "maxUses",
@@ -56,16 +56,51 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    if (Object.keys(update).length === 0) {
+    // addCodes appends to the inventory: either a string[] (same rules as
+    // POST codes) or { count, prefix? } (same as generateCodes). Codes can
+    // never be removed through this route.
+    let appendCodes: string[] | null = null;
+    if (body.addCodes !== undefined) {
+      const existing = await DealModel.findOne({ _id: dealId, brand: brandId })
+        .select("codes")
+        .lean();
+      if (!existing) {
+        return Response.json(
+          { success: false, message: "Deal not found" },
+          { status: 404 },
+        );
+      }
+      const current = existing.codes ?? [];
+      const result = Array.isArray(body.addCodes)
+        ? cleanSuppliedCodes(body.addCodes, current)
+        : generateDealCodes(body.addCodes, current);
+      if ("error" in result) {
+        return Response.json(
+          { success: false, message: result.error },
+          { status: 400 },
+        );
+      }
+      appendCodes = result.codes;
+      // Backfill promoCode for deals created before the codes field existed.
+      if (current.length === 0) {
+        update.promoCode = appendCodes[0];
+      }
+    }
+
+    if (Object.keys(update).length === 0 && !appendCodes) {
       return Response.json(
         { success: false, message: "No valid fields provided" },
         { status: 400 },
       );
     }
 
+    const mutation: Record<string, unknown> = {};
+    if (Object.keys(update).length > 0) mutation.$set = update;
+    if (appendCodes) mutation.$push = { codes: { $each: appendCodes } };
+
     const deal = await DealModel.findOneAndUpdate(
       { _id: dealId, brand: brandId },
-      { $set: update },
+      mutation,
       { new: true, runValidators: true },
     );
 
@@ -76,7 +111,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    return Response.json({ success: true, deal });
+    return Response.json({
+      success: true,
+      deal: {
+        ...deal.toObject(),
+        codes: deal.codes ?? [],
+        codeCount: deal.codes?.length ?? 0,
+      },
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unexpected error";
     return Response.json({ success: false, message }, { status: 500 });

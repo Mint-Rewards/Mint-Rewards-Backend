@@ -434,6 +434,8 @@ const DealSchema = new Schema<DealDocument>(
     description: stringDefaultEmpty,
     discountPercentage: { type: Number, default: null },
     discountAmount: { type: Number, default: null },
+    // Inventory of codes; promoCode mirrors codes[0] for legacy readers.
+    codes: { type: [String], default: [] },
     promoCode: { type: String, default: null },
     startDate: { type: String, default: null },
     endDate: { type: String, default: null },

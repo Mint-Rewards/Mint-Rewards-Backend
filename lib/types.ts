@@ -221,6 +221,9 @@ export interface Deal {
   description?: string;
   discountPercentage?: number | null;
   discountAmount?: number | null;
+  // Full code inventory. promoCode stays populated with codes[0] for
+  // backward compatibility with legacy/admin/mobile readers.
+  codes: string[];
   promoCode?: string | null;
   startDate?: string | null;
   endDate?: string | null;

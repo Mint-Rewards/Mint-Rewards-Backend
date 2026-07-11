@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { CampaignModel } from "@/lib/models";
+import { CampaignModel, DealModel } from "@/lib/models";
 import type { CampaignDocument } from "@/lib/types";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
@@ -27,9 +27,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const campaigns = await CampaignModel.find({ brand: brandId })
-      .sort({ _id: -1 })
-      .lean<CampaignDocument[]>();
+    const [campaigns, deals] = await Promise.all([
+      CampaignModel.find({ brand: brandId })
+        .sort({ _id: -1 })
+        .lean<CampaignDocument[]>(),
+      DealModel.find({ brand: brandId }).select("status").lean(),
+    ]);
 
     // Campaign status breakdown
     const byStatus: Record<string, number> = {};
@@ -69,6 +72,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }));
     campaignList.sort((a, b) => b.redemptions - a.redemptions);
 
+    const dealStats = {
+      total: deals.length,
+      active: deals.filter((deal) => deal.status === "active").length,
+      inactive: deals.filter((deal) => deal.status === "inactive").length,
+      expired: deals.filter((deal) => deal.status === "expired").length,
+    };
+
     return Response.json({
       success: true,
       analytics: {
@@ -85,6 +95,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           ),
           list: campaignList,
         },
+        dealStats,
       },
     });
   } catch (error: unknown) {

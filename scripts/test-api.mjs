@@ -45,11 +45,6 @@ let registeredRegNumber = "";
 let USER_TOKEN = "";
 let USER_EMAIL = "";
 let USER_PASSWORD = "";
-// A newly created brandhub brand id (from POST /brandhub/brands) — kept
-// separate from HUB_BRAND_ID so brand-creation tests don't disturb the
-// brand the campaign/deal suites rely on.
-let NEW_HUB_BRAND_ID = "";
-
 // ─── Minimal 1×1 white PNG (no external files needed for upload tests) ───────
 const TINY_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg==",
@@ -1590,33 +1585,14 @@ async function testBrandhubBrands() {
     }
   }
 
-  // POST create no auth → 401
+  // POST removed — brand creation under an org is no longer exposed → 405
   {
-    const { status } = await call("POST", "/brandhub/brands", { body: { brandName: "X", companyName: "Y" } });
-    if (status === 401) log("POST brandhub brand no auth → 401", "PASS");
-    else log("POST brandhub brand no auth → 401", "FAIL", `status=${status}`);
-  }
-
-  // POST missing fields → 400
-  {
-    const { status } = await call("POST", "/brandhub/brands", { body: { brandName: "OnlyName" }, headers: brandHeaders() });
-    if (status === 400) log("POST brandhub brand missing companyName → 400", "PASS");
-    else log("POST brandhub brand missing companyName → 400", "FAIL", `status=${status}`);
-  }
-
-  // POST valid (owner) → 201
-  {
-    const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    const { status, data } = await call("POST", "/brandhub/brands", {
-      body: { brandName: `Hub Brand ${unique}`, companyName: `Hub Co ${unique}` },
+    const { status } = await call("POST", "/brandhub/brands", {
+      body: { brandName: "X", companyName: "Y" },
       headers: brandHeaders(),
     });
-    if (status === 201 && data.brand?.id) {
-      NEW_HUB_BRAND_ID = String(data.brand.id);
-      log("POST brandhub brand (owner) → 201", "PASS", `id=${NEW_HUB_BRAND_ID}`);
-    } else {
-      log("POST brandhub brand (owner) → 201", "FAIL", `status=${status}`);
-    }
+    if (status === 405) log("POST brandhub brand removed → 405", "PASS");
+    else log("POST brandhub brand removed → 405", "FAIL", `status=${status}`);
   }
 
   // GET one brand no auth → 401

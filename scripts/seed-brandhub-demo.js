@@ -123,13 +123,12 @@ async function main() {
       email: "member@demo.com",
       passwordHash: hash,
       orgRole: "member",
-      // write => can create/edit campaigns and deals, 403 on DELETE (manage).
-      // Read-only ESG access keeps the dashboard rich while the
-      // delete/settings restrictions still demo.
-      moduleAccess: [
-        { module: "consumer-reporting", permissions: ["write"] },
-        { module: "esg", permissions: ["read"] },
-      ],
+      // Demo mode: full access to every subscribed module so all tabs are
+      // enabled for every persona.
+      moduleAccess: SUBSCRIBED_MODULES.map((module) => ({
+        module,
+        permissions: ["manage"],
+      })),
       createdAt: now,
       updatedAt: now,
     },
@@ -270,7 +269,7 @@ async function main() {
   console.log("Brand ID:", brandId.toString());
   console.log("Owner:   owner@demo.com  (orgRole: owner — full access to subscribed modules)");
   console.log("Admin:   admin@demo.com  (orgRole: admin — same bypass as owner)");
-  console.log("Member:  member@demo.com (consumer-reporting: write, esg: read — 403 on DELETE/settings)");
+  console.log("Member:  member@demo.com (manage on all subscribed modules — all tabs enabled)");
   console.log(`Password: ${DEMO_PASSWORD} for all three`);
   console.log(`Subscriptions (all active): ${SUBSCRIBED_MODULES.join(", ")}`);
   console.log("Content: 6 campaigns (3 APPROVED / 2 PENDING / 1 REJECTED, 12 redemptions, 8 unique users), 4 deals (2 active / 1 inactive / 1 expired)\n");

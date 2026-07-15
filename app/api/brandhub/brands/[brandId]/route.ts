@@ -65,6 +65,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       domain: brand.domain ?? "",
       themeColor: brand.themeColor ?? null,
       status: brand.status ?? null,
+      createdAt: brand.createdAt ?? brand._id.getTimestamp(),
     },
   });
 }

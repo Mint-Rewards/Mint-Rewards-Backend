@@ -44,6 +44,8 @@ export interface Brand {
   emailVerified: boolean;
   verificationToken?: string;
   environmentalStats?: EnvironmentalStats;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface BrandDocument extends Brand, Document {}

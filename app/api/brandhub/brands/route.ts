@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   await connectToDatabase();
 
   const brands = await BrandModel.find({ orgId: auth.brandUser.orgId })
-    .select("_id brandName companyName logo")
+    .select("_id brandName companyName logo createdAt")
     .lean();
 
   return NextResponse.json({
@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
       brandName: b.brandName,
       companyName: b.companyName,
       logo: b.logo ?? null,
+      createdAt: b.createdAt ?? b._id.getTimestamp(),
     })),
   });
 }

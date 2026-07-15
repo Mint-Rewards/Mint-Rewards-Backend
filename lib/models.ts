@@ -103,7 +103,7 @@ const BrandSchema = new Schema<BrandDocument>(
     verificationToken: String,
     environmentalStats: { type: EnvironmentalStatsSchema, default: undefined },
   },
-  { timestamps: false },
+  { timestamps: true },
 );
 
 const CampaignSchema = new Schema<CampaignDocument>(

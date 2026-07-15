@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel, CampaignModel, DealModel } from "@/lib/models";
-import type { CampaignDocument } from "@/lib/types";
+import type { CampaignDocument, DealDocument } from "@/lib/types";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { isCampaignActive } from "@/lib/campaignDates";
@@ -30,17 +30,18 @@ function parseBound(value: string | null, edge: "start" | "end"): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-// A campaign belongs to the period if its [start, end] window overlaps the
-// selected [from, to] window. Missing bounds are treated as open-ended, so a
-// campaign with no dates is never excluded by a period filter.
+// An item belongs to the period if its [start, end] window overlaps the
+// selected [from, to] window. Missing bounds are treated as open-ended, so an
+// item with no dates is never excluded by a period filter. Shared by
+// campaigns and deals — both models carry startDate/endDate.
 function overlapsPeriod(
-  campaign: CampaignDocument,
+  item: { startDate?: string | null; endDate?: string | null },
   from: Date | null,
   to: Date | null,
 ): boolean {
   if (!from && !to) return true;
-  const start = campaign.startDate ? new Date(campaign.startDate) : null;
-  const end = campaign.endDate ? new Date(campaign.endDate) : null;
+  const start = item.startDate ? new Date(item.startDate) : null;
+  const end = item.endDate ? new Date(item.endDate) : null;
   if (from && end && !Number.isNaN(end.getTime()) && end < from) return false;
   if (to && start && !Number.isNaN(start.getTime()) && start > to) return false;
   return true;
@@ -58,25 +59,32 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    // Optional period filter. Only campaign-derived metrics are scoped to it —
-    // deals and environmental stats have no per-event timestamps in the model,
-    // so they remain all-time (the client labels them as such).
+    // Optional period filter. Campaigns and deals both carry startDate/endDate
+    // so both are scoped to it; environmental stats have no per-event
+    // timestamps in the model, so those remain all-time (the client labels
+    // them as such).
     const { searchParams } = new URL(req.url);
     const from = parseBound(searchParams.get("from"), "start");
     const to = parseBound(searchParams.get("to"), "end");
     const periodApplied = Boolean(from || to);
 
-    const [allCampaigns, deals, brand] = await Promise.all([
+    const [allCampaigns, allDeals, brand] = await Promise.all([
       CampaignModel.find({ brand: brandId })
         .sort({ _id: -1 })
         .lean<CampaignDocument[]>(),
-      DealModel.find({ brand: brandId }).select("status").lean(),
+      DealModel.find({ brand: brandId })
+        .select("status startDate endDate")
+        .lean<DealDocument[]>(),
       BrandModel.findById(brandId).select("environmentalStats").lean(),
     ]);
 
     const campaigns = periodApplied
       ? allCampaigns.filter((c) => overlapsPeriod(c, from, to))
       : allCampaigns;
+
+    const deals = periodApplied
+      ? allDeals.filter((d) => overlapsPeriod(d, from, to))
+      : allDeals;
 
     // Campaign status breakdown
     const byStatus: Record<string, number> = {};

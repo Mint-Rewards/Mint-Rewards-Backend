@@ -222,6 +222,12 @@ export interface User {
     attempts?: number;
     lastSentAt?: Date;
   };
+  emailVerification?: {
+    otpHash?: string;
+    expiresAt?: Date;
+    attempts?: number;
+    lastSentAt?: Date;
+  };
   emailVerified: boolean;
   verificationToken?: string;
   appleId?: string;

@@ -343,6 +343,19 @@ const UserSchema = new Schema<UserDocument>(
       ),
       select: false,
     },
+    // select:false so the OTP hash never leaks through toObject()/find()
+    emailVerification: {
+      type: new Schema(
+        {
+          otpHash: String,
+          expiresAt: Date,
+          attempts: { type: Number, default: 0 },
+          lastSentAt: Date,
+        },
+        { _id: false },
+      ),
+      select: false,
+    },
     emailVerified: { type: Boolean, default: false },
     verificationToken: String,
     appleId: { type: String, sparse: true, unique: true },

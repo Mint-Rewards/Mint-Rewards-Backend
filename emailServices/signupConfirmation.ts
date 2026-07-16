@@ -2,17 +2,17 @@ import sendSecureEmail from "./emailFunction";
 
 export default async function sendSignupEmail(
   recipientEmail: string,
-  verificationLink: string,
+  otp: string,
 ) {
   try {
     const info = await sendSecureEmail({
-      from: '"Mint Rewards" <hello@mymintrewards.com>',
+      from: '"Mint Rewards" <noreply@verify.mymintrewards.com>',
       to: recipientEmail,
-      subject: "Email Verification - Verify Your Email Address",
+      subject: "Email Verification - Your Verification Code",
       html: `<h3>Hello,</h3>
-<p>You are almost set to become part of the Mint family. Simply click the link below to verify your email address:</p>
-<a href="${verificationLink}" style="color: #348eda; text-decoration: none;">Verify your email address</a>
-<p>If you did not create an account, please ignore this email.</p>
+<p>You are almost set to become part of the Mint family. Enter this code to verify your email address:</p>
+<h2>${otp}</h2>
+<p>This code expires in 10 minutes. If you did not create an account, please ignore this email.</p>
 <br />
 <p>Thank you,</p>
 <p>Mint Rewards Team</p>`,

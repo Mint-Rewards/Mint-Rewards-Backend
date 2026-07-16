@@ -357,7 +357,6 @@ const UserSchema = new Schema<UserDocument>(
       select: false,
     },
     emailVerified: { type: Boolean, default: false },
-    verificationToken: String,
     appleId: { type: String, sparse: true, unique: true },
   },
   { timestamps: false },

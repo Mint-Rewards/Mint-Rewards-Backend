@@ -229,7 +229,6 @@ export interface User {
     lastSentAt?: Date;
   };
   emailVerified: boolean;
-  verificationToken?: string;
   appleId?: string;
 }
 

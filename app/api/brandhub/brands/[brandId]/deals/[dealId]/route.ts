@@ -9,8 +9,9 @@ interface RouteParams {
   params: Promise<{ brandId: string; dealId: string }>;
 }
 
-// Unlike campaigns, deal status (active/inactive/expired) is the brand's own
-// activate/deactivate switch, so "write" members may set it here.
+// Unlike campaigns, an already-approved deal's active/inactive toggle is the
+// brand's own switch, so "write" members may set it here — but moving a deal
+// out of pending/rejected is still admin-only (enforced below).
 const ALLOWED_FIELDS = new Set([
   "title",
   "description",
@@ -47,6 +48,39 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         { success: false, message: "Invalid JSON body" },
         { status: 400 },
       );
+    }
+
+    // Brands may flip an already-approved deal between active/inactive, but
+    // can't self-approve out of pending or override a rejection — that's
+    // admin-only, via the /api/brands/[id]/deals/[dealId] moderation route.
+    if (body.status !== undefined) {
+      if (body.status !== "active" && body.status !== "inactive") {
+        return Response.json(
+          {
+            success: false,
+            message: "Brands may only toggle status between active and inactive",
+          },
+          { status: 403 },
+        );
+      }
+      const current = await DealModel.findOne({ _id: dealId, brand: brandId })
+        .select("status")
+        .lean();
+      if (!current) {
+        return Response.json(
+          { success: false, message: "Deal not found" },
+          { status: 404 },
+        );
+      }
+      if (current.status !== "active" && current.status !== "inactive") {
+        return Response.json(
+          {
+            success: false,
+            message: "This deal is awaiting admin approval and can't be toggled yet",
+          },
+          { status: 403 },
+        );
+      }
     }
 
     const update: Record<string, unknown> = {};

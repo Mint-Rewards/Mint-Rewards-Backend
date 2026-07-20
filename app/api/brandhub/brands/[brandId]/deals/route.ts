@@ -106,6 +106,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       codes,
       // Legacy readers (admin/mobile) expect the single promoCode field.
       promoCode: codes[0],
+      status: "pending",
       ...(typeof body.description === "string" && { description: body.description }),
       ...(typeof body.discountPercentage === "number" && { discountPercentage: body.discountPercentage }),
       ...(typeof body.discountAmount === "number" && { discountAmount: body.discountAmount }),

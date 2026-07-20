@@ -15,9 +15,7 @@ export async function GET(req: NextRequest) {
         .trim()
         .toLowerCase();
 
-    const brands = await BrandModel.find({
-      status: "PENDING",
-    }).lean<Brand[]>();
+    const brands = await BrandModel.find({}).lean<Brand[]>();
     const campaigns = await CampaignModel.find({
       status: { $ne: "EXPIRED" },
     }).lean<Campaign[]>();

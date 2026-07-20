@@ -244,7 +244,7 @@ export interface Deal {
   maxUses?: number | null;
   currentUses: number;
   minimumPurchase?: number | null;
-  status: "active" | "inactive" | "expired";
+  status: "pending" | "active" | "rejected" | "inactive" | "expired";
 }
 
 export interface DealDocument extends Deal, Document {}

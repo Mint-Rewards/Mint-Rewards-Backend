@@ -467,8 +467,8 @@ const DealSchema = new Schema<DealDocument>(
     minimumPurchase: { type: Number, default: null },
     status: {
       type: String,
-      enum: ["active", "inactive", "expired"],
-      default: "active",
+      enum: ["pending", "active", "rejected", "inactive", "expired"],
+      default: "pending",
     },
   },
   { timestamps: true },

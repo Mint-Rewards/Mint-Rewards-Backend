@@ -11,10 +11,15 @@ const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 
 /**
  * POST /api/brandhub/auth/register
- * Body:    { orgName: string; email: string; password: string; brandName?: string }
+ * Body:    { orgName: string; email: string; password: string; brandName?: string; contactName?: string; phone?: string; webLink?: string; website?: string; appLink?: string; address?: string; description?: string }
  *          as JSON, or multipart/form-data with the same fields plus an
  *          optional "logo" image file (stored on the org's first Brand and
- *          returned as a public URL in brands[].logo).
+ *          returned as a public URL in brands[].logo). category, contactName,
+ *          phone, and webLink all fall back to placeholders when omitted —
+ *          the Brand schema requires a value for each (see comments at the
+ *          create() call below). webLink also accepts "website" (the
+ *          frontend sends both keys for the same value). appLink/address/
+ *          description default to "" when omitted (not schema-required).
  * Creates a new Organization and its first BrandUser as orgRole "owner".
  * If brandName is provided, also creates the org's first Brand.
  * Returns: { token, orgId, userId, brands, defaultBrandId } — same shape as
@@ -26,6 +31,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let password: string | undefined;
   let brandName: string | undefined;
   let category: string | undefined;
+  let contactName: string | undefined;
+  let phone: string | undefined;
+  let webLink: string | undefined;
+  let appLink: string | undefined;
+  let address: string | undefined;
+  let description: string | undefined;
   let logoFile: File | null = null;
 
   if (req.headers.get("content-type")?.includes("multipart/form-data")) {
@@ -40,6 +51,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       password = str("password");
       brandName = str("brandName");
       category = str("category");
+      contactName = str("contactName");
+      phone = str("phone");
+      webLink = str("webLink") ?? str("website");
+      appLink = str("appLink");
+      address = str("address");
+      description = str("description");
       const logo = formData.get("logo");
       if (logo instanceof File && logo.size > 0) logoFile = logo;
     }
@@ -50,8 +67,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       password?: string;
       brandName?: string;
       category?: string;
+      contactName?: string;
+      phone?: string;
+      webLink?: string;
+      website?: string;
+      appLink?: string;
+      address?: string;
+      description?: string;
     } | null;
-    ({ orgName, email, password, brandName, category } = body ?? {});
+    ({ orgName, email, password, brandName, category, contactName } = body ?? {});
+    contactName = contactName?.trim() || undefined;
+    phone = body?.phone?.trim() || undefined;
+    webLink = (body?.webLink?.trim() || body?.website?.trim()) || undefined;
+    appLink = body?.appLink?.trim() || undefined;
+    address = body?.address?.trim() || undefined;
+    description = body?.description?.trim() || undefined;
   }
 
   if (!orgName || !email || !password) {
@@ -150,23 +180,47 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }[] = [];
 
   if (brandName) {
-    // The legacy Brand schema requires several fields (with unique indexes
-    // on email and registrationNumber) that don't exist at registration
-    // time — fill them with unique placeholders keyed to the brand id.
+    // `email` is intentionally the org owner's own login email here (not a
+    // synthesized placeholder) — Brand.email has a unique index, so this can
+    // collide if a Brand elsewhere already used this address; handled below.
+    // category/webLink/contactName/phone are all schema-required — fall back
+    // to a placeholder for each when omitted so a missing optional field
+    // never throws an uncaught Mongoose ValidationError.
     const brandId = new Types.ObjectId();
-    const brand = await BrandModel.create({
-      _id: brandId,
-      orgId: org._id,
-      brandName,
-      companyName: orgName,
-      email: `brand-${brandId.toString()}@brandhub.local`,
-      category: category ?? "general",
-      webLink: "https://example.com",
-      contactName: normalizedEmail,
-      phone: "N/A",
-      registrationNumber: `BH-${brandId.toString()}`,
-      ...(logoUrl ? { logo: logoUrl } : {}),
-    });
+    let brand;
+    try {
+      brand = await BrandModel.create({
+        _id: brandId,
+        orgId: org._id,
+        brandName,
+        companyName: orgName,
+        email,
+        category: category ?? "general",
+        webLink: webLink ?? "https://example.com",
+        appLink: appLink ?? "",
+        address: address ?? "",
+        description: description ?? "",
+        contactName: contactName ?? normalizedEmail,
+        phone: phone ?? "N/A",
+        registrationNumber: `BH-${brandId.toString()}`,
+        ...(logoUrl ? { logo: logoUrl } : {}),
+      });
+    } catch (error: unknown) {
+      // Duplicate key — most likely `email` already used by another Brand
+      // record. Fail cleanly instead of an uncaught 500.
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: number }).code === 11000
+      ) {
+        return NextResponse.json(
+          { error: "A brand with this email already exists" },
+          { status: 409 },
+        );
+      }
+      throw error;
+    }
     brands.push({
       id: brand._id.toString(),
       brandName: brand.brandName,

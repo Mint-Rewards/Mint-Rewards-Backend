@@ -62,6 +62,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       brandName: brand.brandName,
       companyName: brand.companyName,
       email: brand.email,
+      contactName: brand.contactName ?? "",
+      phone: brand.phone ?? "",
       logo: brand.logo ?? null,
       themeImage: brand.themeImage ?? null,
       category: brand.category,
@@ -162,7 +164,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const update: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(body)) {
       if (SETTINGS_FIELDS.has(key) && value !== undefined) {
-        update[key] = typeof value === "string" ? value.trim() : value;
+        // Lowercase email specifically, matching BrandUser.email's own
+        // normalization, so the unique index and any case-sensitive lookups
+        // stay consistent.
+        update[key] =
+          typeof value === "string"
+            ? key === "email"
+              ? value.trim().toLowerCase()
+              : value.trim()
+            : value;
       }
     }
     if (logoUrl) update.logo = logoUrl;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel } from "@/lib/models";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
@@ -8,11 +9,17 @@ interface RouteParams {
   params: Promise<{ brandId: string }>;
 }
 
+const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5 MB — matches registration's limit
+
 // Fields a brand may update themselves (parity with legacy
 // PATCH /api/brands/[id]/settings). Status and role are admin-only.
+// `logo` rides in via multipart and is handled separately, not through this
+// generic pass-through.
 const SETTINGS_FIELDS = new Set([
   "brandName",
   "companyName",
+  "email",
+  "category",
   "description",
   "webLink",
   "appLink",
@@ -58,6 +65,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       logo: brand.logo ?? null,
       themeImage: brand.themeImage ?? null,
       category: brand.category,
+      registrationNumber: brand.registrationNumber,
       description: brand.description ?? "",
       address: brand.address ?? "",
       webLink: brand.webLink,
@@ -96,13 +104,59 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     await connectToDatabase();
 
     let body: Record<string, unknown> = {};
-    try {
-      body = (await req.json()) as Record<string, unknown>;
-    } catch {
-      return Response.json(
-        { success: false, message: "Invalid JSON body" },
-        { status: 400 },
+    let logoFile: File | null = null;
+
+    if (req.headers.get("content-type")?.includes("multipart/form-data")) {
+      const formData = await req.formData().catch(() => null);
+      if (!formData) {
+        return Response.json(
+          { success: false, message: "Invalid form data" },
+          { status: 400 },
+        );
+      }
+      for (const [key, value] of formData.entries()) {
+        if (key !== "logo") body[key] = value;
+      }
+      const logo = formData.get("logo");
+      if (logo instanceof File && logo.size > 0) logoFile = logo;
+    } else {
+      try {
+        body = (await req.json()) as Record<string, unknown>;
+      } catch {
+        return Response.json(
+          { success: false, message: "Invalid JSON body" },
+          { status: 400 },
+        );
+      }
+    }
+
+    let logoUrl: string | null = null;
+    if (logoFile) {
+      if (!logoFile.type.startsWith("image/")) {
+        return Response.json(
+          { success: false, message: "Logo must be an image file" },
+          { status: 400 },
+        );
+      }
+      if (logoFile.size > MAX_LOGO_BYTES) {
+        return Response.json(
+          { success: false, message: "Logo must be 5MB or smaller" },
+          { status: 400 },
+        );
+      }
+      const extension = logoFile.name.includes(".")
+        ? `.${logoFile.name.split(".").pop()?.toLowerCase()}`
+        : "";
+      const blob = await put(
+        `brands/${brandId}/logo-${Date.now()}${extension || ".png"}`,
+        Buffer.from(await logoFile.arrayBuffer()),
+        {
+          access: "public",
+          contentType: logoFile.type || "application/octet-stream",
+          token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
+        },
       );
+      logoUrl = blob.url;
     }
 
     const update: Record<string, unknown> = {};
@@ -111,6 +165,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         update[key] = typeof value === "string" ? value.trim() : value;
       }
     }
+    if (logoUrl) update.logo = logoUrl;
 
     if (Object.keys(update).length === 0) {
       return Response.json(
@@ -119,11 +174,29 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const brand = await BrandModel.findByIdAndUpdate(
-      brandId,
-      { $set: update },
-      { new: true, runValidators: true },
-    ).select("-verificationToken");
+    let brand;
+    try {
+      brand = await BrandModel.findByIdAndUpdate(
+        brandId,
+        { $set: update },
+        { new: true, runValidators: true },
+      ).select("-verificationToken");
+    } catch (error: unknown) {
+      // Duplicate key on the unique `email` index — surface as a clean 409
+      // instead of the raw Mongo error.
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: number }).code === 11000
+      ) {
+        return Response.json(
+          { success: false, message: "Email already in use" },
+          { status: 409 },
+        );
+      }
+      throw error;
+    }
 
     if (!brand) {
       return Response.json(

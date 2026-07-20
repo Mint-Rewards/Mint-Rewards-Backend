@@ -25,6 +25,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let email: string | undefined;
   let password: string | undefined;
   let brandName: string | undefined;
+  let category: string | undefined;
   let logoFile: File | null = null;
 
   if (req.headers.get("content-type")?.includes("multipart/form-data")) {
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       email = str("email");
       password = str("password");
       brandName = str("brandName");
+      category = str("category");
       const logo = formData.get("logo");
       if (logo instanceof File && logo.size > 0) logoFile = logo;
     }
@@ -47,8 +49,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       email?: string;
       password?: string;
       brandName?: string;
+      category?: string;
     } | null;
-    ({ orgName, email, password, brandName } = body ?? {});
+    ({ orgName, email, password, brandName, category } = body ?? {});
   }
 
   if (!orgName || !email || !password) {
@@ -157,7 +160,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       brandName,
       companyName: orgName,
       email: `brand-${brandId.toString()}@brandhub.local`,
-      category: "general",
+      category: category ?? "general",
       webLink: "https://example.com",
       contactName: normalizedEmail,
       phone: "N/A",

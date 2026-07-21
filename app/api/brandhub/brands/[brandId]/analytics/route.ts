@@ -1,7 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel, CampaignModel, DealModel } from "@/lib/models";
-import type { CampaignDocument, DealDocument } from "@/lib/types";
+import type {
+  CampaignDocument,
+  DealDocument,
+  EnvironmentalPeriod,
+} from "@/lib/types";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { isCampaignActive } from "@/lib/campaignDates";
@@ -47,6 +51,61 @@ function overlapsPeriod(
   return true;
 }
 
+// Sums the dated impact buckets overlapping the requested window.
+//
+// Buckets are counted WHOLE, never pro-rated: a month's tonnage is a measured
+// figure, and slicing it by the fraction of days the caller happened to select
+// would invent a number that never existed. Because of that, the summed total
+// can cover more calendar time than was asked for — so the actual span of the
+// buckets included is returned as `coverage`, and the client shows it. An ESG
+// figure has to say which days it covers.
+function aggregatePeriods(
+  buckets: EnvironmentalPeriod[],
+  from: Date | null,
+  to: Date | null,
+) {
+  const included = buckets.filter((b) =>
+    overlapsPeriod({ startDate: b.periodStart, endDate: b.periodEnd }, from, to),
+  );
+  if (included.length === 0) {
+    return {
+      totalWasteKg: 0,
+      co2AvoidedKg: 0,
+      materialBreakdown: [],
+      periodScoped: true,
+      coverage: null,
+    };
+  }
+
+  const byMaterial = new Map<string, number>();
+  let totalWasteKg = 0;
+  let co2AvoidedKg = 0;
+  for (const bucket of included) {
+    totalWasteKg += bucket.totalWasteKg;
+    co2AvoidedKg += bucket.co2AvoidedKg;
+    for (const entry of bucket.materialBreakdown ?? []) {
+      byMaterial.set(
+        entry.material,
+        (byMaterial.get(entry.material) ?? 0) + entry.weightKg,
+      );
+    }
+  }
+
+  const starts = included.map((b) => b.periodStart).sort();
+  const ends = included.map((b) => b.periodEnd).sort();
+
+  return {
+    totalWasteKg,
+    co2AvoidedKg,
+    // Descending, so the dominant material leads the client's breakdown list.
+    materialBreakdown: [...byMaterial.entries()]
+      .map(([material, weightKg]) => ({ material, weightKg }))
+      .sort((a, b) => b.weightKg - a.weightKg),
+    periodScoped: true,
+    coverage: { from: starts[0], to: ends[ends.length - 1] },
+  };
+}
+
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { brandId } = await params;
@@ -75,7 +134,9 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       DealModel.find({ brand: brandId })
         .select("status startDate endDate")
         .lean<DealDocument[]>(),
-      BrandModel.findById(brandId).select("environmentalStats").lean(),
+      BrandModel.findById(brandId)
+        .select("environmentalStats environmentalPeriods")
+        .lean(),
     ]);
 
     const campaigns = periodApplied
@@ -154,9 +215,26 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           list: campaignList,
         },
         dealStats,
-        ...(brand?.environmentalStats
-          ? { environmental: brand.environmentalStats }
-          : {}),
+        // Dated buckets win when present; otherwise fall back to the legacy
+        // cumulative snapshot, flagged periodScoped:false so the client can
+        // label it all-time rather than implying it followed the picker.
+        ...(brand?.environmentalPeriods?.length
+          ? {
+              environmental: aggregatePeriods(
+                brand.environmentalPeriods,
+                from,
+                to,
+              ),
+            }
+          : brand?.environmentalStats
+            ? {
+                environmental: {
+                  ...brand.environmentalStats,
+                  periodScoped: false,
+                  coverage: null,
+                },
+              }
+            : {}),
       },
     });
   } catch (error: unknown) {

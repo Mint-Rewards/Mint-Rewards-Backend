@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:testdb": "node scripts/dev-testdb.mjs",
+    "seed:personas": "node scripts/seed-brandhub-personas.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

@@ -21,6 +21,20 @@ export interface EnvironmentalStats {
   materialBreakdown: EnvironmentalMaterialStat[];
 }
 
+// A dated bucket of impact figures. Buckets are what make the BrandHub ESG
+// statistics period meaningful: the analytics route sums the ones overlapping
+// the requested window, so the reported tonnage actually tracks the date
+// picker instead of being one frozen cumulative number.
+//
+// Bounds are inclusive "YYYY-MM-DD" day strings, matching the campaign/deal
+// date convention already used across the API. Buckets are not expected to
+// overlap each other; if they do, weights are summed as-is (no de-duplication)
+// — the writer owns that invariant.
+export interface EnvironmentalPeriod extends EnvironmentalStats {
+  periodStart: string;
+  periodEnd: string;
+}
+
 export interface Brand {
   // Optional: legacy brands predate organizations and have no owning org.
   orgId?: Types.ObjectId;
@@ -43,7 +57,12 @@ export interface Brand {
   role: Role;
   emailVerified: boolean;
   verificationToken?: string;
+  // Legacy single cumulative snapshot. Retained so brands seeded before dated
+  // buckets existed keep rendering; reported as all-time, never period-scoped.
   environmentalStats?: EnvironmentalStats;
+  // Dated buckets. When present these take precedence over environmentalStats
+  // and drive genuine period scoping.
+  environmentalPeriods?: EnvironmentalPeriod[];
   createdAt?: Date;
   updatedAt?: Date;
 }

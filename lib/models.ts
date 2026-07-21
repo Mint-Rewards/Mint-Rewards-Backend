@@ -53,22 +53,34 @@ const stringDefaultEmpty = { type: String, default: "" } as const;
 
 // Provisional brand-level impact snapshot pending the brand↔collection data
 // pipeline. Once collections are brand-scoped, these figures can be derived.
+const MaterialBreakdownSchema = new Schema(
+  {
+    material: stringRequired,
+    weightKg: { type: Number, required: true },
+  },
+  { _id: false },
+);
+
 const EnvironmentalStatsSchema = new Schema(
   {
     totalWasteKg: { type: Number, required: true },
     co2AvoidedKg: { type: Number, required: true },
-    materialBreakdown: {
-      type: [
-        new Schema(
-          {
-            material: stringRequired,
-            weightKg: { type: Number, required: true },
-          },
-          { _id: false },
-        ),
-      ],
-      default: [],
-    },
+    materialBreakdown: { type: [MaterialBreakdownSchema], default: [] },
+  },
+  { _id: false },
+);
+
+// A dated bucket. Kept as a SEPARATE field from environmentalStats rather than
+// changing that field's type: existing documents hold a single subdocument
+// there, and retyping it to an array would break every legacy brand on read.
+// The analytics route prefers buckets and falls back to the snapshot.
+const EnvironmentalPeriodSchema = new Schema(
+  {
+    periodStart: stringRequired,
+    periodEnd: stringRequired,
+    totalWasteKg: { type: Number, required: true },
+    co2AvoidedKg: { type: Number, required: true },
+    materialBreakdown: { type: [MaterialBreakdownSchema], default: [] },
   },
   { _id: false },
 );
@@ -102,6 +114,7 @@ const BrandSchema = new Schema<BrandDocument>(
     emailVerified: { type: Boolean, default: false },
     verificationToken: String,
     environmentalStats: { type: EnvironmentalStatsSchema, default: undefined },
+    environmentalPeriods: { type: [EnvironmentalPeriodSchema], default: undefined },
   },
   { timestamps: true },
 );

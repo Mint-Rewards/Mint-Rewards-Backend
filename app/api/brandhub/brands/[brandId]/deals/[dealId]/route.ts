@@ -84,8 +84,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     const update: Record<string, unknown> = {};
+    if (body.status === "active" || body.status === "inactive") {
+      update.status = body.status;
+    }
     for (const [key, value] of Object.entries(body)) {
-      if (ALLOWED_FIELDS.has(key) && value !== undefined) {
+      if (ALLOWED_FIELDS.has(key) && key !== "status" && value !== undefined) {
         update[key] = typeof value === "string" ? value.trim() : value;
       }
     }
@@ -118,6 +121,25 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       // Backfill promoCode for deals created before the codes field existed.
       if (current.length === 0) {
         update.promoCode = appendCodes[0];
+      }
+    }
+
+    // A content edit (anything but the active/inactive toggle above) sends an
+    // already-live deal back through moderation, same as campaigns. Only a
+    // deal that's currently `active` needs this — pending/rejected/inactive
+    // deals aren't "live" to begin with, so an edit shouldn't move them.
+    if (body.status === undefined && (Object.keys(update).length > 0 || appendCodes)) {
+      const current = await DealModel.findOne({ _id: dealId, brand: brandId })
+        .select("status")
+        .lean();
+      if (!current) {
+        return Response.json(
+          { success: false, message: "Deal not found" },
+          { status: 404 },
+        );
+      }
+      if (current.status === "active") {
+        update.status = "pending";
       }
     }
 

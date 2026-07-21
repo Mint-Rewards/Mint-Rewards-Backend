@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import type { SignOptions } from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
 import { verifyOtp } from "@/lib/otp";
@@ -13,8 +14,8 @@ const JWT_SECRET =
   process.env.JWT_SECRET ||
   process.env.NEXTAUTH_SECRET ||
   process.env.NEXT_JWT_SECRET;
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 const MAX_ATTEMPTS = 5;
-const RESET_TOKEN_TTL = "10m";
 
 // One indistinguishable failure for missing user / expired / wrong code.
 function genericFailure() {
@@ -33,12 +34,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const ipLimit = await checkRateLimit("otp:ip", clientIp(req), 15, 15 * 60 * 1000);
+    const ipLimit = await checkRateLimit(
+      "verifyemail:ip",
+      clientIp(req),
+      15,
+      15 * 60 * 1000,
+    );
     if (ipLimit.limited) return rateLimitResponse(ipLimit.retryAfterSeconds);
 
     const normalizedEmail = email.toLowerCase().trim();
     const emailLimit = await checkRateLimit(
-      "otp:email",
+      "verifyemail:email",
       hashKey(normalizedEmail),
       5,
       15 * 60 * 1000,
@@ -55,21 +61,21 @@ export async function POST(req: Request) {
     await connectToDatabase();
 
     const user = await UserModel.findOne({ email: normalizedEmail }).select(
-      "+passwordReset",
+      "+emailVerification",
     );
 
-    const reset = user?.passwordReset;
+    const verification = user?.emailVerification;
     if (
       !user ||
-      !reset?.otpHash ||
-      !reset.expiresAt ||
-      reset.expiresAt.getTime() < Date.now()
+      !verification?.otpHash ||
+      !verification.expiresAt ||
+      verification.expiresAt.getTime() < Date.now()
     ) {
       return genericFailure();
     }
 
-    if ((reset.attempts ?? 0) >= MAX_ATTEMPTS) {
-      user.passwordReset = undefined;
+    if ((verification.attempts ?? 0) >= MAX_ATTEMPTS) {
+      user.emailVerification = undefined;
       await user.save();
       return Response.json(
         { error: "Too many attempts. Request a new code." },
@@ -77,15 +83,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const matches = verifyOtp(String(otp), reset.otpHash);
+    const matches = verifyOtp(String(otp), verification.otpHash);
 
     if (!matches) {
       // Atomic $inc guarded by the OTP hash we just read, so parallel wrong
       // guesses can't race each other into under-counting attempts, and a
       // concurrent resend/consume can't have its state clobbered.
       await UserModel.updateOne(
-        { _id: user._id, "passwordReset.otpHash": reset.otpHash },
-        { $inc: { "passwordReset.attempts": 1 } },
+        { _id: user._id, "emailVerification.otpHash": verification.otpHash },
+        { $inc: { "emailVerification.attempts": 1 } },
       );
       return genericFailure();
     }
@@ -94,22 +100,24 @@ export async function POST(req: Request) {
     // still the OTP we just checked — guards against a concurrent request
     // already having consumed or rotated it.
     const consumed = await UserModel.findOneAndUpdate(
-      { _id: user._id, "passwordReset.otpHash": reset.otpHash },
-      { $unset: { passwordReset: "" } },
+      { _id: user._id, "emailVerification.otpHash": verification.otpHash },
+      { $unset: { emailVerification: "" }, $set: { emailVerified: true } },
     );
     if (!consumed) {
       return genericFailure();
     }
 
-    const resetToken = jwt.sign(
-      { sub: user.id, purpose: "pwreset" },
-      JWT_SECRET,
-      { expiresIn: RESET_TOKEN_TTL },
-    );
+    const token = jwt.sign({ id: user.id }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
+    });
 
-    return Response.json({ success: true, resetToken });
+    return Response.json({
+      success: true,
+      message: "Email verified successfully.",
+      token: `Bearer ${token}`,
+    });
   } catch (error) {
-    console.error("verify-otp error:", error);
+    console.error("verify-email-otp error:", error);
     return Response.json(
       {
         error: "Your request could not be processed. Please try again.",

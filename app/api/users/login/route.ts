@@ -3,7 +3,6 @@ import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
-import sendProfileCompletionEmail from "@/emailServices/profileNotComplete";
 import {
   checkRateLimit,
   clientIp,
@@ -11,7 +10,10 @@ import {
   rateLimitResponse,
 } from "@/lib/rateLimit";
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  process.env.NEXT_JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
 export async function GET() {
@@ -77,11 +79,6 @@ export async function POST(req: Request) {
         },
         { status: 401 },
       );
-    }
-
-    if (!user.address || !user.phone) {
-      // TODO: fix
-      // await sendProfileCompletionEmail(email, user.userName);
     }
 
     if (!JWT_SECRET) {

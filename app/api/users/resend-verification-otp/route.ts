@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
-import sendPasswordResetEmail from "@/emailServices/paswordReset";
+import sendSignupEmail from "@/emailServices/signupConfirmation";
 import { generateOtp, hashOtp } from "@/lib/otp";
 import {
   checkRateLimit,
@@ -15,7 +15,7 @@ const RESEND_THROTTLE_MS = 60 * 1000;
 
 // Identical response whether or not the email exists — prevents enumeration.
 const GENERIC_RESPONSE = {
-  message: "If an account exists for that email, a reset code has been sent.",
+  message: "If an unverified account exists for that email, a new code has been sent.",
 };
 
 export async function POST(req: Request) {
@@ -30,12 +30,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const ipLimit = await checkRateLimit("reset:ip", clientIp(req), 5, 15 * 60 * 1000);
+    const ipLimit = await checkRateLimit(
+      "resendverify:ip",
+      clientIp(req),
+      5,
+      15 * 60 * 1000,
+    );
     if (ipLimit.limited) return rateLimitResponse(ipLimit.retryAfterSeconds);
 
     const normalizedEmail = email.toLowerCase().trim();
     const emailLimit = await checkRateLimit(
-      "reset:email",
+      "resendverify:email",
       hashKey(normalizedEmail),
       3,
       60 * 60 * 1000,
@@ -45,21 +50,24 @@ export async function POST(req: Request) {
     await connectToDatabase();
 
     const user = await UserModel.findOne({ email: normalizedEmail }).select(
-      "+passwordReset",
+      "+emailVerification",
     );
 
-    if (!user) {
+    if (!user || user.emailVerified) {
       return Response.json(GENERIC_RESPONSE);
     }
 
-    const lastSentAt = user.passwordReset?.lastSentAt;
+    // Same generic response as the "no account" branch above — a distinct
+    // status here would let callers detect a registered, unverified email by
+    // firing two requests back to back.
+    const lastSentAt = user.emailVerification?.lastSentAt;
     if (lastSentAt && Date.now() - lastSentAt.getTime() < RESEND_THROTTLE_MS) {
       return Response.json(GENERIC_RESPONSE);
     }
 
     const otp = generateOtp();
 
-    user.passwordReset = {
+    user.emailVerification = {
       otpHash: hashOtp(otp),
       expiresAt: new Date(Date.now() + OTP_TTL_MS),
       attempts: 0,
@@ -68,20 +76,20 @@ export async function POST(req: Request) {
     await user.save();
 
     const recipientEmail = user.email;
-    // Deferred so the response returns at the same speed whether or not the
-    // account exists — awaiting the email call here would leak account
-    // existence through response timing despite the identical body.
+    // Deferred so the response returns at the same speed regardless of
+    // whether an email was actually sent — keeps timing consistent with the
+    // "no account" / "already verified" branches above.
     after(async () => {
       try {
-        await sendPasswordResetEmail(recipientEmail, otp);
+        await sendSignupEmail(recipientEmail, otp);
       } catch (emailError) {
-        console.error("Failed to send password reset email:", emailError);
+        console.error("Failed to send verification email:", emailError);
       }
     });
 
     return Response.json(GENERIC_RESPONSE);
   } catch (error) {
-    console.error("reset-password error:", error);
+    console.error("resend-verification-otp error:", error);
     return Response.json(
       {
         error: "Your request could not be processed. Please try again.",

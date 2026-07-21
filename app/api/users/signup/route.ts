@@ -1,12 +1,15 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
-import crypto from "crypto";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
 import sendSignupEmail from "@/emailServices/signupConfirmation";
+import { generateOtp, hashOtp } from "@/lib/otp";
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  process.env.NEXT_JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
 async function generateMintId() {
@@ -94,13 +97,7 @@ export async function POST(req: Request) {
 
     const mintId = await generateMintId();
 
-    const verificationToken = crypto.randomBytes(20).toString("hex");
-
-    const baseUrl =
-      process.env.NEXT_PUBLIC_API_URL ||
-      process.env.API_URL ||
-      new URL(req.url).origin;
-    const verificationLink = `${baseUrl}/api/users/verify-email?token=${verificationToken}`;
+    const otp = generateOtp();
 
     const newUser = new UserModel({
       userName,
@@ -116,7 +113,12 @@ export async function POST(req: Request) {
       mintId,
       points: 100,
       emailVerified: false,
-      verificationToken,
+      emailVerification: {
+        otpHash: hashOtp(otp),
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        attempts: 0,
+        lastSentAt: new Date(),
+      },
     });
 
     await newUser.save();
@@ -137,7 +139,7 @@ export async function POST(req: Request) {
     }
 
     try {
-      await sendSignupEmail(email, verificationLink);
+      await sendSignupEmail(email, otp);
     } catch (emailErr) {
       console.error("Signup email failed to send:", emailErr);
     }
@@ -147,7 +149,12 @@ export async function POST(req: Request) {
       expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
     });
 
-    const { password: _password, ...userResponse } = newUser.toObject();
+    // select:false doesn't apply to freshly constructed docs — strip the OTP hash.
+    const {
+      password: _password,
+      emailVerification: _emailVerification,
+      ...userResponse
+    } = newUser.toObject();
 
     return Response.json({
       success: true,

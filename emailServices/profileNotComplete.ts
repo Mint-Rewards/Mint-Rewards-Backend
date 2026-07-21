@@ -6,7 +6,7 @@ export default async function sendProfileCompletionEmail(
 ) {
   try {
     const info = await sendSecureEmail({
-      from: '"Mint Rewards" <hello@mymintrewards.com>',
+      from: '"Mint Rewards" <noreply@verify.mymintrewards.com>',
       to: recipientEmail,
       subject: "Complete Your Profile to Unlock More Rewards",
       html: `<h3>Hello ${userName || "User"}</h3>

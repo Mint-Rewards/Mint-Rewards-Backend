@@ -1,8 +1,8 @@
-import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
+import { verifyOtp } from "@/lib/otp";
 import {
   checkRateLimit,
   clientIp,
@@ -83,26 +83,29 @@ export async function POST(req: Request) {
       );
     }
 
-    const submittedHash = crypto
-      .createHash("sha256")
-      .update(String(otp))
-      .digest();
-    const storedHash = Buffer.from(verification.otpHash, "hex");
-    const matches =
-      submittedHash.length === storedHash.length &&
-      crypto.timingSafeEqual(submittedHash, storedHash);
+    const matches = verifyOtp(String(otp), verification.otpHash);
 
     if (!matches) {
-      verification.attempts = (verification.attempts ?? 0) + 1;
-      user.markModified("emailVerification");
-      await user.save();
+      // Atomic $inc guarded by the OTP hash we just read, so parallel wrong
+      // guesses can't race each other into under-counting attempts, and a
+      // concurrent resend/consume can't have its state clobbered.
+      await UserModel.updateOne(
+        { _id: user._id, "emailVerification.otpHash": verification.otpHash },
+        { $inc: { "emailVerification.attempts": 1 } },
+      );
       return genericFailure();
     }
 
-    // Single use: burn the OTP the moment it verifies.
-    user.emailVerification = undefined;
-    user.emailVerified = true;
-    await user.save();
+    // Single use: burn the OTP the moment it verifies, but only if it's
+    // still the OTP we just checked — guards against a concurrent request
+    // already having consumed or rotated it.
+    const consumed = await UserModel.findOneAndUpdate(
+      { _id: user._id, "emailVerification.otpHash": verification.otpHash },
+      { $unset: { emailVerification: "" }, $set: { emailVerified: true } },
+    );
+    if (!consumed) {
+      return genericFailure();
+    }
 
     const token = jwt.sign({ id: user.id }, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],

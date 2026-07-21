@@ -1,7 +1,8 @@
-import crypto from "crypto";
+import { after } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
 import sendPasswordResetEmail from "@/emailServices/paswordReset";
+import { generateOtp, hashOtp } from "@/lib/otp";
 import {
   checkRateLimit,
   clientIp,
@@ -56,21 +57,27 @@ export async function POST(req: Request) {
       return Response.json(GENERIC_RESPONSE);
     }
 
-    const otp = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+    const otp = generateOtp();
 
     user.passwordReset = {
-      otpHash: crypto.createHash("sha256").update(otp).digest("hex"),
+      otpHash: hashOtp(otp),
       expiresAt: new Date(Date.now() + OTP_TTL_MS),
       attempts: 0,
       lastSentAt: new Date(),
     };
     await user.save();
 
-    try {
-      await sendPasswordResetEmail(user.email, otp);
-    } catch (emailError) {
-      console.error("Failed to send password reset email:", emailError);
-    }
+    const recipientEmail = user.email;
+    // Deferred so the response returns at the same speed whether or not the
+    // account exists — awaiting the email call here would leak account
+    // existence through response timing despite the identical body.
+    after(async () => {
+      try {
+        await sendPasswordResetEmail(recipientEmail, otp);
+      } catch (emailError) {
+        console.error("Failed to send password reset email:", emailError);
+      }
+    });
 
     return Response.json(GENERIC_RESPONSE);
   } catch (error) {

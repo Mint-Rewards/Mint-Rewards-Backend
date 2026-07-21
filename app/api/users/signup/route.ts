@@ -1,12 +1,15 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
-import crypto from "crypto";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
 import sendSignupEmail from "@/emailServices/signupConfirmation";
+import { generateOtp, hashOtp } from "@/lib/otp";
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  process.env.NEXT_JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
 async function generateMintId() {
@@ -94,7 +97,7 @@ export async function POST(req: Request) {
 
     const mintId = await generateMintId();
 
-    const otp = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+    const otp = generateOtp();
 
     const newUser = new UserModel({
       userName,
@@ -111,7 +114,7 @@ export async function POST(req: Request) {
       points: 100,
       emailVerified: false,
       emailVerification: {
-        otpHash: crypto.createHash("sha256").update(otp).digest("hex"),
+        otpHash: hashOtp(otp),
         expiresAt: new Date(Date.now() + 10 * 60 * 1000),
         attempts: 0,
         lastSentAt: new Date(),

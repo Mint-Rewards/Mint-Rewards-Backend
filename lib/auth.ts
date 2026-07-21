@@ -10,6 +10,7 @@ export type RequestWithAuthHeader = {
 
 type DecodedTokenWithUser = JwtPayload & {
   id?: string;
+  purpose?: string;
 };
 
 /**
@@ -60,6 +61,13 @@ export async function getAuthenticatedUserId(
   }
 
   const tokenPayload = decoded as DecodedTokenWithUser;
+
+  // Tokens carrying a `purpose` claim (e.g. the password-reset token) are
+  // scoped to a single-use flow and must never authenticate general requests.
+  if (tokenPayload.purpose) {
+    return null;
+  }
+
   const userId = tokenPayload.id ?? tokenPayload.sub;
 
   return typeof userId === "string" && userId.trim() ? userId : null;

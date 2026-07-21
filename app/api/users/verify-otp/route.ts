@@ -1,7 +1,7 @@
-import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
+import { verifyOtp } from "@/lib/otp";
 import {
   checkRateLimit,
   clientIp,
@@ -77,25 +77,29 @@ export async function POST(req: Request) {
       );
     }
 
-    const submittedHash = crypto
-      .createHash("sha256")
-      .update(String(otp))
-      .digest();
-    const storedHash = Buffer.from(reset.otpHash, "hex");
-    const matches =
-      submittedHash.length === storedHash.length &&
-      crypto.timingSafeEqual(submittedHash, storedHash);
+    const matches = verifyOtp(String(otp), reset.otpHash);
 
     if (!matches) {
-      reset.attempts = (reset.attempts ?? 0) + 1;
-      user.markModified("passwordReset");
-      await user.save();
+      // Atomic $inc guarded by the OTP hash we just read, so parallel wrong
+      // guesses can't race each other into under-counting attempts, and a
+      // concurrent resend/consume can't have its state clobbered.
+      await UserModel.updateOne(
+        { _id: user._id, "passwordReset.otpHash": reset.otpHash },
+        { $inc: { "passwordReset.attempts": 1 } },
+      );
       return genericFailure();
     }
 
-    // Single use: burn the OTP the moment it verifies.
-    user.passwordReset = undefined;
-    await user.save();
+    // Single use: burn the OTP the moment it verifies, but only if it's
+    // still the OTP we just checked — guards against a concurrent request
+    // already having consumed or rotated it.
+    const consumed = await UserModel.findOneAndUpdate(
+      { _id: user._id, "passwordReset.otpHash": reset.otpHash },
+      { $unset: { passwordReset: "" } },
+    );
+    if (!consumed) {
+      return genericFailure();
+    }
 
     const resetToken = jwt.sign(
       { sub: user.id, purpose: "pwreset" },

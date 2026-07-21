@@ -1,7 +1,8 @@
-import crypto from "crypto";
+import { after } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
 import sendSignupEmail from "@/emailServices/signupConfirmation";
+import { generateOtp, hashOtp } from "@/lib/otp";
 import {
   checkRateLimit,
   clientIp,
@@ -56,36 +57,35 @@ export async function POST(req: Request) {
       return Response.json(GENERIC_RESPONSE);
     }
 
-    // Cooldown is a UX throttle, not an enumeration risk — safe to be specific.
+    // Same generic response as the "no account" branch above — a distinct
+    // status here would let callers detect a registered, unverified email by
+    // firing two requests back to back.
     const lastSentAt = user.emailVerification?.lastSentAt;
     if (lastSentAt && Date.now() - lastSentAt.getTime() < RESEND_THROTTLE_MS) {
-      const retryAfterSeconds = Math.ceil(
-        (RESEND_THROTTLE_MS - (Date.now() - lastSentAt.getTime())) / 1000,
-      );
-      return Response.json(
-        {
-          error: "Please wait before requesting another code.",
-          retryAfterSeconds,
-        },
-        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } },
-      );
+      return Response.json(GENERIC_RESPONSE);
     }
 
-    const otp = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+    const otp = generateOtp();
 
     user.emailVerification = {
-      otpHash: crypto.createHash("sha256").update(otp).digest("hex"),
+      otpHash: hashOtp(otp),
       expiresAt: new Date(Date.now() + OTP_TTL_MS),
       attempts: 0,
       lastSentAt: new Date(),
     };
     await user.save();
 
-    try {
-      await sendSignupEmail(user.email, otp);
-    } catch (emailError) {
-      console.error("Failed to send verification email:", emailError);
-    }
+    const recipientEmail = user.email;
+    // Deferred so the response returns at the same speed regardless of
+    // whether an email was actually sent — keeps timing consistent with the
+    // "no account" / "already verified" branches above.
+    after(async () => {
+      try {
+        await sendSignupEmail(recipientEmail, otp);
+      } catch (emailError) {
+        console.error("Failed to send verification email:", emailError);
+      }
+    });
 
     return Response.json(GENERIC_RESPONSE);
   } catch (error) {

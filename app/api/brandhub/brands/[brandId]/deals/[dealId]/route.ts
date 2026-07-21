@@ -125,9 +125,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // A content edit (anything but the active/inactive toggle above) sends an
-    // already-live deal back through moderation, same as campaigns. Only a
-    // deal that's currently `active` needs this — pending/rejected/inactive
-    // deals aren't "live" to begin with, so an edit shouldn't move them.
+    // already-live or previously-rejected deal back through moderation, same
+    // as campaigns. `inactive` is the brand's own deliberate pause, not a
+    // moderation state, so an edit shouldn't move it. `pending` is already
+    // where it needs to be.
     if (body.status === undefined && (Object.keys(update).length > 0 || appendCodes)) {
       const current = await DealModel.findOne({ _id: dealId, brand: brandId })
         .select("status")
@@ -138,7 +139,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
           { status: 404 },
         );
       }
-      if (current.status === "active") {
+      if (current.status === "active" || current.status === "rejected") {
         update.status = "pending";
       }
     }

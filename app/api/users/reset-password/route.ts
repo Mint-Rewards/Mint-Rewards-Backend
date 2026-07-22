@@ -13,9 +13,11 @@ import {
 const OTP_TTL_MS = 10 * 60 * 1000;
 const RESEND_THROTTLE_MS = 60 * 1000;
 
-// Identical response whether or not the email exists — prevents enumeration.
+// Truthful on every path that reaches it: the account exists and a code has
+// either just been sent or was sent within the resend-throttle window. This is
+// no longer an anti-enumeration hedge — unknown emails now get a 404 below.
 const GENERIC_RESPONSE = {
-  message: "If an account exists for that email, a reset code has been sent.",
+  message: "A reset code has been sent.",
 };
 
 export async function POST(req: Request) {
@@ -30,6 +32,10 @@ export async function POST(req: Request) {
       );
     }
 
+    // ORDERING IS LOAD-BEARING: both rate-limit checks must stay ahead of the
+    // findOne below. This route discloses whether an account exists (404
+    // ACCOUNT_NOT_FOUND), so these limits are the only thing throttling that
+    // disclosure. Moving the existence check above them makes enumeration free.
     const ipLimit = await checkRateLimit("reset:ip", clientIp(req), 5, 15 * 60 * 1000);
     if (ipLimit.limited) return rateLimitResponse(ipLimit.retryAfterSeconds);
 
@@ -49,7 +55,13 @@ export async function POST(req: Request) {
     );
 
     if (!user) {
-      return Response.json(GENERIC_RESPONSE);
+      return Response.json(
+        // `code` is part of the client contract, not decoration: the client
+        // requires status 404 AND this code before it tells the user no account
+        // exists, so a route-missing 404 falls through to a generic error.
+        { error: "No account found for that email.", code: "ACCOUNT_NOT_FOUND" },
+        { status: 404 },
+      );
     }
 
     const lastSentAt = user.passwordReset?.lastSentAt;
@@ -68,9 +80,9 @@ export async function POST(req: Request) {
     await user.save();
 
     const recipientEmail = user.email;
-    // Deferred so the response returns at the same speed whether or not the
-    // account exists — awaiting the email call here would leak account
-    // existence through response timing despite the identical body.
+    // Deferred purely so the response doesn't wait on the mail provider. This
+    // no longer equalizes response timing between existing and unknown accounts
+    // — the 404 above discloses that outright.
     after(async () => {
       try {
         await sendPasswordResetEmail(recipientEmail, otp);

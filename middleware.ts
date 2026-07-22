@@ -41,6 +41,9 @@ export function middleware(request: NextRequest) {
   response.headers.set("Vary", "Origin");
   if (allowed && origin) {
     response.headers.set("Access-Control-Allow-Origin", origin);
+    // Without this, browsers hide Retry-After from JS on 429 responses and the
+    // web client can't render the wait time.
+    response.headers.set("Access-Control-Expose-Headers", "Retry-After");
   }
   return response;
 }

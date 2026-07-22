@@ -5,6 +5,12 @@ import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
 import sendSignupEmail from "@/emailServices/signupConfirmation";
 import { generateOtp, hashOtp } from "@/lib/otp";
+import {
+  checkRateLimit,
+  clientIp,
+  hashKey,
+  rateLimitResponse,
+} from "@/lib/rateLimit";
 
 const JWT_SECRET =
   process.env.JWT_SECRET ||
@@ -81,6 +87,38 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
+
+    // Placed ahead of the findOne that returns 409, so the existence disclosure
+    // below is throttled rather than free. Limits set by the project owner on
+    // 2026-07-22; the per-IP figure is deliberately generous because much of
+    // the userbase is behind Pakistani carrier CGNAT and campus/office signup
+    // drives are a real acquisition motion — a false-positive block costs more
+    // than the enumeration it would prevent.
+    //
+    // What these actually buy: the per-email limit does nothing against
+    // enumeration (an enumerator queries each address once) — it bounds
+    // mailbombing of one targeted address. The per-IP limit is the only
+    // enumeration control and is weak against rented residential proxies. The
+    // strongest justification is cost and deliverability: signup sends a
+    // verification OTP, so every unthrottled POST is an outbound send against
+    // the provider quota and sender reputation. checkRateLimit fails open if
+    // Mongo is unavailable, so none of this is a guarantee — the unique-email
+    // constraint remains signup's hard floor.
+    const ipLimit = await checkRateLimit(
+      "signup:ip",
+      clientIp(req),
+      20,
+      60 * 60 * 1000,
+    );
+    if (ipLimit.limited) return rateLimitResponse(ipLimit.retryAfterSeconds);
+
+    const emailLimit = await checkRateLimit(
+      "signup:email",
+      hashKey(email),
+      10,
+      60 * 60 * 1000,
+    );
+    if (emailLimit.limited) return rateLimitResponse(emailLimit.retryAfterSeconds);
 
     const existingUser = await UserModel.findOne({ email });
 

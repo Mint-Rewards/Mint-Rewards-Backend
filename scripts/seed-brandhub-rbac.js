@@ -19,8 +19,6 @@ const DEMO_BRAND_NAMES = [
   "Legacy Orphan Brand",
 ];
 
-const DAY = 24 * 60 * 60 * 1000;
-
 async function main() {
   await mongoose.connect(MONGODB_URI, { bufferCommands: false });
 

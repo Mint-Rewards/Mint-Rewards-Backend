@@ -17,6 +17,7 @@ const JWT_SECRET =
   process.env.NEXTAUTH_SECRET ||
   process.env.NEXT_JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const MAX_EMAIL_LENGTH = 254;
 
 async function generateMintId() {
   for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -73,10 +74,19 @@ export async function POST(req: Request) {
       );
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // RFC 5321 caps a forward path at 254 characters. Checked before the regex
+    // so an oversized string is rejected outright rather than matched against.
+    if (email.length > MAX_EMAIL_LENGTH) {
+      return Response.json({ error: "Invalid email format." }, { status: 400 });
+    }
+
+    // Label classes exclude '.', so each dot boundary has exactly one possible
+    // split and the match is linear. The previous /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    // let '.' match inside the domain classes too, making the split ambiguous
+    // and backtracking polynomial on non-matching input (CodeQL js/polynomial-redos).
+    const emailRegex = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
     if (!emailRegex.test(email)) {
-      console.log(`Invalid email format: ${email}`);
+      console.log("Invalid email format:", JSON.stringify(email));
       return Response.json({ error: "Invalid email format." }, { status: 400 });
     }
 

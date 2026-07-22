@@ -315,11 +315,24 @@ describe("BrandHub demo features", () => {
       { params: Promise.resolve({ brandId }) },
     );
     const body = (await response.json()) as {
-      analytics: { environmental?: typeof environmentalStats };
+      analytics: {
+        environmental?: typeof environmentalStats & {
+          periodScoped: boolean;
+          coverage: null;
+        };
+      };
     };
 
     expect(response.status).toBe(200);
-    expect(body.analytics.environmental).toEqual(environmentalStats);
+    // This brand has environmentalStats but no environmentalPeriods, so the
+    // route serves the legacy cumulative snapshot and tags it periodScoped:false
+    // with no coverage range — that is what lets the client label the figures
+    // all-time instead of implying they followed the date picker.
+    expect(body.analytics.environmental).toEqual({
+      ...environmentalStats,
+      periodScoped: false,
+      coverage: null,
+    });
   });
 
   it("omits environmental when the brand has no impact data", async () => {

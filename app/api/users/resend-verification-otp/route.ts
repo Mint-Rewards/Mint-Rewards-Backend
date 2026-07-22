@@ -39,11 +39,17 @@ export async function POST(req: Request) {
     if (ipLimit.limited) return rateLimitResponse(ipLimit.retryAfterSeconds);
 
     const normalizedEmail = email.toLowerCase().trim();
+    // 3 per 10 minutes rather than 3 per hour. These windows are tumbling and
+    // epoch-aligned, so Retry-After is time-to-boundary, not a fixed penalty:
+    // on an hourly window a user who spent their three resends could be told to
+    // wait anything from 1 to 59 minutes depending only on where in the hour
+    // they happened to be. A code that lands in spam or arrives slowly made
+    // that reachable for legitimate users, not just abusers.
     const emailLimit = await checkRateLimit(
       "resendverify:email",
       hashKey(normalizedEmail),
       3,
-      60 * 60 * 1000,
+      10 * 60 * 1000,
     );
     if (emailLimit.limited) return rateLimitResponse(emailLimit.retryAfterSeconds);
 

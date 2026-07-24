@@ -9,6 +9,12 @@
  * to the isolated MONGODB_URI_TEST database instead of production.
  */
 
+import { randomUUID } from "crypto";
+
+// Suffix for throwaway account identifiers. Uses randomUUID rather than
+// Math.random so parallel runs can't collide on the same test email.
+const uniqueSuffix = () => `${Date.now()}${randomUUID().slice(0, 8)}`;
+
 const USE_LOCAL = process.argv.includes("--local");
 
 const BASE = USE_LOCAL
@@ -983,7 +989,7 @@ async function testAdminViews() {
 // Not fatal if it fails — dependent suites simply SKIP.
 async function registerAppUser() {
   section("Auth  POST /users/signup (app user setup)");
-  const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const unique = uniqueSuffix();
   USER_EMAIL = `appuser${unique}@testuser.com`;
   USER_PASSWORD = "AppUserPass123!";
   const { status, data } = await call("POST", "/users/signup", {
@@ -1068,7 +1074,7 @@ async function testUserSignup() {
 
   // Password mismatch → 400
   {
-    const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const unique = uniqueSuffix();
     const { status } = await call("POST", "/users/signup", {
       body: { userName: "Mismatch", email: `mismatch${unique}@testuser.com`, password: "Password123!", confirmPassword: "Different123!" },
     });
@@ -1308,7 +1314,7 @@ async function testDeleteAccount() {
   }
 
   // Create a throwaway user, delete it, then confirm its token is dead.
-  const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const unique = uniqueSuffix();
   const throwawayEmail = `throwaway${unique}@testuser.com`;
   const pw = "ThrowawayPass123!";
   const signup = await call("POST", "/users/signup", {
@@ -1435,7 +1441,7 @@ async function testReferrals() {
 
   // Valid fresh emails → 200 success
   {
-    const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const unique = uniqueSuffix();
     const { status } = await call("POST", "/users/referrals", {
       body: { emails: [`referral${unique}@friend.com`, `referral2${unique}@friend.com`] },
       headers: userHeaders(),
@@ -1516,7 +1522,7 @@ async function testBrandhubAuth() {
 
   // register short password → 400
   {
-    const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const unique = uniqueSuffix();
     const { status } = await call("POST", "/brandhub/auth/register", {
       body: { orgName: `Org ${unique}`, email: `short${unique}@org.com`, password: "short" },
     });
@@ -1528,7 +1534,7 @@ async function testBrandhubAuth() {
   {
     // Re-register the same email used in registerBrandUser is tricky (unique
     // per run); instead register once, then again, to force the 409.
-    const unique = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    const unique = uniqueSuffix();
     const email = `dupbrand${unique}@org.com`;
     const first = await call("POST", "/brandhub/auth/register", {
       body: { orgName: `Org ${unique}`, email, password: "ValidPass123!" },

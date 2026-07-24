@@ -35,26 +35,6 @@ export async function POST(req: Request) {
       );
     }
 
-    if (normalizedEmails.length > 10) {
-      return Response.json(
-        { error: "A maximum of 10 emails can be referred at once." },
-        { status: 400 },
-      );
-    }
-
-    const user = await UserModel.findById(userId);
-
-    if (!user) {
-      return Response.json({ error: "User not found." }, { status: 404 });
-    }
-
-    if (normalizedEmails.includes(user.email)) {
-      return Response.json(
-        { error: "You cannot refer your own email address." },
-        { status: 400 },
-      );
-    }
-
     const existingReferrals = await UserModel.find({
       referrals: { $in: normalizedEmails },
     });
@@ -74,6 +54,12 @@ export async function POST(req: Request) {
         },
         { status: 400 },
       );
+    }
+
+    const user = await UserModel.findById(userId);
+
+    if (!user) {
+      return Response.json({ error: "User not found." }, { status: 404 });
     }
 
     user.referrals = [...new Set([...user.referrals, ...normalizedEmails])];

@@ -1,27 +1,22 @@
 import mongoose, { Model, Schema } from "mongoose";
+import connectToDatabase from "@/lib/mongodb";
 import {
   BrandDocument,
   BrandThemeDocument,
   CampaignDocument,
   CollectionDocument,
-  DealDocument,
   DiscountDocument,
   LocationDocument,
   LogisticsDocument,
   CaptainDocument,
   UserDocument,
-  OrganizationDocument,
-  BrandUserDocument,
 } from "@/lib/types";
-import { PERMISSION_LEVELS, ORG_ROLES } from "@/lib/modules";
 
-// INVARIANT: this module never opens the DB connection at import time.
-// The driver runs with bufferCommands:false (see lib/mongodb.ts), so every
-// caller MUST `await connectToDatabase()` before issuing a query — routes do
-// this at the top of each handler, and shared helpers (requireBrandScope,
-// requireModuleAccess) await it before their first query.
+// Kick off the shared connection once per process. Mongoose will buffer
+// operations until the underlying driver is connected.
+void connectToDatabase();
 
-export interface ILog extends mongoose.Document {
+export interface ILog extends Document {
   // Event classification
   event: string;
   level: "info" | "warn" | "error";
@@ -51,44 +46,8 @@ export interface ILog extends mongoose.Document {
 const stringRequired = { type: String, required: true } as const;
 const stringDefaultEmpty = { type: String, default: "" } as const;
 
-// Provisional brand-level impact snapshot pending the brand↔collection data
-// pipeline. Once collections are brand-scoped, these figures can be derived.
-const MaterialBreakdownSchema = new Schema(
-  {
-    material: stringRequired,
-    weightKg: { type: Number, required: true },
-  },
-  { _id: false },
-);
-
-const EnvironmentalStatsSchema = new Schema(
-  {
-    totalWasteKg: { type: Number, required: true },
-    co2AvoidedKg: { type: Number, required: true },
-    materialBreakdown: { type: [MaterialBreakdownSchema], default: [] },
-  },
-  { _id: false },
-);
-
-// A dated bucket. Kept as a SEPARATE field from environmentalStats rather than
-// changing that field's type: existing documents hold a single subdocument
-// there, and retyping it to an array would break every legacy brand on read.
-// The analytics route prefers buckets and falls back to the snapshot.
-const EnvironmentalPeriodSchema = new Schema(
-  {
-    periodStart: stringRequired,
-    periodEnd: stringRequired,
-    totalWasteKg: { type: Number, required: true },
-    co2AvoidedKg: { type: Number, required: true },
-    materialBreakdown: { type: [MaterialBreakdownSchema], default: [] },
-  },
-  { _id: false },
-);
-
 const BrandSchema = new Schema<BrandDocument>(
   {
-    // Optional: legacy brands predate organizations and must stay valid.
-    orgId: { type: Schema.Types.ObjectId, ref: "Organization", index: true },
     companyName: stringRequired,
     brandName: stringRequired,
     email: { ...stringRequired, unique: true },
@@ -113,19 +72,25 @@ const BrandSchema = new Schema<BrandDocument>(
     role: { type: String, default: "BRAND" },
     emailVerified: { type: Boolean, default: false },
     verificationToken: String,
-    environmentalStats: { type: EnvironmentalStatsSchema, default: undefined },
-    environmentalPeriods: { type: [EnvironmentalPeriodSchema], default: undefined },
   },
-  { timestamps: true },
+  { timestamps: false },
 );
 
 const CampaignSchema = new Schema<CampaignDocument>(
   {
     name: stringRequired,
-    startDate: String,
-    endDate: String,
-    discountCodes: { type: [String], default: [] },
-    isSingleCode: { type: Boolean, default: false },
+    startDate: stringRequired,
+    endDate: stringRequired,
+    discountCodes: {
+      type: [String],
+      required: true,
+      validate: {
+        validator: (codes: string[]) =>
+          Array.isArray(codes) && codes.length > 0,
+        message: "Discount codes must be a non empty array.",
+      },
+    },
+    isSingleCode: { type: Boolean, required: true },
     discountPercentage: String,
     addresses: [
       {
@@ -141,22 +106,18 @@ const CampaignSchema = new Schema<CampaignDocument>(
       default: "PENDING",
       required: true,
     },
-    users: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    users: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     brand: {
       type: Schema.Types.ObjectId,
       ref: "Brand",
       required: true,
     },
-    brandRegistration: { type: String, default: "" },
-    // Brand-portal fields (set at creation time)
-    description: String,
-    campaignType: String,
-    targetAudience: String,
-    budget: Number,
-    backgroundColor: String,
-    badge: String,
-    subtitle: String,
-    banner: String,
+    brandRegistration: stringRequired,
   },
   { timestamps: false },
 );
@@ -343,33 +304,9 @@ const UserSchema = new Schema<UserDocument>(
     pickupHistory: { type: [pickupHistorySchema], default: [] },
     created: { type: Date, default: Date.now },
     firstTimeLogin: { type: Boolean, default: true },
-    // select:false so the OTP hash never leaks through toObject()/find()
-    passwordReset: {
-      type: new Schema(
-        {
-          otpHash: String,
-          expiresAt: Date,
-          attempts: { type: Number, default: 0 },
-          lastSentAt: Date,
-        },
-        { _id: false },
-      ),
-      select: false,
-    },
-    // select:false so the OTP hash never leaks through toObject()/find()
-    emailVerification: {
-      type: new Schema(
-        {
-          otpHash: String,
-          expiresAt: Date,
-          attempts: { type: Number, default: 0 },
-          lastSentAt: Date,
-        },
-        { _id: false },
-      ),
-      select: false,
-    },
+    otpVerification: String,
     emailVerified: { type: Boolean, default: false },
+    verificationToken: String,
     appleId: { type: String, sparse: true, unique: true },
   },
   { timestamps: false },
@@ -471,113 +408,18 @@ LogSchema.index({ deviceId: 1, timestamp: -1 });
 // TTL index — automatically purge logs older than 90 days
 LogSchema.index({ timestamp: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });
 
-export const Log = getModel<ILog>("Log", LogSchema);
+export const Log = mongoose.model<ILog>("Log", LogSchema);
 
 export const UserModel = getModel<UserDocument>("User", UserSchema, "users");
-
-const DealSchema = new Schema<DealDocument>(
-  {
-    brand: { type: Schema.Types.ObjectId, ref: "Brand", required: true },
-    title: stringRequired,
-    description: stringDefaultEmpty,
-    discountPercentage: { type: Number, default: null },
-    discountAmount: { type: Number, default: null },
-    // Inventory of codes; promoCode mirrors codes[0] for legacy readers.
-    codes: { type: [String], default: [] },
-    promoCode: { type: String, default: null },
-    startDate: { type: String, default: null },
-    endDate: { type: String, default: null },
-    maxUses: { type: Number, default: null },
-    currentUses: { type: Number, default: 0 },
-    minimumPurchase: { type: Number, default: null },
-    status: {
-      type: String,
-      enum: ["pending", "active", "rejected", "inactive", "expired"],
-      default: "pending",
-    },
-  },
-  { timestamps: true },
-);
-
-export const DealModel = getModel<DealDocument>("Deal", DealSchema, "deals");
-
-const ModuleAccessSchema = new Schema(
-  {
-    module: stringRequired,
-    permissions: [{ type: String, enum: PERMISSION_LEVELS }],
-  },
-  { _id: false },
-);
-
-const OrganizationSchema = new Schema<OrganizationDocument>(
-  {
-    name: stringRequired,
-    plan: {
-      type: String,
-      enum: ["starter", "growth", "enterprise"],
-      default: "starter",
-    },
-    moduleSubscriptions: {
-      type: [
-        {
-          module: stringRequired,
-          status: {
-            type: String,
-            enum: ["active", "trial", "expired", "cancelled"],
-            required: true,
-          },
-          activatedAt: { type: Date, required: true },
-          expiresAt: { type: Date, default: null },
-          _id: false,
-        },
-      ],
-      // Settings is not a module anymore (brand-profile editing gates on
-      // org role, not a subscription) — new orgs start unsubscribed.
-      default: () => [],
-    },
-  },
-  { timestamps: true },
-);
-
-export const OrganizationModel = getModel<OrganizationDocument>(
-  "Organization",
-  OrganizationSchema,
-  "organizations",
-);
-
-const BrandUserSchema = new Schema<BrandUserDocument>(
-  {
-    orgId: {
-      type: Schema.Types.ObjectId,
-      ref: "Organization",
-      required: true,
-      index: true,
-    },
-    email: { ...stringRequired, unique: true, lowercase: true, trim: true },
-    passwordHash: stringRequired,
-    orgRole: { type: String, enum: ORG_ROLES, required: true },
-    moduleAccess: { type: [ModuleAccessSchema], default: [] },
-  },
-  { timestamps: true },
-);
-
-export const BrandUserModel = getModel<BrandUserDocument>(
-  "BrandUser",
-  BrandUserSchema,
-  "brandusers",
-);
 
 export type {
   BrandDocument,
   CampaignDocument,
   CaptainDocument,
   CollectionDocument,
-  DealDocument,
   DiscountDocument,
   LocationDocument,
   LogisticsDocument,
   BrandThemeDocument,
   UserDocument,
-  OrganizationDocument,
-  BrandUserDocument,
 };

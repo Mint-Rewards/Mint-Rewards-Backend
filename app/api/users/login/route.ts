@@ -3,17 +3,9 @@ import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
-import {
-  checkRateLimit,
-  clientIp,
-  hashKey,
-  rateLimitResponse,
-} from "@/lib/rateLimit";
+import sendProfileCompletionEmail from "@/emailServices/profileNotComplete";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  process.env.NEXTAUTH_SECRET ||
-  process.env.NEXT_JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
 export async function GET() {
@@ -21,11 +13,26 @@ export async function GET() {
   return Response.json({ message: "Login API is alive" });
 }
 
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
+}
+
 export async function POST(req: Request) {
   try {
+    await connectToDatabase();
+
+    console.log("Login API called");
     const body = await req.json();
     const { email, password } = body;
 
+    console.log("Received email:", email);
     if (!email) {
       return Response.json(
         { error: "You must enter an email." },
@@ -42,43 +49,32 @@ export async function POST(req: Request) {
 
     const normalizedEmail = email.toLowerCase();
 
-    const ipLimit = await checkRateLimit(
-      "login:ip",
-      clientIp(req),
-      10,
-      5 * 60 * 1000,
-    );
-    if (ipLimit.limited) return rateLimitResponse(ipLimit.retryAfterSeconds);
-
-    const emailLimit = await checkRateLimit(
-      "login:email",
-      hashKey(normalizedEmail),
-      5,
-      15 * 60 * 1000,
-    );
-    if (emailLimit.limited) return rateLimitResponse(emailLimit.retryAfterSeconds);
-
-    await connectToDatabase();
-
+    console.log("Looking for user with email:", normalizedEmail);
     const user = await UserModel.findOne({ email: normalizedEmail });
+    console.log("User found:", user);
 
-    // Run bcrypt.compare regardless of whether the user was found so that
-    // response timing stays constant and prevents email enumeration.
-    const DUMMY_HASH =
-      "$2a$10$CwTycUXWue0Thq9StjUM0uJ8vTVoRxvBn/hSaKjrIJxJXX2vfLrLK";
-    const isMatch = await bcrypt.compare(
-      password,
-      user?.password || DUMMY_HASH,
-    );
+    if (!user) {
+      return Response.json(
+        { error: "User not found with given email." },
+        { status: 404 },
+      );
+    }
 
-    if (!user || !isMatch) {
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
       return Response.json(
         {
           success: false,
-          error: "Invalid email or password.",
+          error: "Password Incorrect",
         },
-        { status: 401 },
+        { status: 400 },
       );
+    }
+
+    if (!user.address || !user.phone) {
+      // TODO: fix
+      // await sendProfileCompletionEmail(email, user.userName);
     }
 
     if (!JWT_SECRET) {
@@ -100,7 +96,8 @@ export async function POST(req: Request) {
 
     const userCount = await UserModel.countDocuments();
 
-    const { password: _password, ...userResponse } = user.toObject();
+    const userResponse = user.toObject();
+    delete userResponse.password;
 
     return Response.json({
       users: userCount,

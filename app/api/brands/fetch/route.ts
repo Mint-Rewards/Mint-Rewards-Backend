@@ -1,11 +1,7 @@
-import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel } from "@/lib/models";
-import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
-export async function GET(req: NextRequest) {
-  const auth = requireAdminAuth(req);
-  if (auth instanceof NextResponse) return auth;
+export async function GET() {
   try {
     await connectToDatabase();
 

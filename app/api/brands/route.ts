@@ -1,12 +1,8 @@
-import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel, CampaignModel } from "@/lib/models";
 import { Brand, Campaign } from "@/lib/types";
-import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
-export async function GET(req: NextRequest) {
-  const auth = requireAdminAuth(req);
-  if (auth instanceof NextResponse) return auth;
+export async function GET() {
   try {
     await connectToDatabase();
 
@@ -15,7 +11,9 @@ export async function GET(req: NextRequest) {
         .trim()
         .toLowerCase();
 
-    const brands = await BrandModel.find({}).lean<Brand[]>();
+    const brands = await BrandModel.find({
+      status: "PENDING",
+    }).lean<Brand[]>();
     const campaigns = await CampaignModel.find({
       status: { $ne: "EXPIRED" },
     }).lean<Campaign[]>();

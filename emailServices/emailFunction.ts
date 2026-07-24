@@ -1,4 +1,4 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 type SendSecureEmailParams = {
   from: string;
@@ -13,25 +13,33 @@ export default async function sendSecureEmail({
   subject,
   html,
 }: SendSecureEmailParams) {
-  const { RESEND_API_KEY } = process.env;
+  const {
+    NEXT_SMTP_HOST,
+    NEXT_SMTP_PORT = "465",
+    NEXT_SMTP_USERNAME,
+    NEXT_SMTP_PASSWORD,
+  } = process.env;
 
-  if (!RESEND_API_KEY) {
-    throw new Error("Missing RESEND_API_KEY env var");
+  if (!NEXT_SMTP_HOST || !NEXT_SMTP_USERNAME || !NEXT_SMTP_PASSWORD) {
+    throw new Error(
+      "Missing SMTP env vars (NEXT_SMTP_HOST, NEXT_SMTP_USERNAME, NEXT_SMTP_PASSWORD)",
+    );
   }
 
-  const resend = new Resend(RESEND_API_KEY);
+  const transporter = nodemailer.createTransport({
+    host: NEXT_SMTP_HOST,
+    port: Number(NEXT_SMTP_PORT),
+    secure: Number(NEXT_SMTP_PORT) === 465,
+    auth: {
+      user: NEXT_SMTP_USERNAME,
+      pass: NEXT_SMTP_PASSWORD,
+    },
+  });
 
-  const { data, error } = await resend.emails.send({
+  return transporter.sendMail({
     from,
     to,
     subject,
     html,
   });
-
-  if (error) {
-    throw new Error(`Resend send failed: ${error.message}`);
-  }
-
-  // Keep the nodemailer-style shape callers log (info.messageId).
-  return { messageId: data?.id ?? "" };
 }

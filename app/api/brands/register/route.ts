@@ -86,30 +86,12 @@ export async function POST(req: Request) {
       const blob = await put(`brands/${uniqueName}`, fileBuffer, {
         access: "public",
         contentType: logoFile.type || "application/octet-stream",
-        token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
       });
 
       logoUrl = blob.url;
     }
 
     const normalizedEmail = payload.contactEmail.toLowerCase();
-
-    const existing = await BrandModel.findOne({
-      $or: [
-        { email: normalizedEmail },
-        { registrationNumber: payload.registrationNumber },
-      ],
-    }).lean();
-
-    if (existing) {
-      return Response.json(
-        {
-          success: false,
-          message: "A brand with this email or registration number already exists",
-        },
-        { status: 409 },
-      );
-    }
 
     const brand = await BrandModel.create({
       companyName: payload.companyName,

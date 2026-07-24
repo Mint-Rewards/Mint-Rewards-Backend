@@ -8,9 +8,14 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
 async function generateMintId(): Promise<string> {
-  const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
-  const existing = await UserModel.findOne({ mintId });
-  return existing ? generateMintId() : mintId;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
+    const existing = await UserModel.findOne({ mintId });
+    if (!existing) {
+      return mintId;
+    }
+  }
+  throw new Error('Unable to allocate a unique mint ID');
 }
 
 const client = new OAuth2Client(process.env.GOOGLE_IOS_CLIENT_ID);
@@ -30,15 +35,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify the token with Google
-    const ticket = await client.verifyIdToken({
-      idToken,
-      audience: [
-            process.env.GOOGLE_IOS_CLIENT_ID!,
-            process.env.GOOGLE_WEB_CLIENT_ID!,
-      ]
-    });
+    let payload;
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: [
+              process.env.GOOGLE_IOS_CLIENT_ID!,
+              process.env.GOOGLE_WEB_CLIENT_ID!,
+        ]
+      });
+      payload = ticket.getPayload();
+    } catch {
+      payload = null;
+    }
 
-    const payload = ticket.getPayload();
     if (!payload) {
       return NextResponse.json(
         { Status: 'Error', ErrorMessage: 'Invalid token' },
@@ -77,8 +87,7 @@ export async function POST(req: NextRequest) {
       expiresIn: JWT_EXPIRES_IN as SignOptions['expiresIn'],
     });
 
-    const userResponse = user.toObject();
-    delete userResponse.password;
+    const { password: _password, ...userResponse } = user.toObject();
 
     return NextResponse.json({
       Status: 'Success',
@@ -92,7 +101,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Google auth error:', error.message, error.stack);
     return NextResponse.json(
-        { Status: 'Error', ErrorMessage: error.message }, // ← surface real error
+        { Status: 'Error', ErrorMessage: 'Authentication failed' },
         { status: 500 }
     );
     }

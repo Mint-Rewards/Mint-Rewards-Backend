@@ -10,6 +10,7 @@ export type RequestWithAuthHeader = {
 
 type DecodedTokenWithUser = JwtPayload & {
   id?: string;
+  purpose?: string;
 };
 
 /**
@@ -25,22 +26,23 @@ export async function checkAuth(
       return null;
     }
 
-    const [, bearerToken] = authorization.split(" ");
-    const rawToken = bearerToken || authorization;
+    const [scheme, bearerToken] = authorization.split(" ");
+
+    if (scheme !== "Bearer" || !bearerToken) {
+      return null;
+    }
 
     const jwtSecret =
       process.env.JWT_SECRET ||
       process.env.NEXTAUTH_SECRET ||
       process.env.NEXT_JWT_SECRET;
 
-    if (jwtSecret) {
-      const verified = jwt.verify(rawToken, jwtSecret);
-      return verified ?? null;
+    if (!jwtSecret) {
+      return null;
     }
 
-    const decoded = jwt.decode(rawToken);
-
-    return decoded ?? rawToken ?? null;
+    const verified = jwt.verify(bearerToken, jwtSecret);
+    return verified ?? null;
   } catch (error) {
     return null;
   }
@@ -59,6 +61,13 @@ export async function getAuthenticatedUserId(
   }
 
   const tokenPayload = decoded as DecodedTokenWithUser;
+
+  // Tokens carrying a `purpose` claim (e.g. the password-reset token) are
+  // scoped to a single-use flow and must never authenticate general requests.
+  if (tokenPayload.purpose) {
+    return null;
+  }
+
   const userId = tokenPayload.id ?? tokenPayload.sub;
 
   return typeof userId === "string" && userId.trim() ? userId : null;

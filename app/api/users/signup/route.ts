@@ -1,22 +1,34 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
-import crypto from "crypto";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
 import sendSignupEmail from "@/emailServices/signupConfirmation";
+import { generateOtp, hashOtp } from "@/lib/otp";
+import {
+  checkRateLimit,
+  clientIp,
+  hashKey,
+  rateLimitResponse,
+} from "@/lib/rateLimit";
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  process.env.NEXT_JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const MAX_EMAIL_LENGTH = 254;
 
 async function generateMintId() {
-  while (true) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
     const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
     const existingUser = await UserModel.findOne({ mintId });
     if (!existingUser) {
       return mintId;
     }
   }
+
+  throw new Error("Unable to generate a unique mint ID after 20 attempts.");
 }
 
 export async function GET() {
@@ -25,6 +37,13 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    if (!JWT_SECRET) {
+      return Response.json(
+        { error: "Server JWT configuration is missing." },
+        { status: 500 },
+      );
+    }
+
     await connectToDatabase();
 
     const body = await req.json();
@@ -51,24 +70,65 @@ export async function POST(req: Request) {
       });
       return Response.json(
         { error: "All fields are required." },
-        { status: 410 },
+        { status: 400 },
       );
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // RFC 5321 caps a forward path at 254 characters. Checked before the regex
+    // so an oversized string is rejected outright rather than matched against.
+    if (email.length > MAX_EMAIL_LENGTH) {
+      return Response.json({ error: "Invalid email format." }, { status: 400 });
+    }
+
+    // Label classes exclude '.', so each dot boundary has exactly one possible
+    // split and the match is linear. The previous /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    // let '.' match inside the domain classes too, making the split ambiguous
+    // and backtracking polynomial on non-matching input (CodeQL js/polynomial-redos).
+    const emailRegex = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
     if (!emailRegex.test(email)) {
-      console.log(`Invalid email format: ${email}`);
-      return Response.json({ error: "Invalid email format." }, { status: 411 });
+      console.log("Invalid email format:", JSON.stringify(email));
+      return Response.json({ error: "Invalid email format." }, { status: 400 });
     }
 
     if (password !== confirmPassword) {
       console.log(`Password mismatch for email: ${email}`);
       return Response.json(
         { error: "Passwords do not match." },
-        { status: 412 },
+        { status: 400 },
       );
     }
+
+    // Placed ahead of the findOne that returns 409, so the existence disclosure
+    // below is throttled rather than free. Limits set by the project owner on
+    // 2026-07-22; the per-IP figure is deliberately generous because much of
+    // the userbase is behind Pakistani carrier CGNAT and campus/office signup
+    // drives are a real acquisition motion — a false-positive block costs more
+    // than the enumeration it would prevent.
+    //
+    // What these actually buy: the per-email limit does nothing against
+    // enumeration (an enumerator queries each address once) — it bounds
+    // mailbombing of one targeted address. The per-IP limit is the only
+    // enumeration control and is weak against rented residential proxies. The
+    // strongest justification is cost and deliverability: signup sends a
+    // verification OTP, so every unthrottled POST is an outbound send against
+    // the provider quota and sender reputation. checkRateLimit fails open if
+    // Mongo is unavailable, so none of this is a guarantee — the unique-email
+    // constraint remains signup's hard floor.
+    const ipLimit = await checkRateLimit(
+      "signup:ip",
+      clientIp(req),
+      20,
+      60 * 60 * 1000,
+    );
+    if (ipLimit.limited) return rateLimitResponse(ipLimit.retryAfterSeconds);
+
+    const emailLimit = await checkRateLimit(
+      "signup:email",
+      hashKey(email),
+      10,
+      60 * 60 * 1000,
+    );
+    if (emailLimit.limited) return rateLimitResponse(emailLimit.retryAfterSeconds);
 
     const existingUser = await UserModel.findOne({ email });
 
@@ -76,7 +136,7 @@ export async function POST(req: Request) {
       console.log(`Signup attempt with existing email: ${email}`);
       return Response.json(
         { error: "This email is already in use." },
-        { status: 413 },
+        { status: 409 },
       );
     }
 
@@ -85,13 +145,7 @@ export async function POST(req: Request) {
 
     const mintId = await generateMintId();
 
-    const verificationToken = crypto.randomBytes(20).toString("hex");
-
-    const baseUrl =
-      process.env.NEXT_PUBLIC_API_URL ||
-      process.env.API_URL ||
-      new URL(req.url).origin;
-    const verificationLink = `${baseUrl}/api/users/verify-email?token=${verificationToken}`;
+    const otp = generateOtp();
 
     const newUser = new UserModel({
       userName,
@@ -107,7 +161,12 @@ export async function POST(req: Request) {
       mintId,
       points: 100,
       emailVerified: false,
-      verificationToken,
+      emailVerification: {
+        otpHash: hashOtp(otp),
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        attempts: 0,
+        lastSentAt: new Date(),
+      },
     });
 
     await newUser.save();
@@ -118,24 +177,19 @@ export async function POST(req: Request) {
     if (referralUsers.length > 0) {
       const referralUser = referralUsers[0];
 
-      newUser.points = 150;
-      await newUser.save();
+      if (referralUser.email !== newUser.email) {
+        newUser.points = 150;
+        await newUser.save();
 
-      referralUser.points += 50;
-      await referralUser.save();
+        referralUser.points += 50;
+        await referralUser.save();
+      }
     }
 
     try {
-      await sendSignupEmail(email, verificationLink);
+      await sendSignupEmail(email, otp);
     } catch (emailErr) {
       console.error("Signup email failed to send:", emailErr);
-    }
-
-    if (!JWT_SECRET) {
-      return Response.json(
-        { error: "Server JWT configuration is missing." },
-        { status: 500 },
-      );
     }
 
     const payload = { id: newUser.id };
@@ -143,8 +197,12 @@ export async function POST(req: Request) {
       expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
     });
 
-    const userResponse = newUser.toObject();
-    delete userResponse.password;
+    // select:false doesn't apply to freshly constructed docs — strip the OTP hash.
+    const {
+      password: _password,
+      emailVerification: _emailVerification,
+      ...userResponse
+    } = newUser.toObject();
 
     return Response.json({
       success: true,

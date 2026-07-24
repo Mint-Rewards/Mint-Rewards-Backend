@@ -44,7 +44,7 @@ export async function PUT(req: Request) {
 
     const updatedUser = await UserModel.findByIdAndUpdate(userId, updateData, {
       new: true,
-    });
+    }).select("-password");
 
     if (!updatedUser) {
       return Response.json(

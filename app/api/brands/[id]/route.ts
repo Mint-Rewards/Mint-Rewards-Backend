@@ -1,6 +1,7 @@
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel } from "@/lib/models";
+import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 interface RouteParams {
   params: Promise<{
@@ -34,4 +35,40 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       { status: 500 },
     );
   }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: RouteParams
+) {
+  const auth = requireAdminAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
+  const { id } = await params;
+  const { status, reason } = await req.json();
+
+  const validStatuses = ["APPROVED", "REJECTED"];
+  if (!validStatuses.includes(status)) {
+    return NextResponse.json(
+      { success: false, error: `status must be one of: ${validStatuses.join(", ")}` },
+      { status: 400 }
+    );
+  }
+
+  await connectToDatabase();
+
+  const update: Record<string, unknown> = { status };
+  if (reason) update.rejectionReason = reason;
+
+  const brand = await BrandModel.findByIdAndUpdate(
+    id,
+    { $set: update },
+    { new: true, runValidators: true }
+  ).select("-password -verificationToken");
+
+  if (!brand) {
+    return NextResponse.json({ success: false, error: "Brand not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true, brand }, { status: 200 });
 }

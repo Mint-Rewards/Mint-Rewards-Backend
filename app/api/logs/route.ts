@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Log } from "@/lib/models";
 import connectToDatabase from "@/lib/mongodb";
+import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,6 +27,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = requireAdminAuth(req);
+  if (auth instanceof NextResponse) return auth;
   try {
     await connectToDatabase();
     const { searchParams } = new URL(req.url);

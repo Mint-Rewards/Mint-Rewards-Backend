@@ -6,7 +6,7 @@ export default async function sendPasswordResetEmail(
 ) {
   try {
     const info = await sendSecureEmail({
-      from: '"Mint Rewards" <hello@mymintrewards.com>',
+      from: '"Mint Rewards" <noreply@verify.mymintrewards.com>',
       to: recipientEmail,
       subject: "Password Reset - Your Password OTP",
       html: `<h3>Hello,</h3>

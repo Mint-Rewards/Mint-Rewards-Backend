@@ -1,4 +1,5 @@
 import { Document, Types } from "mongoose";
+import type { OrgRole, ModuleAccessEntry } from "@/lib/modules";
 
 export type Role =
   | "ADMIN"
@@ -9,7 +10,34 @@ export type Role =
   | "CAPTAIN"
   | "BRAND";
 
+export interface EnvironmentalMaterialStat {
+  material: string;
+  weightKg: number;
+}
+
+export interface EnvironmentalStats {
+  totalWasteKg: number;
+  co2AvoidedKg: number;
+  materialBreakdown: EnvironmentalMaterialStat[];
+}
+
+// A dated bucket of impact figures. Buckets are what make the BrandHub ESG
+// statistics period meaningful: the analytics route sums the ones overlapping
+// the requested window, so the reported tonnage actually tracks the date
+// picker instead of being one frozen cumulative number.
+//
+// Bounds are inclusive "YYYY-MM-DD" day strings, matching the campaign/deal
+// date convention already used across the API. Buckets are not expected to
+// overlap each other; if they do, weights are summed as-is (no de-duplication)
+// — the writer owns that invariant.
+export interface EnvironmentalPeriod extends EnvironmentalStats {
+  periodStart: string;
+  periodEnd: string;
+}
+
 export interface Brand {
+  // Optional: legacy brands predate organizations and have no owning org.
+  orgId?: Types.ObjectId;
   companyName: string;
   brandName: string;
   email: string;
@@ -29,6 +57,14 @@ export interface Brand {
   role: Role;
   emailVerified: boolean;
   verificationToken?: string;
+  // Legacy single cumulative snapshot. Retained so brands seeded before dated
+  // buckets existed keep rendering; reported as all-time, never period-scoped.
+  environmentalStats?: EnvironmentalStats;
+  // Dated buckets. When present these take precedence over environmentalStats
+  // and drive genuine period scoping.
+  environmentalPeriods?: EnvironmentalPeriod[];
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface BrandDocument extends Brand, Document {}
@@ -39,20 +75,28 @@ export interface CampaignAddress {
   town: string;
 }
 
-export type CampaignStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type CampaignStatus = "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED";
 
 export interface Campaign {
   name: string;
   startDate: string;
   endDate: string;
-  discountCodes: string[];
-  isSingleCode: boolean;
+  discountCodes?: string[];
+  isSingleCode?: boolean;
   discountPercentage?: string;
-  addresses: CampaignAddress[];
+  addresses?: CampaignAddress[];
   status: CampaignStatus;
-  users: Types.ObjectId[];
+  users?: Types.ObjectId[];
   brand: Types.ObjectId;
-  brandRegistration: string;
+  brandRegistration?: string;
+  description?: string;
+  campaignType?: string;
+  targetAudience?: string;
+  budget?: number;
+  backgroundColor?: string;
+  badge?: string;
+  subtitle?: string;
+  banner?: string;
 }
 
 export interface CampaignDocument extends Campaign, Document {}
@@ -191,10 +235,67 @@ export interface User {
   pickupHistory: PickupHistoryEntry[];
   created: Date;
   firstTimeLogin: boolean;
-  otpVerification?: string;
+  passwordReset?: {
+    otpHash?: string;
+    expiresAt?: Date;
+    attempts?: number;
+    lastSentAt?: Date;
+  };
+  emailVerification?: {
+    otpHash?: string;
+    expiresAt?: Date;
+    attempts?: number;
+    lastSentAt?: Date;
+  };
   emailVerified: boolean;
-  verificationToken?: string;
   appleId?: string;
 }
 
 export interface UserDocument extends User, Document {}
+
+export interface Deal {
+  brand: Types.ObjectId;
+  title: string;
+  description?: string;
+  discountPercentage?: number | null;
+  discountAmount?: number | null;
+  // Full code inventory. promoCode stays populated with codes[0] for
+  // backward compatibility with legacy/admin/mobile readers.
+  codes: string[];
+  promoCode?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  maxUses?: number | null;
+  currentUses: number;
+  minimumPurchase?: number | null;
+  status: "pending" | "active" | "rejected" | "inactive" | "expired";
+}
+
+export interface DealDocument extends Deal, Document {}
+
+export type SubscriptionStatus = "active" | "trial" | "expired" | "cancelled";
+
+export interface ModuleSubscription {
+  module: string; // validated against MODULE_CATALOGUE at runtime, no enum
+  status: SubscriptionStatus;
+  activatedAt: Date;
+  expiresAt?: Date | null; // null/undefined = no expiry (e.g. locked modules, lifetime plans)
+}
+
+export interface Organization {
+  name: string;
+  plan: "starter" | "growth" | "enterprise";
+  moduleSubscriptions: ModuleSubscription[];
+}
+
+export interface OrganizationDocument extends Organization, Document {}
+
+export interface BrandUser {
+  orgId: Types.ObjectId;
+  email: string;
+  passwordHash: string;
+  orgRole: OrgRole;
+  moduleAccess: ModuleAccessEntry[];
+}
+
+export interface BrandUserDocument extends BrandUser, Document {}

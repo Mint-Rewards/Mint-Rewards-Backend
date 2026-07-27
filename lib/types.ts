@@ -192,6 +192,12 @@ export interface User {
   created: Date;
   firstTimeLogin: boolean;
   otpVerification?: string;
+  emailVerification?: {
+    otpHash?: string;
+    expiresAt?: Date;
+    attempts?: number;
+    lastSentAt?: Date;
+  };
   emailVerified: boolean;
   verificationToken?: string;
   appleId?: string;

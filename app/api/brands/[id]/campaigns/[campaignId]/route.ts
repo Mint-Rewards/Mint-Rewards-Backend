@@ -124,7 +124,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const campaign = await CampaignModel.findOneAndUpdate(
       { _id: campaignId, brand: id },
       { $set: update },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
 
     if (!campaign) {

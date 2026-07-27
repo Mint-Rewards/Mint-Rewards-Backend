@@ -127,7 +127,7 @@ export async function PUT(req: Request) {
     const campaign = await CampaignModel.findOneAndUpdate(
       { _id: discountId, status: { $ne: "EXPIRED" } },
       { $addToSet: { users: new mongoose.Types.ObjectId(userId) } },
-      { new: true },
+      { returnDocument: "after" },
     );
 
     if (!campaign) {

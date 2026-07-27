@@ -189,7 +189,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       brand = await BrandModel.findByIdAndUpdate(
         brandId,
         { $set: update },
-        { new: true, runValidators: true },
+        { returnDocument: "after", runValidators: true },
       ).select("-verificationToken");
     } catch (error: unknown) {
       // Duplicate key on the unique `email` index — surface as a clean 409

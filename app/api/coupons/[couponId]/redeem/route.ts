@@ -79,7 +79,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
         users: { $ne: userObjectId },
       },
       { $addToSet: { users: userObjectId } },
-      { new: true },
+      { returnDocument: "after" },
     ).lean();
 
     // Matched nothing => a concurrent request redeemed for this user first

@@ -3,10 +3,29 @@ import connectToDatabase from "@/lib/mongodb";
 import { BrandModel, CampaignModel } from "@/lib/models";
 import { Brand, Campaign } from "@/lib/types";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
+import { getAuthenticatedUserId } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
-  const auth = requireAdminAuth(req);
-  if (auth instanceof NextResponse) return auth;
+  // The mobile app's redeem screen reads this endpoint with an ordinary user
+  // token, and shipped clients cannot be force-upgraded — admin-only access
+  // here 401s them, which trips the global sign-out in authenticatedFetch.
+  // Admins keep the unfiltered list; users get the same PENDING-only slice
+  // this endpoint returned before it was gated.
+  const admin = requireAdminAuth(req);
+  const isAdmin = !(admin instanceof NextResponse);
+
+  if (!isAdmin) {
+    const userId = await getAuthenticatedUserId({
+      headers: {
+        authorization: req.headers.get("authorization") ?? undefined,
+      },
+    });
+
+    if (!userId) {
+      return NextResponse.json({ error: "No token provided" }, { status: 401 });
+    }
+  }
+
   try {
     await connectToDatabase();
 
@@ -15,7 +34,9 @@ export async function GET(req: NextRequest) {
         .trim()
         .toLowerCase();
 
-    const brands = await BrandModel.find({}).lean<Brand[]>();
+    const brands = await BrandModel.find(
+      isAdmin ? {} : { status: "PENDING" },
+    ).lean<Brand[]>();
     const campaigns = await CampaignModel.find({
       status: { $ne: "EXPIRED" },
     }).lean<Campaign[]>();

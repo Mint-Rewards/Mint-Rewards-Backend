@@ -71,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const deal = await DealModel.findOneAndUpdate(
       { _id: dealId, brand: id },
       { $set: update },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
     );
 
     if (!deal) {

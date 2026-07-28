@@ -1,7 +1,8 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { BrandModel, CampaignModel } from "@/lib/models";
+import { BrandModel, CampaignModel, UserModel } from "@/lib/models";
 import { isCampaignActive } from "@/lib/campaignDates";
+import { isCampaignVisibleToCity } from "@/lib/campaignVisibility";
 
 export async function GET(req: Request) {
   try {
@@ -17,6 +18,8 @@ export async function GET(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const user = await UserModel.findById(userId).select("city").lean();
+
     const activeBrands = await BrandModel.find({
       status: "APPROVED",
     });
@@ -26,9 +29,9 @@ export async function GET(req: Request) {
     const approvedCampaigns = await CampaignModel.find({
       status: "APPROVED",
     });
-    const activeCampaigns = approvedCampaigns.filter((c) =>
-      isCampaignActive(c),
-    );
+    const activeCampaigns = approvedCampaigns
+      .filter((c) => isCampaignActive(c))
+      .filter((c) => isCampaignVisibleToCity(c, user?.city));
 
     return Response.json({
       activeBrands,

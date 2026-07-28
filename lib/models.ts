@@ -14,6 +14,7 @@ import {
   BrandUserDocument,
 } from "@/lib/types";
 import { PERMISSION_LEVELS, ORG_ROLES } from "@/lib/modules";
+import { TARGETABLE_CITIES } from "@/lib/cities";
 
 // INVARIANT: this module never opens the DB connection at import time.
 // The driver runs with bufferCommands:false (see lib/mongodb.ts), so every
@@ -135,6 +136,11 @@ const CampaignSchema = new Schema<CampaignDocument>(
         _id: false,
       },
     ],
+    cities: {
+      type: [String],
+      enum: TARGETABLE_CITIES,
+      default: [],
+    },
     status: {
       type: String,
       enum: ["PENDING", "APPROVED", "REJECTED", "EXPIRED"],

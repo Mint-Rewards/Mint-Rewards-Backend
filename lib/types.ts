@@ -85,6 +85,7 @@ export interface Campaign {
   isSingleCode?: boolean;
   discountPercentage?: string;
   addresses?: CampaignAddress[];
+  cities?: string[];
   status: CampaignStatus;
   users?: Types.ObjectId[];
   brand: Types.ObjectId;

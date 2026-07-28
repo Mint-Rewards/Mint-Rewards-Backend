@@ -61,7 +61,7 @@ jobs:
             echo "url=https://mint-rewards-backend.vercel.app" >> "$GITHUB_OUTPUT"
             echo "expected_env=production" >> "$GITHUB_OUTPUT"
           else
-            echo "url=https://api-dev.mintrewards.app" >> "$GITHUB_OUTPUT"
+            echo "url=https://mint-rewards-backend-dev.vercel.app" >> "$GITHUB_OUTPUT"
             echo "expected_env=development" >> "$GITHUB_OUTPUT"
           fi
 

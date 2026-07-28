@@ -1,6 +1,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { BrandModel, CampaignModel } from "@/lib/models";
+import { BrandModel, CampaignModel, UserModel } from "@/lib/models";
+import { isCampaignVisibleToCity } from "@/lib/campaignVisibility";
 import mongoose from "mongoose";
 
 const normalize = (value: unknown) =>
@@ -18,6 +19,8 @@ export async function GET(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const user = await UserModel.findById(userId).select("city").lean();
+
     const [campaigns, brands] = await Promise.all([
       CampaignModel.find({ status: { $ne: "EXPIRED" } }).lean(),
       BrandModel.find().lean(),
@@ -28,6 +31,7 @@ export async function GET(req: Request) {
     );
 
     const discounts = campaigns
+      .filter((campaign) => isCampaignVisibleToCity(campaign, user?.city))
       .map((campaign) => {
         const brand = brandByRegistration.get(normalize(campaign.brandRegistration));
         if (!brand) return null;

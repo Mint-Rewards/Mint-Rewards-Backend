@@ -5,6 +5,7 @@ import { BrandModel, CampaignModel } from "@/lib/models";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { serverEnv } from "@/lib/env";
+import { parseTargetCities, InvalidCityError } from "@/lib/cities";
 
 const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -121,6 +122,19 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
+    let cities: string[];
+    try {
+      cities = parseTargetCities(body.cities);
+    } catch (error) {
+      if (error instanceof InvalidCityError) {
+        return Response.json(
+          { success: false, message: error.message },
+          { status: 400 },
+        );
+      }
+      throw error;
+    }
+
     const campaign = await CampaignModel.create({
       name: (name as string).trim(),
       ...(typeof startDate === "string" && startDate && { startDate }),
@@ -128,6 +142,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       brand: id,
       brandRegistration: brand.registrationNumber,
       status: "PENDING",
+      cities,
       ...(typeof body.description === "string" && { description: body.description }),
       ...(typeof body.campaignType === "string" && { campaignType: body.campaignType }),
       ...(typeof body.targetAudience === "string" && { targetAudience: body.targetAudience }),

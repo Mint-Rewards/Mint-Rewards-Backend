@@ -1,6 +1,7 @@
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel } from "@/lib/models";
+import { serverEnv } from "@/lib/env";
 
 const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
       const blob = await put(`brands/${uniqueName}`, fileBuffer, {
         access: "public",
         contentType: logoFile.type || "application/octet-stream",
-        token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
+        token: serverEnv.blobReadWriteToken,
       });
 
       logoUrl = blob.url;

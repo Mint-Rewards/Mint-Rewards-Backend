@@ -1,4 +1,5 @@
 import sendSecureEmail from "./emailFunction";
+import { serverEnv } from "@/lib/env";
 
 export default async function sendReferralEmail(recipientEmail: string) {
   try {
@@ -11,7 +12,7 @@ Sign up today and enjoy exclusive benefits.
 Mint Rewards Team`;
 
     const info = await sendSecureEmail({
-      from: '"Mint Rewards" <noreply@verify.mymintrewards.com>',
+      from: serverEnv.emailFrom,
       to: recipientEmail,
       subject: "You've Been Referred to Mint Rewards!",
       html: `<p style="font-family: Arial, sans-serif; font-size: 16px; color: #333; line-height: 1.6;">

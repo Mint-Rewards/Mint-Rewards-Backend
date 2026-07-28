@@ -11,12 +11,10 @@ import {
   hashKey,
   rateLimitResponse,
 } from "@/lib/rateLimit";
+import { serverEnv, logPrefix } from "@/lib/env";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  process.env.NEXTAUTH_SECRET ||
-  process.env.NEXT_JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const JWT_SECRET = serverEnv.jwtSecret;
+const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
 const MAX_EMAIL_LENGTH = 254;
 
 async function generateMintId() {
@@ -37,13 +35,6 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    if (!JWT_SECRET) {
-      return Response.json(
-        { error: "Server JWT configuration is missing." },
-        { status: 500 },
-      );
-    }
-
     await connectToDatabase();
 
     const body = await req.json();
@@ -206,7 +197,7 @@ export async function POST(req: Request) {
       user: userResponse,
     });
   } catch (error) {
-    console.log(error);
+    console.error(`${logPrefix("users:signup")} unhandled error:`, error instanceof Error ? error.message : "unknown");
     return Response.json(
       {
         error: "Your request could not be processed. Please try again.",

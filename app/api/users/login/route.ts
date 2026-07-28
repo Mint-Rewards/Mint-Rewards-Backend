@@ -9,16 +9,19 @@ import {
   hashKey,
   rateLimitResponse,
 } from "@/lib/rateLimit";
+import { serverEnv, logPrefix, APP_ENV } from "@/lib/env";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  process.env.NEXTAUTH_SECRET ||
-  process.env.NEXT_JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const JWT_SECRET = serverEnv.jwtSecret;
+const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
 
+// Liveness probe kept for non-production debugging only. 404s in production
+// so the deployed surface does not advertise a route that exists purely for
+// developer convenience.
 export async function GET() {
-  //testing route
-  return Response.json({ message: "Login API is alive" });
+  if (APP_ENV === "production") {
+    return new Response(null, { status: 404 });
+  }
+  return Response.json({ message: "Login API is alive", environment: APP_ENV });
 }
 
 export async function POST(req: Request) {
@@ -81,13 +84,6 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!JWT_SECRET) {
-      return Response.json(
-        { error: "Server JWT configuration is missing." },
-        { status: 500 },
-      );
-    }
-
     const payload = { id: user.id };
 
     const token = jwt.sign(payload, JWT_SECRET, {
@@ -109,7 +105,7 @@ export async function POST(req: Request) {
       user: userResponse,
     });
   } catch (error) {
-    console.log(error);
+    console.error(`${logPrefix("users:login")} unhandled error:`, error instanceof Error ? error.message : "unknown");
 
     return Response.json(
       {

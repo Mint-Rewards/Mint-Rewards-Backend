@@ -4,10 +4,15 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI;
+// Was MONGODB_URI — this script bulk-inserts brand records. Pointing it at
+// the test database by default means a mistaken run cannot pollute production.
+const MONGODB_URI = process.env.MONGODB_URI_TEST;
 
 if (!MONGODB_URI) {
-  throw new Error("Please set MONGODB_URI in your environment.");
+  throw new Error(
+    "MONGODB_URI_TEST is not set — refusing to write to the primary database. " +
+      "Define MONGODB_URI_TEST in .env (a separate test database).",
+  );
 }
 
 function getLegacyEmail(sourceId) {
@@ -20,6 +25,19 @@ function getLegacyRegistrationNumber() {
 
 async function main() {
   await mongoose.connect(MONGODB_URI, { bufferCommands: false });
+
+  // Belt-and-braces on top of the MONGODB_URI_TEST-only connection above:
+  // the database name itself must clearly be a test database. Mirrors the
+  // guard already present in seed-brandhub-demo.js / seed-brandhub-personas.js.
+  const dbName = mongoose.connection.db.databaseName;
+  if (!/(^|[-_])test([-_]|$)|^test_db$/i.test(dbName)) {
+    await mongoose.disconnect();
+    throw new Error(
+      `Refusing to run: connected database is "${dbName}", which does not ` +
+        "look like a test database. This script only runs against the " +
+        "isolated test database.",
+    );
+  }
 
   const brands = mongoose.connection.collection("brands");
 

@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, CampaignModel } from "@/lib/models";
+import { BrandModel, CampaignModel, UserModel } from "@/lib/models";
 import { Brand, Campaign } from "@/lib/types";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 import { getAuthenticatedUserId } from "@/lib/auth";
+import { isCampaignVisibleToCity } from "@/lib/campaignVisibility";
 
 export async function GET(req: NextRequest) {
   // The mobile app's redeem screen reads this endpoint with an ordinary user
@@ -14,8 +15,9 @@ export async function GET(req: NextRequest) {
   const admin = requireAdminAuth(req);
   const isAdmin = !(admin instanceof NextResponse);
 
+  let userId: string | null = null;
   if (!isAdmin) {
-    const userId = await getAuthenticatedUserId({
+    userId = await getAuthenticatedUserId({
       headers: {
         authorization: req.headers.get("authorization") ?? undefined,
       },
@@ -28,6 +30,10 @@ export async function GET(req: NextRequest) {
 
   try {
     await connectToDatabase();
+
+    const userCity = isAdmin
+      ? undefined
+      : (await UserModel.findById(userId).select("city").lean())?.city;
 
     const normalizeRegistration = (value: unknown) =>
       String(value ?? "")
@@ -44,6 +50,10 @@ export async function GET(req: NextRequest) {
     const campaignByRegistration = new Map<string, Campaign[]>();
 
     for (const campaign of campaigns) {
+      if (!isAdmin && !isCampaignVisibleToCity(campaign, userCity)) {
+        continue;
+      }
+
       const key = normalizeRegistration(campaign.brandRegistration);
 
       if (!key) {

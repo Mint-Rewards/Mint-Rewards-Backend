@@ -14,5 +14,7 @@ export function isCampaignVisibleToCity(
   const cities = campaign.cities;
   if (!cities || cities.length === 0) return true;
   if (!userCity) return false;
-  return cities.includes(userCity);
+  const normalize = (v: string) => v.trim().toLowerCase();
+  const normalizedUserCity = normalize(userCity);
+  return cities.some((c) => normalize(c) === normalizedUserCity);
 }

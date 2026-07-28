@@ -62,7 +62,7 @@ describe("GET /api/users/my-discounts — city filter", () => {
     await mongoose.disconnect();
   });
 
-  async function fetchAsUser(city?: string) {
+  async function fetchAsUser(city?: string, avail?: boolean) {
     const suffix = new mongoose.Types.ObjectId().toString();
     const user = await UserModel.create({
       userName: "Discount City Tester",
@@ -72,32 +72,54 @@ describe("GET /api/users/my-discounts — city filter", () => {
       ...(city !== undefined && { city }),
     });
     createdUserIds.push(user._id.toString());
+
+    if (avail) {
+      await CampaignModel.updateOne(
+        { _id: karachiCampaignId },
+        { $addToSet: { users: user._id } },
+      );
+    }
+
     const token = jwt.sign({ id: user._id.toString() }, serverEnv.jwtSecret);
 
     const req = new Request("http://localhost/api/users/my-discounts", {
       headers: { authorization: `Bearer ${token}` },
     });
     const response = await getMyDiscounts(req);
-    const body = (await response.json()) as { discounts: { _id: string }[] };
-    return body.discounts.map((d) => d._id.toString());
+    const body = (await response.json()) as {
+      discounts: { _id: string; isAvailed: boolean }[];
+    };
+    return body.discounts;
   }
 
   it("shows both discounts to a user in the targeted city", async () => {
-    const ids = await fetchAsUser("Karachi");
+    const discounts = await fetchAsUser("Karachi");
+    const ids = discounts.map((d) => d._id.toString());
     expect(ids).toEqual(
       expect.arrayContaining([untargetedCampaignId, karachiCampaignId]),
     );
   });
 
   it("hides the targeted discount from a user in a different city", async () => {
-    const ids = await fetchAsUser("Multan");
+    const discounts = await fetchAsUser("Multan");
+    const ids = discounts.map((d) => d._id.toString());
     expect(ids).toContain(untargetedCampaignId);
     expect(ids).not.toContain(karachiCampaignId);
   });
 
   it("hides the targeted discount from a user with no city set", async () => {
-    const ids = await fetchAsUser(undefined);
+    const discounts = await fetchAsUser(undefined);
+    const ids = discounts.map((d) => d._id.toString());
     expect(ids).toContain(untargetedCampaignId);
     expect(ids).not.toContain(karachiCampaignId);
+  });
+
+  it("still shows an already-availed targeted discount to a user in a different city", async () => {
+    const discounts = await fetchAsUser("Multan", true);
+    const karachiDiscount = discounts.find(
+      (d) => d._id.toString() === karachiCampaignId,
+    );
+    expect(karachiDiscount).toBeDefined();
+    expect(karachiDiscount?.isAvailed).toBe(true);
   });
 });

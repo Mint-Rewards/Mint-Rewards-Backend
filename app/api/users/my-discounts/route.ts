@@ -31,13 +31,16 @@ export async function GET(req: Request) {
     );
 
     const discounts = campaigns
-      .filter((campaign) => isCampaignVisibleToCity(campaign, user?.city))
       .map((campaign) => {
         const brand = brandByRegistration.get(normalize(campaign.brandRegistration));
         if (!brand) return null;
 
         const isAvailed = Array.isArray(campaign.users) &&
           campaign.users.some((u) => u.toString() === userId);
+
+        if (!isAvailed && !isCampaignVisibleToCity(campaign, user?.city)) {
+          return null;
+        }
 
         return {
           _id: campaign._id,

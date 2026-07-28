@@ -54,4 +54,9 @@ describe("parseTargetCities", () => {
   it("is case-sensitive against the fixed list", () => {
     expect(() => parseTargetCities(["lahore"])).toThrow(InvalidCityError);
   });
+
+  it("throws InvalidCityError for malformed (non-array, non-string) input instead of silently clearing", () => {
+    expect(() => parseTargetCities(123)).toThrow(InvalidCityError);
+    expect(() => parseTargetCities({ foo: "bar" })).toThrow(InvalidCityError);
+  });
 });

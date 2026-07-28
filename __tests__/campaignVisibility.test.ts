@@ -25,4 +25,10 @@ describe("isCampaignVisibleToCity", () => {
     expect(isCampaignVisibleToCity({ cities: ["Lahore"] }, undefined)).toBe(false);
     expect(isCampaignVisibleToCity({ cities: ["Lahore"] }, "")).toBe(false);
   });
+
+  it("matches regardless of case and surrounding whitespace", () => {
+    expect(isCampaignVisibleToCity({ cities: ["Lahore"] }, "lahore")).toBe(true);
+    expect(isCampaignVisibleToCity({ cities: ["Lahore"] }, " Lahore ")).toBe(true);
+    expect(isCampaignVisibleToCity({ cities: [" lahore "] }, "Lahore")).toBe(true);
+  });
 });

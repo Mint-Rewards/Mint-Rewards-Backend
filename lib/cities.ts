@@ -39,11 +39,13 @@ function isTargetableCity(value: string): value is TargetableCity {
 export function parseTargetCities(raw: unknown): TargetableCity[] {
   if (raw === undefined || raw === null || raw === "") return [];
 
+  if (!Array.isArray(raw) && typeof raw !== "string") {
+    throw new InvalidCityError([String(raw)]);
+  }
+
   const values: string[] = Array.isArray(raw)
     ? raw.map((v) => String(v))
-    : typeof raw === "string"
-      ? raw.split(",")
-      : [];
+    : (raw as string).split(",");
 
   const trimmed = values.map((v) => v.trim()).filter((v) => v.length > 0);
   const deduped = Array.from(new Set(trimmed));

@@ -46,6 +46,28 @@ jobs:
 
       - name: Build check
         run: npm run build --if-present
+        env:
+          # `next build` loads lib/env.ts directly (no jest.setup.js in this
+          # step), so every key it requires must be set here explicitly. The
+          # secrets mirror the "Run tests" step above; everything else is the
+          # same inert, clearly-fake TEST_DEFAULTS jest.setup.js already uses
+          # for local/CI test runs — this build never touches a real service.
+          APP_ENV: development
+          MONGODB_URI: ${{ secrets.MONGODB_URI_TEST }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          BRANDHUB_JWT_SECRET: ${{ secrets.BRANDHUB_JWT_SECRET }}
+          ADMIN_JWT_SECRET: test-admin-secret-not-for-production
+          ADMIN_EMAIL: admin@test.invalid
+          ADMIN_PASSWORD_HASH: $2b$10$abcdefghijklmnopqrstuv0123456789ABCDEFGHIJKLMNOPQRSTU
+          OTP_PEPPER: test-otp-pepper-not-for-production
+          GOOGLE_IOS_CLIENT_ID: test-ios-client-id.apps.googleusercontent.invalid
+          GOOGLE_WEB_CLIENT_ID: test-web-client-id.apps.googleusercontent.invalid
+          APPLE_BUNDLE_ID: com.mintrewards.app.test
+          RESEND_API_KEY: re_test_key_not_for_production
+          EMAIL_FROM: '"Mint Rewards (test)" <noreply@test.invalid>'
+          DEV_MAIL_REDIRECT_TO: engineering@test.invalid
+          BLOB_PUBLIC_READ_WRITE_TOKEN: vercel_blob_rw_TESTTOKEN_not_for_production
+          ALLOWED_ORIGINS: http://localhost:5173
 
   smoke-test:
     name: Smoke Test (Deployed)

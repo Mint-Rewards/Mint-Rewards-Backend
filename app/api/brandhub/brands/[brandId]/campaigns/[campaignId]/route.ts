@@ -5,6 +5,7 @@ import { CampaignModel } from "@/lib/models";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { serverEnv } from "@/lib/env";
+import { parseTargetCities, InvalidCityError } from "@/lib/cities";
 
 const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -97,6 +98,20 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     for (const [key, value] of Object.entries(body)) {
       if (BRAND_EDITABLE.has(key) && value !== undefined && value !== null) {
         update[key] = typeof value === "string" ? value.trim() : value;
+      }
+    }
+
+    if (body.cities !== undefined) {
+      try {
+        update.cities = parseTargetCities(body.cities);
+      } catch (error) {
+        if (error instanceof InvalidCityError) {
+          return Response.json(
+            { success: false, message: error.message },
+            { status: 400 },
+          );
+        }
+        throw error;
       }
     }
 

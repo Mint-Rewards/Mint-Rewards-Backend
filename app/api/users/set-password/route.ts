@@ -3,9 +3,11 @@ import jwt from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
 import { checkRateLimit, clientIp, rateLimitResponse } from "@/lib/rateLimit";
-import { serverEnv } from "@/lib/env";
 
-const JWT_SECRET = serverEnv.jwtSecret;
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  process.env.NEXT_JWT_SECRET;
 const MIN_PASSWORD_LENGTH = 8;
 
 export async function POST(req: Request) {
@@ -39,6 +41,13 @@ export async function POST(req: Request) {
       return Response.json(
         { error: "A reset token is required." },
         { status: 401 },
+      );
+    }
+
+    if (!JWT_SECRET) {
+      return Response.json(
+        { error: "Server JWT configuration is missing." },
+        { status: 500 },
       );
     }
 

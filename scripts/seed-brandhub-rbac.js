@@ -4,15 +4,10 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
-// Was MONGODB_URI — this script calls deleteMany() and was therefore one
-// stray run away from wiping demo records out of the primary database.
-const MONGODB_URI = process.env.MONGODB_URI_TEST;
+const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
-  throw new Error(
-    "MONGODB_URI_TEST is not set — refusing to seed the primary database. " +
-      "Define MONGODB_URI_TEST in .env (a separate test database).",
-  );
+  throw new Error("Please set MONGODB_URI in your environment.");
 }
 
 const DEMO_ORG_NAME = "Mint Rewards Demo";
@@ -26,19 +21,6 @@ const DEMO_BRAND_NAMES = [
 
 async function main() {
   await mongoose.connect(MONGODB_URI, { bufferCommands: false });
-
-  // Belt-and-braces on top of the MONGODB_URI_TEST-only connection above:
-  // the database name itself must clearly be a test database. Mirrors the
-  // guard already present in seed-brandhub-demo.js / seed-brandhub-personas.js.
-  const dbName = mongoose.connection.db.databaseName;
-  if (!/(^|[-_])test([-_]|$)|^test_db$/i.test(dbName)) {
-    await mongoose.disconnect();
-    throw new Error(
-      `Refusing to run: connected database is "${dbName}", which does not ` +
-        "look like a test database. This script only runs against the " +
-        "isolated test database.",
-    );
-  }
 
   const organizations = mongoose.connection.collection("organizations");
   const brandusers = mongoose.connection.collection("brandusers");

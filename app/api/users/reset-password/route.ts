@@ -22,15 +22,7 @@ const GENERIC_RESPONSE = {
 
 export async function POST(req: Request) {
   try {
-    let body;
-    try {
-      body = await req.json();
-    } catch {
-      return Response.json(
-        { error: "Invalid request body." },
-        { status: 400 },
-      );
-    }
+    const body = await req.json();
     const email = body.email;
 
     if (!email || typeof email !== "string") {

@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import { serverEnv, logPrefix } from "@/lib/env";
 
 type MongooseCache = {
   conn: typeof import("mongoose") | null;
@@ -32,8 +31,13 @@ async function connectToDatabase() {
   }
 
   if (!cached.promise) {
-    // Validated at boot in lib/env.ts — no local presence check needed.
-    const MONGODB_URI = serverEnv.mongodbUri;
+    const MONGODB_URI = process.env.MONGODB_URI;
+
+    if (!MONGODB_URI) {
+      throw new Error(
+        "Please define the MONGODB_URI environment variable inside .env.local",
+      );
+    }
 
     const opts = {
       bufferCommands: false,
@@ -63,7 +67,7 @@ export async function withDatabase<T>(operation: () => Promise<T>): Promise<T> {
     await connectToDatabase();
     return await operation();
   } catch (error) {
-    console.error(`${logPrefix("db")} operation failed:`, error);
+    console.error("Database operation failed:", error);
     throw error;
   }
 }

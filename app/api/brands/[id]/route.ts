@@ -63,7 +63,7 @@ export async function PATCH(
   const brand = await BrandModel.findByIdAndUpdate(
     id,
     { $set: update },
-    { returnDocument: "after", runValidators: true }
+    { new: true, runValidators: true }
   ).select("-password -verificationToken");
 
   if (!brand) {

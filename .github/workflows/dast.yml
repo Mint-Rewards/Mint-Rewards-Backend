@@ -28,7 +28,7 @@ jobs:
         run: sleep 45
 
       - name: Run OWASP ZAP API Scan
-        uses: zaproxy/action-api-scan@v0.7.0
+        uses: zaproxy/action-api-scan@v0.10.0
         with:
           target: '${{ steps.target.outputs.url }}/api/health'
           fail_action: false   # Set to true after resolving baseline findings

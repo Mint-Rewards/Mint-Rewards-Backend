@@ -42,14 +42,22 @@ describe("requireModuleAccess chain", () => {
   let subscribedOrgId: string;
   let unsubscribedOrgId: string;
   let expiredOrgId: string;
+  let createdOrgIds: mongoose.Types.ObjectId[];
 
   beforeAll(async () => {
     await connectToDatabase();
     const now = new Date();
 
+    // CI runs this suite concurrently against one shared test database (a push
+    // to dev also triggers the open PR's run). Fixtures therefore carry a
+    // per-run suffix and are torn down by _id — a name-pattern deleteMany here
+    // would wipe the sibling run's orgs mid-suite and 402 every remaining
+    // subscription-gated assertion.
+    const suffix = new mongoose.Types.ObjectId().toString();
+
     const [subscribed, unsubscribed, expired] = await OrganizationModel.create([
       {
-        name: "RMA Test Org (subscribed)",
+        name: `RMA Test Org (subscribed) ${suffix}`,
         moduleSubscriptions: [
           {
             module: "consumer-reporting",
@@ -59,9 +67,12 @@ describe("requireModuleAccess chain", () => {
           },
         ],
       },
-      { name: "RMA Test Org (unsubscribed)", moduleSubscriptions: [] },
       {
-        name: "RMA Test Org (expired)",
+        name: `RMA Test Org (unsubscribed) ${suffix}`,
+        moduleSubscriptions: [],
+      },
+      {
+        name: `RMA Test Org (expired) ${suffix}`,
         moduleSubscriptions: [
           {
             module: "consumer-reporting",
@@ -75,10 +86,11 @@ describe("requireModuleAccess chain", () => {
     subscribedOrgId = subscribed._id.toString();
     unsubscribedOrgId = unsubscribed._id.toString();
     expiredOrgId = expired._id.toString();
+    createdOrgIds = [subscribed._id, unsubscribed._id, expired._id];
   });
 
   afterAll(async () => {
-    await OrganizationModel.deleteMany({ name: /^RMA Test Org / });
+    await OrganizationModel.deleteMany({ _id: { $in: createdOrgIds } });
     await mongoose.disconnect();
   });
 

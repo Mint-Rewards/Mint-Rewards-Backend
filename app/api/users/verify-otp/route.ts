@@ -8,7 +8,7 @@ import {
   hashKey,
   rateLimitResponse,
 } from "@/lib/rateLimit";
-import { serverEnv, logPrefix } from "@/lib/env";
+import { serverEnv } from "@/lib/env";
 
 const JWT_SECRET = serverEnv.jwtSecret;
 const MAX_ATTEMPTS = 5;

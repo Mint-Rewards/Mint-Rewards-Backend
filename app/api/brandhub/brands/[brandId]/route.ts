@@ -4,7 +4,6 @@ import connectToDatabase from "@/lib/mongodb";
 import { BrandModel } from "@/lib/models";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
-import { serverEnv } from "@/lib/env";
 
 interface RouteParams {
   params: Promise<{ brandId: string }>;
@@ -156,7 +155,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         {
           access: "public",
           contentType: logoFile.type || "application/octet-stream",
-          token: serverEnv.blobReadWriteToken,
+          token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
         },
       );
       logoUrl = blob.url;
@@ -190,7 +189,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       brand = await BrandModel.findByIdAndUpdate(
         brandId,
         { $set: update },
-        { returnDocument: "after", runValidators: true },
+        { new: true, runValidators: true },
       ).select("-verificationToken");
     } catch (error: unknown) {
       // Duplicate key on the unique `email` index — surface as a clean 409

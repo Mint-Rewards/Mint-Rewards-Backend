@@ -1,5 +1,4 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
-import { serverEnv } from "@/lib/env";
 
 export type DecodedAuthToken = JwtPayload | string | null;
 
@@ -33,7 +32,16 @@ export async function checkAuth(
       return null;
     }
 
-    const verified = jwt.verify(bearerToken, serverEnv.jwtSecret);
+    const jwtSecret =
+      process.env.JWT_SECRET ||
+      process.env.NEXTAUTH_SECRET ||
+      process.env.NEXT_JWT_SECRET;
+
+    if (!jwtSecret) {
+      return null;
+    }
+
+    const verified = jwt.verify(bearerToken, jwtSecret);
     return verified ?? null;
   } catch (error) {
     return null;

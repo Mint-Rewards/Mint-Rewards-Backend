@@ -1,5 +1,4 @@
 import sendSecureEmail from "./emailFunction";
-import { serverEnv } from "@/lib/env";
 
 export default async function sendPasswordResetEmail(
   recipientEmail: string,
@@ -7,7 +6,7 @@ export default async function sendPasswordResetEmail(
 ) {
   try {
     const info = await sendSecureEmail({
-      from: serverEnv.emailFrom,
+      from: '"Mint Rewards" <noreply@verify.mymintrewards.com>',
       to: recipientEmail,
       subject: "Password Reset - Your Password OTP",
       html: `<h3>Hello,</h3>

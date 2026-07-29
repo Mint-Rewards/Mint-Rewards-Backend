@@ -61,7 +61,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const brand = await BrandModel.findByIdAndUpdate(
       id,
       { $set: update },
-      { returnDocument: "after", runValidators: true },
+      { new: true, runValidators: true },
     ).select("-verificationToken");
 
     if (!brand) {

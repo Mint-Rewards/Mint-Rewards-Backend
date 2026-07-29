@@ -4,7 +4,6 @@ import connectToDatabase from "@/lib/mongodb";
 import { BrandModel, CampaignModel } from "@/lib/models";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
-import { serverEnv } from "@/lib/env";
 
 const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -92,7 +91,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           {
             access: "public",
             contentType: bannerFile.type || "image/jpeg",
-            token: serverEnv.blobReadWriteToken,
+            token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
           },
         );
         bannerUrl = blob.url;

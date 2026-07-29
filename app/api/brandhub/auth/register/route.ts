@@ -6,7 +6,6 @@ import { Types } from "mongoose";
 import { OrganizationModel, BrandUserModel, BrandModel } from "@/lib/models";
 import { signBrandToken } from "@/lib/brandJwt";
 import { MODULE_CATALOGUE, hasActiveSubscription } from "@/lib/modules";
-import { serverEnv } from "@/lib/env";
 
 const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -128,7 +127,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       {
         access: "public",
         contentType: logoFile.type || "application/octet-stream",
-        token: serverEnv.blobReadWriteToken,
+        token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
       },
     );
     logoUrl = blob.url;

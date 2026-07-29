@@ -1,5 +1,4 @@
 import sendSecureEmail from "./emailFunction";
-import { serverEnv } from "@/lib/env";
 
 export default async function sendSignupEmail(
   recipientEmail: string,
@@ -7,7 +6,7 @@ export default async function sendSignupEmail(
 ) {
   try {
     const info = await sendSecureEmail({
-      from: serverEnv.emailFrom,
+      from: '"Mint Rewards" <noreply@verify.mymintrewards.com>',
       to: recipientEmail,
       subject: "Email Verification - Your Verification Code",
       html: `<h3>Hello,</h3>

@@ -43,7 +43,7 @@ export async function PUT(req: Request) {
       updateData.firstTimeLogin = firstTimeLogin;
 
     const updatedUser = await UserModel.findByIdAndUpdate(userId, updateData, {
-      new: true,
+      returnDocument: "after",
     }).select("-password");
 
     if (!updatedUser) {

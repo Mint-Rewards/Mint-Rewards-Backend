@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
+import { serverEnv } from "@/lib/env";
 
 export interface AdminPayload {
   email: string;
@@ -26,15 +27,10 @@ export function requireAdminAuth(req: NextRequest): AuthOk | NextResponse {
   }
 
   const token = authHeader.split(" ")[1];
-  const secret = process.env.ADMIN_JWT_SECRET;
-
-  if (!secret) {
-    console.error("[requireAdminAuth] ADMIN_JWT_SECRET is not set");
-    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
-  }
 
   try {
-    const payload = jwt.verify(token, secret) as AdminPayload;
+    // ADMIN_JWT_SECRET is validated at boot in lib/env.ts.
+    const payload = jwt.verify(token, serverEnv.adminJwtSecret) as AdminPayload;
 
     if (payload.role !== "admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -6,12 +6,18 @@ import { SignOptions } from 'jsonwebtoken';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { serverEnv, logPrefix } from '@/lib/env';
 
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const APPLE_ISSUER = 'https://appleid.apple.com';
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+// Both validated at boot in lib/env.ts. APPLE_BUNDLE_ID in particular is
+// required there, so no code path below can reach jwtVerify() with an
+// undefined audience — the previous runtime 500 guard is now unreachable
+// by construction and has been removed.
+const JWT_SECRET = serverEnv.jwtSecret;
+const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
+const APPLE_BUNDLE_ID = serverEnv.appleBundleId;
 
 async function generateMintId(): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -35,19 +41,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const bundleId = process.env.APPLE_BUNDLE_ID;
-    if (!bundleId) {
-      return NextResponse.json(
-        { Status: 'Error', ErrorMessage: 'Server Apple configuration is missing.' },
-        { status: 500 }
-      );
-    }
-
-    // Verify the identity token against Apple's public keys
+    // Verify the identity token against Apple's public keys. `audience` is
+    // the environment's bundle ID (dev: com.mintrewards.app.dev), so a token
+    // minted for the other environment's bundle fails the aud check here.
     const JWKS = createRemoteJWKSet(new URL(APPLE_JWKS_URL));
     const { payload } = await jwtVerify(identityToken, JWKS, {
       issuer: APPLE_ISSUER,
-      audience: bundleId,
+      audience: APPLE_BUNDLE_ID,
     });
 
     const sub = payload.sub as string;
@@ -101,13 +101,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (!JWT_SECRET) {
-      return NextResponse.json(
-        { Status: 'Error', ErrorMessage: 'Server JWT configuration is missing.' },
-        { status: 500 }
-      );
-    }
-
     const jwtPayload = { id: user.id };
     const token = jwt.sign(jwtPayload, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN as SignOptions['expiresIn'],
@@ -123,7 +116,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Apple auth error:', error.message, error.stack);
+    console.error(`${logPrefix('auth:apple')} verification failed:`, error.message);
     return NextResponse.json(
       { Status: 'Error', ErrorMessage: 'Authentication failed' },
       { status: 500 }

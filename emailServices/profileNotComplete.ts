@@ -1,4 +1,5 @@
 import sendSecureEmail from "./emailFunction";
+import { serverEnv } from "@/lib/env";
 
 export default async function sendProfileCompletionEmail(
   recipientEmail: string,
@@ -6,7 +7,7 @@ export default async function sendProfileCompletionEmail(
 ) {
   try {
     const info = await sendSecureEmail({
-      from: '"Mint Rewards" <noreply@verify.mymintrewards.com>',
+      from: serverEnv.emailFrom,
       to: recipientEmail,
       subject: "Complete Your Profile to Unlock More Rewards",
       html: `<h3>Hello ${userName || "User"}</h3>

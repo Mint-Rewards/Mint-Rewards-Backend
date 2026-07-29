@@ -2,7 +2,7 @@ name: DAST Security Scan
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 jobs:
   zap-scan:
@@ -15,13 +15,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Resolve target deployment
+        id: target
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "url=https://mint-rewards-backend.vercel.app" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=https://mint-rewards-backend-dev.vercel.app" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Wait for Vercel deployment
         run: sleep 45
 
       - name: Run OWASP ZAP API Scan
-        uses: zaproxy/action-api-scan@v0.7.0
+        uses: zaproxy/action-api-scan@v0.10.0
         with:
-          target: 'https://mint-rewards-backend.vercel.app/api/health'
+          target: '${{ steps.target.outputs.url }}/api/health'
           fail_action: false   # Set to true after resolving baseline findings
           issue_title: 'ZAP DAST Scan Report'
           token: ${{ secrets.GITHUB_TOKEN }}

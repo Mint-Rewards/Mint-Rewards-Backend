@@ -6,6 +6,7 @@ import { SignOptions } from 'jsonwebtoken';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { serverEnv, logPrefix } from '@/lib/env';
 
 async function generateMintId(): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -18,10 +19,13 @@ async function generateMintId(): Promise<string> {
   throw new Error('Unable to allocate a unique mint ID');
 }
 
-const client = new OAuth2Client(process.env.GOOGLE_IOS_CLIENT_ID);
+// All validated at boot in lib/env.ts. The previous `process.env.X!`
+// non-null assertions claimed a guarantee TypeScript could not check — an
+// unset client ID became `audience: [undefined, undefined]` at runtime.
+const client = new OAuth2Client(serverEnv.googleIosClientId);
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_SECRET = serverEnv.jwtSecret;
+const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,9 +44,9 @@ export async function POST(req: NextRequest) {
       const ticket = await client.verifyIdToken({
         idToken,
         audience: [
-              process.env.GOOGLE_IOS_CLIENT_ID!,
-              process.env.GOOGLE_WEB_CLIENT_ID!,
-        ]
+          serverEnv.googleIosClientId,
+          serverEnv.googleWebClientId,
+        ],
       });
       payload = ticket.getPayload();
     } catch {
@@ -76,12 +80,6 @@ export async function POST(req: NextRequest) {
         firstTimeLogin: true,
       });
     }
-    if (!JWT_SECRET) {
-      return NextResponse.json(
-        { Status: 'Error', ErrorMessage: 'Server JWT configuration is missing.' },
-        { status: 500 }
-      );
-    }
     const jwtPayload = { id: user.id };
     const token = jwt.sign(jwtPayload, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN as SignOptions['expiresIn'],
@@ -99,7 +97,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Google auth error:', error.message, error.stack);
+    console.error(`${logPrefix('auth:google')} verification failed:`, error.message);
     return NextResponse.json(
         { Status: 'Error', ErrorMessage: 'Authentication failed' },
         { status: 500 }

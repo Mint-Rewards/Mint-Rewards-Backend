@@ -11,12 +11,10 @@ import {
   hashKey,
   rateLimitResponse,
 } from "@/lib/rateLimit";
+import { serverEnv, logPrefix } from "@/lib/env";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  process.env.NEXTAUTH_SECRET ||
-  process.env.NEXT_JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const JWT_SECRET = serverEnv.jwtSecret;
+const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
 const MAX_EMAIL_LENGTH = 254;
 
 async function generateMintId() {
@@ -37,13 +35,6 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    if (!JWT_SECRET) {
-      return Response.json(
-        { error: "Server JWT configuration is missing." },
-        { status: 500 },
-      );
-    }
-
     await connectToDatabase();
 
     const body = await req.json();
@@ -62,12 +53,7 @@ export async function POST(req: Request) {
     const email = String(body.email || "").toLowerCase();
 
     if (!userName || !email || !password || !confirmPassword) {
-      console.log("Missing required fields:", {
-        userName,
-        email,
-        password: password ? "provided" : "missing",
-        confirmPassword: confirmPassword ? "provided" : "missing",
-      });
+      console.log("Missing required fields");
       return Response.json(
         { error: "All fields are required." },
         { status: 400 },
@@ -86,12 +72,12 @@ export async function POST(req: Request) {
     // and backtracking polynomial on non-matching input (CodeQL js/polynomial-redos).
     const emailRegex = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
     if (!emailRegex.test(email)) {
-      console.log("Invalid email format:", JSON.stringify(email));
+      console.log("Invalid email format");
       return Response.json({ error: "Invalid email format." }, { status: 400 });
     }
 
     if (password !== confirmPassword) {
-      console.log(`Password mismatch for email: ${email}`);
+      console.log(`Password mismatch`);
       return Response.json(
         { error: "Passwords do not match." },
         { status: 400 },
@@ -133,7 +119,7 @@ export async function POST(req: Request) {
     const existingUser = await UserModel.findOne({ email });
 
     if (existingUser) {
-      console.log(`Signup attempt with existing email: ${email}`);
+      console.log(`Signup attempt with existing email`);
       return Response.json(
         { error: "This email is already in use." },
         { status: 409 },
@@ -211,7 +197,7 @@ export async function POST(req: Request) {
       user: userResponse,
     });
   } catch (error) {
-    console.log(error);
+    console.error(`${logPrefix("users:signup")} unhandled error:`, error instanceof Error ? error.message : "unknown");
     return Response.json(
       {
         error: "Your request could not be processed. Please try again.",

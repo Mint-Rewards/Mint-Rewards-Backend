@@ -8,11 +8,9 @@ import {
   hashKey,
   rateLimitResponse,
 } from "@/lib/rateLimit";
+import { serverEnv } from "@/lib/env";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  process.env.NEXTAUTH_SECRET ||
-  process.env.NEXT_JWT_SECRET;
+const JWT_SECRET = serverEnv.jwtSecret;
 const MAX_ATTEMPTS = 5;
 const RESET_TOKEN_TTL = "10m";
 
@@ -44,13 +42,6 @@ export async function POST(req: Request) {
       15 * 60 * 1000,
     );
     if (emailLimit.limited) return rateLimitResponse(emailLimit.retryAfterSeconds);
-
-    if (!JWT_SECRET) {
-      return Response.json(
-        { error: "Server JWT configuration is missing." },
-        { status: 500 },
-      );
-    }
 
     await connectToDatabase();
 

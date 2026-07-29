@@ -1,22 +1,20 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { EDGE_ALLOWED_ORIGINS } from "@/lib/edgeEnv";
 
-// Comma-separated exact origins, e.g. "https://app.example.com,https://admin.example.com"
-const ALLOWED_ORIGINS = new Set(
-  (process.env.ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean),
-);
-
+/**
+ * Exact-match only. The previous implementation fell back to accepting any
+ * http://localhost:* origin whenever the allowlist was empty and NODE_ENV was
+ * not "production" — a pattern match that reflects an attacker-chosen origin.
+ * That is inert today (no cookies are used), but it is the classic credentialed
+ * -CORS bypass the moment anyone adds them, so it is gone. Local development
+ * origins now belong in the dev project's ALLOWED_ORIGINS like any other entry.
+ *
+ * Set per Vercel project: the dev deployment and the prod deployment carry
+ * different values. See .env.example.
+ */
 function isAllowedOrigin(origin: string): boolean {
-  if (ALLOWED_ORIGINS.has(origin)) return true;
-  // Dev fallback: with no allowlist configured outside production, permit localhost.
-  return (
-    ALLOWED_ORIGINS.size === 0 &&
-    process.env.NODE_ENV !== "production" &&
-    /^http:\/\/localhost(:\d+)?$/.test(origin)
-  );
+  return EDGE_ALLOWED_ORIGINS.has(origin.replace(/\/+$/, ""));
 }
 
 export function middleware(request: NextRequest) {

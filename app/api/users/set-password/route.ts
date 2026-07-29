@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
 import { checkRateLimit, clientIp, rateLimitResponse } from "@/lib/rateLimit";
-import { serverEnv, logPrefix } from "@/lib/env";
+import { serverEnv } from "@/lib/env";
 
 const JWT_SECRET = serverEnv.jwtSecret;
 const MIN_PASSWORD_LENGTH = 8;

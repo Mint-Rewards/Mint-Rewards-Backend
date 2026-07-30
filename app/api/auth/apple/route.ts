@@ -6,12 +6,13 @@ import { SignOptions } from 'jsonwebtoken';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { serverEnv } from '@/lib/env';
 
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const APPLE_ISSUER = 'https://appleid.apple.com';
 
-const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_SECRET = serverEnv.jwtSecret;
+const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
 
 async function generateMintId(): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -35,19 +36,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const bundleId = process.env.APPLE_BUNDLE_ID;
-    if (!bundleId) {
-      return NextResponse.json(
-        { Status: 'Error', ErrorMessage: 'Server Apple configuration is missing.' },
-        { status: 500 }
-      );
-    }
-
     // Verify the identity token against Apple's public keys
     const JWKS = createRemoteJWKSet(new URL(APPLE_JWKS_URL));
     const { payload } = await jwtVerify(identityToken, JWKS, {
       issuer: APPLE_ISSUER,
-      audience: bundleId,
+      audience: serverEnv.appleBundleId,
     });
 
     const sub = payload.sub as string;
@@ -99,13 +92,6 @@ export async function POST(req: NextRequest) {
         emailVerified: true,
         firstTimeLogin: true,
       });
-    }
-
-    if (!JWT_SECRET) {
-      return NextResponse.json(
-        { Status: 'Error', ErrorMessage: 'Server JWT configuration is missing.' },
-        { status: 500 }
-      );
     }
 
     const jwtPayload = { id: user.id };

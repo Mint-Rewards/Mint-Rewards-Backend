@@ -9,12 +9,10 @@ import {
   hashKey,
   rateLimitResponse,
 } from "@/lib/rateLimit";
+import { serverEnv } from "@/lib/env";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET ||
-  process.env.NEXTAUTH_SECRET ||
-  process.env.NEXT_JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const JWT_SECRET = serverEnv.jwtSecret;
+const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
 const MAX_ATTEMPTS = 5;
 
 // One indistinguishable failure for missing user / expired / wrong code.
@@ -50,13 +48,6 @@ export async function POST(req: Request) {
       15 * 60 * 1000,
     );
     if (emailLimit.limited) return rateLimitResponse(emailLimit.retryAfterSeconds);
-
-    if (!JWT_SECRET) {
-      return Response.json(
-        { error: "Server JWT configuration is missing." },
-        { status: 500 },
-      );
-    }
 
     await connectToDatabase();
 

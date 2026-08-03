@@ -18,8 +18,13 @@ jobs:
       - name: Wait for Vercel deployment
         run: sleep 45
 
+      # v0.7.0 bundled @actions/artifact v1, which uploads via the retired
+      # "Create Artifact Container" endpoint — GitHub now answers it with a 400
+      # whose message misleadingly blames the artifact name. v0.10.0 moves to
+      # @actions/artifact v2 (the v4 backend) and runs on node24, which also
+      # clears the Node 20 runtime deprecation warning.
       - name: Run OWASP ZAP API Scan
-        uses: zaproxy/action-api-scan@v0.7.0
+        uses: zaproxy/action-api-scan@v0.10.0
         with:
           target: 'https://mint-rewards-backend.vercel.app/api/health'
           fail_action: false   # Set to true after resolving baseline findings

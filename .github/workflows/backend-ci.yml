@@ -6,6 +6,19 @@ on:
   push:
     branches: [main, dev]
 
+# Every run points jest at the same MONGODB_URI_TEST database, and the fixtures
+# are not namespaced per run — activeCampaigns.test.ts seeds a legacy brand doc
+# with no registrationNumber, which the unique index allows exactly one of
+# collection-wide. Two runs overlapping (a batch of dependabot PRs, or a push
+# plus its PR) therefore fail with E11000 on whichever loses the race.
+#
+# A constant group serialises Backend CI across every branch and event.
+# cancel-in-progress stays false: each run is validating a different commit,
+# so a queued run must still get its turn rather than be dropped.
+concurrency:
+  group: backend-ci-shared-test-db
+  cancel-in-progress: false
+
 jobs:
   test:
     name: Test & Audit

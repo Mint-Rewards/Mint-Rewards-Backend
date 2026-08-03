@@ -11,6 +11,33 @@ jobs:
     name: Test & Audit
     runs-on: ubuntu-latest
 
+    # lib/env.ts validates every key below at module load and throws on the
+    # first import, so `next build` and any suite that imports app.ts need the
+    # full set present — not just the ones a given test actually reads.
+    #
+    # Only MONGODB_URI_TEST / JWT_SECRET / BRANDHUB_JWT_SECRET are real. The
+    # rest are syntactically-valid placeholders: no suite talks to Google,
+    # Apple, Resend or Blob for real, and APP_ENV=development plus a fake
+    # RESEND_API_KEY means nothing can reach an actual recipient.
+    env:
+      APP_ENV: development
+      # Overwritten by jest.setup.js with MONGODB_URI_TEST. Present only so the
+      # build step, which never connects, passes lib/env.ts format validation.
+      MONGODB_URI: mongodb://127.0.0.1:27017/ci-build-check
+      ADMIN_JWT_SECRET: ci-placeholder-admin-jwt-secret
+      ADMIN_EMAIL: admin@example.com
+      # bcrypt hash of a throwaway string; never used to authenticate in CI.
+      ADMIN_PASSWORD_HASH: '$2b$10$CwTycUXWue0Thq9StjUM0uJ8.PjMDCLPu2H8dQmDCkPGYr8SoQO0O'
+      OTP_PEPPER: ci-placeholder-otp-pepper
+      GOOGLE_IOS_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
+      GOOGLE_WEB_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
+      APPLE_BUNDLE_ID: com.example.ci
+      RESEND_API_KEY: re_ci_placeholder
+      EMAIL_FROM: ci@example.com
+      DEV_MAIL_REDIRECT_TO: sink@example.com
+      BLOB_PUBLIC_READ_WRITE_TOKEN: vercel_blob_rw_ci_placeholder
+      ALLOWED_ORIGINS: http://localhost:3000
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

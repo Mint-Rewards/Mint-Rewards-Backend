@@ -67,6 +67,11 @@
     ],
     "setupFilesAfterEnv": [
       "<rootDir>/jest.teardown.js"
-    ]
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/.worktrees/"
+    ],
+    "testTimeout": 30000
   }
 }

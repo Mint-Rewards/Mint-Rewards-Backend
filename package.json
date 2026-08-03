@@ -14,14 +14,14 @@
   },
   "dependencies": {
     "@vercel/blob": "^2.3.1",
-    "axios": "^1.13.5",
+    "axios": "^1.19.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "google-auth-library": "^11.0.0",
-    "helmet": "^8.2.0",
-    "jose": "^6.2.3",
+    "helmet": "^8.3.0",
+    "jose": "^6.2.5",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.1.1",
     "mongoose": "^9.2.1",
@@ -33,7 +33,7 @@
     "resend": "^6.17.2"
   },
   "overrides": {
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.23",
     "sharp": "^0.35.3"
   },
   "devDependencies": {
@@ -43,7 +43,7 @@
     "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/ms": "^2.1.0",
-    "@types/node": "^25.3.0",
+    "@types/node": "^26.1.2",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "19.2.14",
     "@types/supertest": "^7.2.0",
@@ -67,6 +67,11 @@
     ],
     "setupFilesAfterEnv": [
       "<rootDir>/jest.teardown.js"
-    ]
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/.worktrees/"
+    ],
+    "testTimeout": 30000
   }
 }

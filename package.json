@@ -33,7 +33,7 @@
     "resend": "^6.17.2"
   },
   "overrides": {
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.23",
     "sharp": "^0.35.3"
   },
   "devDependencies": {

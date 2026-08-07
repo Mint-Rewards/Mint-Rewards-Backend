@@ -272,6 +272,12 @@ export interface Deal {
   currentUses: number;
   minimumPurchase?: number | null;
   status: "pending" | "active" | "rejected" | "inactive" | "expired";
+  // App users who have already claimed a code, mirroring Campaign.users —
+  // this is what enforces one redemption per user.
+  users?: Types.ObjectId[];
+  // Parallel to `users`: the code handed to each of them, so a user re-opening
+  // a claimed deal is shown the same code instead of consuming another.
+  claims?: { user: Types.ObjectId; code: string; claimedAt: Date }[];
 }
 
 export interface DealDocument extends Deal, Document {}

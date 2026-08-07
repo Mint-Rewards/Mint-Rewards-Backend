@@ -1,6 +1,7 @@
 import { randomInt } from "crypto";
 
-// Deal promo-code inventory rules, shared by the brandhub deal routes.
+// Promo-code inventory rules, shared by the brandhub deal routes and by
+// campaign discountCodes.
 //
 // Supplied codes: trimmed, uppercased, deduped; each 4-32 chars of
 // [A-Z0-9-_]; max 500 per request. Generated codes: PREFIX-XXXXXX (or bare

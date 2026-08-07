@@ -498,6 +498,18 @@ const DealSchema = new Schema<DealDocument>(
       enum: ["pending", "active", "rejected", "inactive", "expired"],
       default: "pending",
     },
+    users: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    claims: {
+      type: [
+        {
+          user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+          code: stringRequired,
+          claimedAt: { type: Date, default: Date.now },
+          _id: false,
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true },
 );

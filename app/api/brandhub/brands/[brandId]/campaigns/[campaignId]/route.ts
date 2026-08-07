@@ -25,6 +25,11 @@ const BRAND_EDITABLE = new Set([
   "badge",
   "subtitle",
   "banner",
+  // The percentage shown on the card is ordinary campaign copy. The code
+  // inventory (discountCodes/isSingleCode) is deliberately absent: codes are
+  // fixed at creation, since editing them would let a brand invalidate codes
+  // users have already been handed.
+  "discountPercentage",
 ]);
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {

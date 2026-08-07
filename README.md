@@ -252,12 +252,17 @@ Register a new brand partner. Accepts `multipart/form-data` (logo file included)
 ---
 
 #### `GET /api/brands`
-Return all brands with status `PENDING` along with their associated campaigns.
+Return every brand regardless of status, along with its non-`EXPIRED`
+campaigns. This is the moderation view — see `GET /api/brands/fetch` for
+approved inventory only.
 
 ---
 
 #### `GET /api/brands/fetch`
-Return all `PENDING` brands sorted by creation date (newest first).
+Return all `APPROVED` brands sorted by creation date (newest first), each with
+its `APPROVED` campaigns and `active` deals. Approved inventory only — use
+`GET /api/brands` for every brand regardless of status, or
+`GET /api/brands/deals?status=pending` for deals awaiting review.
 
 ---
 

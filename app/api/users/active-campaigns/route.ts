@@ -55,11 +55,33 @@ export async function GET(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Campaigns are linked against the PENDING BrandHub brand documents, so
-    // that is the set the app lists and joins against.
-    const activeBrands = await BrandModel.find({
-      status: "PENDING",
+    // Only brands an admin has approved in BrandHub are listed. This filter
+    // previously read PENDING, which inverted moderation: an unreviewed brand
+    // was live in the app and approving it removed it. Brands cloned by
+    // scripts/clone-legacy-brands.js are inserted as PENDING, so any that
+    // predate this change stay hidden until they are approved in BrandHub.
+    const approvedBrands = await BrandModel.find({
+      status: "APPROVED",
     });
+
+    // A BrandHub document carries `legacy-<legacyId>@example.com`, pairing it
+    // with the legacy document it was cloned from. Both can be APPROVED at
+    // once, which would render the same brand twice in the app, so a legacy
+    // document is dropped from the listing as soon as its clone is approved.
+    // The clone is the survivor: it is the document BrandHub edits.
+    const supersededLegacyIds = new Set(
+      approvedBrands
+        .map((b) =>
+          /^legacy-[0-9a-f]{24}@example\.com$/i.test(String(b.email ?? ""))
+            ? String(b.email).slice("legacy-".length, "legacy-".length + 24)
+            : null,
+        )
+        .filter((id): id is string => id !== null),
+    );
+
+    const activeBrands = approvedBrands.filter(
+      (b) => !supersededLegacyIds.has(b._id.toString()),
+    );
 
     // APPROVED alone is not enough: an expired-but-still-APPROVED campaign
     // must not be reported as active. Filter by real start/end dates too.

@@ -10,12 +10,12 @@ export default async function sendProfileCompletionEmail(
       to: recipientEmail,
       subject: "Complete Your Profile to Unlock More Rewards",
       html: `<h3>Hello ${userName || "User"}</h3>
-<p>Thank you for joining Mint Rewards! We noticed that your profile is missing phone or address information.</p>
-<p>Complete your profile to access more personalized features and rewards.</p>
-<p>If you have any questions, feel free to reach out.</p>
-<br />
-<p>Thank you,</p>
-<p>Mint Rewards Team</p>`,
+        <p>Thank you for joining Mint Rewards! We noticed that your profile is missing phone or address information.</p>
+        <p>Complete your profile to help us bring waste collection services to your area.</p>
+        <p>If you have any questions, feel free to reach out.</p>
+        <br />
+        <p>Thank you,</p>
+        <p>Mint Rewards Team</p>`,
     });
 
     console.log("Email sent:", info.messageId);

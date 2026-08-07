@@ -26,6 +26,9 @@ export async function PUT(req: Request) {
       province,
       city,
       town,
+      townOther,
+      subArea,
+      subAreaOther,
       firstTimeLogin,
     } = body;
 
@@ -39,6 +42,9 @@ export async function PUT(req: Request) {
     if (province !== undefined) updateData.province = province;
     if (city !== undefined) updateData.city = city;
     if (town !== undefined) updateData.town = town;
+    if (townOther !== undefined) updateData.townOther = townOther;
+    if (subArea !== undefined) updateData.subArea = subArea;
+    if (subAreaOther !== undefined) updateData.subAreaOther = subAreaOther;
     if (firstTimeLogin !== undefined)
       updateData.firstTimeLogin = firstTimeLogin;
 

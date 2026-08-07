@@ -222,6 +222,9 @@ export interface User {
   province: string;
   city: string;
   town: string;
+  townOther: string;
+  subArea: string;
+  subAreaOther: string;
   phone: string;
   mintId: string;
   role: Role;

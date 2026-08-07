@@ -18,13 +18,22 @@ export async function GET(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // APPROVED only, on both sides of the join: this previously filtered
+    // campaigns on `$ne: "EXPIRED"` and did not filter brands at all, so a
+    // campaign submitted in BrandHub was listed to users the moment it was
+    // created, before any moderation.
     const [campaigns, brands] = await Promise.all([
-      CampaignModel.find({ status: { $ne: "EXPIRED" } }).lean(),
-      BrandModel.find().lean(),
+      CampaignModel.find({ status: "APPROVED" }).lean(),
+      BrandModel.find({ status: "APPROVED" }).lean(),
     ]);
 
+    // Brands with no registrationNumber would all collapse onto the "" key and
+    // wrongly match any campaign that also lacks one, so empty keys are
+    // dropped rather than joined.
     const brandByRegistration = new Map(
-      brands.map((b) => [normalize(b.registrationNumber), b]),
+      brands
+        .filter((b) => normalize(b.registrationNumber))
+        .map((b) => [normalize(b.registrationNumber), b]),
     );
 
     const discounts = campaigns
@@ -80,9 +89,11 @@ export async function PATCH(req: Request) {
       return Response.json({ error: "discountId is required." }, { status: 400 });
     }
 
+    // Approved only — a code must never be issued for a campaign that has not
+    // cleared moderation.
     const campaign = await CampaignModel.findOne({
       _id: discountId,
-      status: { $ne: "EXPIRED" },
+      status: "APPROVED",
     }).lean();
 
     if (!campaign) {
@@ -124,8 +135,10 @@ export async function PUT(req: Request) {
       return Response.json({ error: "discountId is required." }, { status: 400 });
     }
 
+    // Approved only, matching PATCH — marking an unmoderated campaign as
+    // availed would burn the user's one redemption on it.
     const campaign = await CampaignModel.findOneAndUpdate(
-      { _id: discountId, status: { $ne: "EXPIRED" } },
+      { _id: discountId, status: "APPROVED" },
       { $addToSet: { users: new mongoose.Types.ObjectId(userId) } },
       { new: true },
     );

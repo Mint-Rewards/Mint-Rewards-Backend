@@ -1,6 +1,7 @@
 import { randomInt } from "crypto";
 
-// Deal promo-code inventory rules, shared by the brandhub deal routes.
+// Promo-code inventory rules, shared by the brandhub deal routes and by
+// campaign discountCodes.
 //
 // Supplied codes: trimmed, uppercased, deduped; each 4-32 chars of
 // [A-Z0-9-_]; max 500 per request. Generated codes: PREFIX-XXXXXX (or bare
@@ -15,6 +16,28 @@ const RANDOM_LENGTH = 6;
 
 type Ok = { codes: string[] };
 type Err = { error: string };
+
+/**
+ * Codes arrive as a real array over JSON, but multipart/form-data flattens
+ * every value to a string — accept a JSON array literal or a newline/comma
+ * separated list so both request shapes reach cleanSuppliedCodes the same way.
+ */
+export function parseSuppliedCodes(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+  if (trimmed.startsWith("[")) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return value; // let cleanSuppliedCodes reject it with a clear message
+    }
+  }
+  return trimmed
+    .split(/[\n,]/)
+    .map((code) => code.trim())
+    .filter(Boolean);
+}
 
 /** Clean and validate brand-supplied codes. */
 export function cleanSuppliedCodes(
@@ -53,7 +76,7 @@ export function cleanSuppliedCodes(
     return { error: "No valid new codes remained after cleaning" };
   }
   if (existing.length + cleaned.length > MAX_CODES) {
-    return { error: `A deal cannot hold more than ${MAX_CODES} codes` };
+    return { error: `Cannot hold more than ${MAX_CODES} codes` };
   }
   return { codes: cleaned };
 }
@@ -86,7 +109,7 @@ export function generateDealCodes(
   }
 
   if (existing.length + count > MAX_CODES) {
-    return { error: `A deal cannot hold more than ${MAX_CODES} codes` };
+    return { error: `Cannot hold more than ${MAX_CODES} codes` };
   }
 
   const seen = new Set(existing);

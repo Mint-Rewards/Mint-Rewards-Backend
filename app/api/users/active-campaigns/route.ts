@@ -2,6 +2,7 @@ import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
 import { BrandModel, CampaignModel } from "@/lib/models";
 import { isCampaignActive } from "@/lib/campaignDates";
+import { legacyBrandIdOf } from "@/lib/legacyBrandEmail";
 
 const normalize = (value: unknown) => String(value ?? "").trim().toLowerCase();
 
@@ -18,8 +19,8 @@ const normalize = (value: unknown) => String(value ?? "").trim().toLowerCase();
  *   - `brand`             — already a listed brand (the normal case)
  *   - `brandId`           — the other document's id, kept when campaigns were repointed
  *   - `brandRegistration` — business key matching a listed brand's registrationNumber
- *   - the BrandHub document's `legacy-<legacyId>@example.com` email, which pairs
- *     the two ids together in either direction
+ *   - the BrandHub document's `legacyBrandId`, which pairs the two ids together
+ *     in either direction
  */
 function resolveListedBrandId(
   campaign: { brand?: unknown; brandId?: unknown; brandRegistration?: unknown },
@@ -55,11 +56,29 @@ export async function GET(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Campaigns are linked against the PENDING BrandHub brand documents, so
-    // that is the set the app lists and joins against.
-    const activeBrands = await BrandModel.find({
-      status: "PENDING",
+    // Only brands an admin has approved in BrandHub are listed. This filter
+    // previously read PENDING, which inverted moderation: an unreviewed brand
+    // was live in the app and approving it removed it. Brands cloned by
+    // scripts/clone-legacy-brands.js are inserted as PENDING, so any that
+    // predate this change stay hidden until they are approved in BrandHub.
+    const approvedBrands = await BrandModel.find({
+      status: "APPROVED",
     });
+
+    // A cloned BrandHub document carries `legacyBrandId`, pairing it with the
+    // legacy document it was cloned from. Both can be APPROVED at once, which
+    // would render the same brand twice in the app, so a legacy document is
+    // dropped from the listing as soon as its clone is approved. The clone is
+    // the survivor: it is the document BrandHub edits.
+    const supersededLegacyIds = new Set(
+      approvedBrands
+        .map((b) => legacyBrandIdOf(b))
+        .filter((id): id is string => id !== null),
+    );
+
+    const activeBrands = approvedBrands.filter(
+      (b) => !supersededLegacyIds.has(b._id.toString()),
+    );
 
     // APPROVED alone is not enough: an expired-but-still-APPROVED campaign
     // must not be reported as active. Filter by real start/end dates too.
@@ -79,20 +98,22 @@ export async function GET(req: Request) {
         .map((b) => [normalize(b.registrationNumber), b._id.toString()]),
     );
 
-    // A BrandHub document carries `legacy-<legacyId>@example.com`, pairing it
-    // with the legacy document it was cloned from. Map the id that is NOT
-    // listed onto the one that is, so the pairing works whichever of the two
-    // a campaign happens to reference.
+    // A cloned BrandHub document carries `legacyBrandId`, pairing it with the
+    // legacy document it was cloned from. Map the id that is NOT listed onto
+    // the one that is, so the pairing works whichever of the two a campaign
+    // happens to reference.
+    //
+    // Indexed, unlike the `email: { $regex: /^legacy-.../ }` this replaced,
+    // which scanned the whole brands collection on every request. Clones
+    // written before the field existed need scripts/approve-legacy-clones.js
+    // to backfill it.
     const pairedBrands = await BrandModel.find({
-      email: { $regex: /^legacy-[0-9a-f]{24}@example\.com$/i },
-    }).select("_id email");
+      legacyBrandId: { $ne: null },
+    }).select("_id legacyBrandId");
     const listedIdByPairedId = new Map<string, string>();
     for (const paired of pairedBrands) {
       const brandHubId = paired._id.toString();
-      const legacyId = String(paired.email ?? "").slice(
-        "legacy-".length,
-        "legacy-".length + 24,
-      );
+      const legacyId = String(paired.legacyBrandId);
       if (listedById.has(brandHubId)) {
         listedIdByPairedId.set(legacyId, brandHubId);
       } else if (listedById.has(legacyId)) {

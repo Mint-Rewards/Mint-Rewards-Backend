@@ -223,6 +223,144 @@ describe("BrandHub demo features", () => {
     });
   });
 
+  // Codes could previously only be set at creation, so a campaign that
+  // exhausted its pool stopped being redeemable with no way to top it up.
+  it("appends discount codes to a campaign, deduping against the existing pool", async () => {
+    const campaign = await CampaignModel.create({
+      brand: brandId,
+      name: "Append codes campaign",
+      status: "APPROVED",
+      startDate: "2020-01-01",
+      endDate: "2099-12-31",
+      discountCodes: ["SAVE20", "SAVE20-B"],
+    });
+
+    const response = await updateCampaign(
+      jsonRequest(
+        `http://localhost/api/brandhub/brands/${brandId}/campaigns/${campaign._id}`,
+        ownerToken,
+        { addCodes: ["save20", " SAVE20-C ", "SAVE20-C"] },
+      ),
+      {
+        params: Promise.resolve({
+          brandId,
+          campaignId: campaign._id.toString(),
+        }),
+      },
+    );
+    const body = (await response.json()) as {
+      campaign: { discountCodes: string[]; status: string };
+    };
+
+    expect(response.status).toBe(200);
+    // "save20" already exists and both "SAVE20-C" forms collapse to one.
+    expect(body.campaign.discountCodes).toEqual([
+      "SAVE20",
+      "SAVE20-B",
+      "SAVE20-C",
+    ]);
+  });
+
+  // Appending cannot invalidate a code already handed to a user, so there is
+  // nothing for an admin to re-review — and taking the campaign offline is the
+  // opposite of what a brand refilling an exhausted pool wants.
+  it("leaves an approved campaign approved when only codes are appended", async () => {
+    const campaign = await CampaignModel.create({
+      brand: brandId,
+      name: "Top-up campaign",
+      status: "APPROVED",
+      startDate: "2020-01-01",
+      endDate: "2099-12-31",
+      discountCodes: ["ONLY1"],
+    });
+
+    const response = await updateCampaign(
+      jsonRequest(
+        `http://localhost/api/brandhub/brands/${brandId}/campaigns/${campaign._id}`,
+        ownerToken,
+        { addCodes: ["TOPUP1", "TOPUP2"] },
+      ),
+      {
+        params: Promise.resolve({
+          brandId,
+          campaignId: campaign._id.toString(),
+        }),
+      },
+    );
+    const body = (await response.json()) as {
+      campaign: { discountCodes: string[]; status: string };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.campaign.status).toBe("APPROVED");
+    expect(body.campaign.discountCodes).toEqual(["ONLY1", "TOPUP1", "TOPUP2"]);
+    await expect(
+      CampaignModel.findById(campaign._id).lean(),
+    ).resolves.toMatchObject({ status: "APPROVED" });
+  });
+
+  // A content edit still re-moderates, even when it arrives alongside addCodes.
+  it("re-moderates when a content edit accompanies appended codes", async () => {
+    const campaign = await CampaignModel.create({
+      brand: brandId,
+      name: "Mixed edit campaign",
+      status: "APPROVED",
+      startDate: "2020-01-01",
+      endDate: "2099-12-31",
+      discountCodes: ["MIX1"],
+    });
+
+    const response = await updateCampaign(
+      jsonRequest(
+        `http://localhost/api/brandhub/brands/${brandId}/campaigns/${campaign._id}`,
+        ownerToken,
+        { addCodes: ["MIX2"], description: "New copy" },
+      ),
+      {
+        params: Promise.resolve({
+          brandId,
+          campaignId: campaign._id.toString(),
+        }),
+      },
+    );
+    const body = (await response.json()) as { campaign: { status: string } };
+
+    expect(response.status).toBe(200);
+    expect(body.campaign.status).toBe("PENDING");
+  });
+
+  // maxUses is the code count, always: one code is redeemable once, by one
+  // user. A client computing it from what it submitted overshoots whenever an
+  // overlapping code is dropped.
+  it("derives deal maxUses from the real code count after an overlapping re-paste", async () => {
+    const deal = await DealModel.create({
+      brand: brandId,
+      title: "Overlap inventory",
+      codes: ["DUP1", "DUP2"],
+      promoCode: "DUP1",
+      maxUses: 2,
+      status: "active",
+    });
+
+    const response = await updateDeal(
+      jsonRequest(
+        `http://localhost/api/brandhub/brands/${brandId}/deals/${deal._id}`,
+        ownerToken,
+        // Three submitted, but two already exist: only NEW1 is genuinely added.
+        { addCodes: ["DUP1", "DUP2", "NEW1"], maxUses: 5 },
+      ),
+      { params: Promise.resolve({ brandId, dealId: deal._id.toString() }) },
+    );
+    const body = (await response.json()) as {
+      deal: { codes: string[]; maxUses: number };
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.deal.codes).toEqual(["DUP1", "DUP2", "NEW1"]);
+    // Not 5 from the client, and not 2 + 3 = 5 either.
+    expect(body.deal.maxUses).toBe(3);
+  });
+
   it("returns campaign and deal counts from live brand-scoped fixtures", async () => {
     const userA = new mongoose.Types.ObjectId();
     const userB = new mongoose.Types.ObjectId();

@@ -111,8 +111,13 @@ npm start
 Create a `.env.local` file at the project root with the following:
 
 ```env
-# Database
-MONGODB_URI=mongodb://localhost:27017/mint-rewards
+# Database — must be a replica set. BrandHub registration creates the
+# Organization, BrandUser and Brand in one transaction, and MongoDB only
+# supports transactions on a replica set. Atlas (mongodb+srv://) always is one;
+# a standalone local mongod is not. For local dev either point at Atlas or run
+# a single-node replica set:
+#   mongod --replSet rs0 --dbpath <path>   then, once:  mongosh --eval 'rs.initiate()'
+MONGODB_URI=mongodb://localhost:27017/mint-rewards?replicaSet=rs0
 
 # Authentication
 JWT_SECRET=your-jwt-secret

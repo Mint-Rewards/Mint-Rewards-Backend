@@ -13,6 +13,19 @@ interface RouteParams {
   params: Promise<{ couponId: string }>;
 }
 
+/**
+ * DEPRECATED for the mobile client.
+ *
+ * `couponId` is a **campaign** `_id` — this route does
+ * `CampaignModel.findById(couponId)`. Three names for one document: the path
+ * says coupon, the collection is campaigns, and the payload is called a
+ * discount. Under docs/VOCABULARY.md a coupon is only the redemption
+ * mechanism (the code returned as `couponCode`), never the incentive itself.
+ *
+ * The app now claims through POST /api/users/deals/[dealId]/redeem. This route
+ * is kept live for clients not yet updated, and is not renamed because the
+ * path and response shape are a published contract.
+ */
 export async function PATCH(req: Request, { params }: RouteParams) {
   try {
     await connectToDatabase();

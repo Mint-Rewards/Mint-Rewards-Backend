@@ -4,31 +4,12 @@ import connectToDatabase from "@/lib/mongodb";
 import { BrandModel, CampaignModel } from "@/lib/models";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
-import { cleanSuppliedCodes } from "@/lib/dealCodes";
+import {
+  cleanSuppliedCodes,
+  parseSuppliedCodes as parseDiscountCodes,
+} from "@/lib/dealCodes";
 
 const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
-
-/**
- * Codes arrive as a real array over JSON, but multipart/form-data flattens
- * every value to a string — accept a JSON array literal or a newline/comma
- * separated list so both request shapes reach cleanSuppliedCodes the same way.
- */
-function parseDiscountCodes(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-
-  const trimmed = value.trim();
-  if (trimmed.startsWith("[")) {
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return value; // let cleanSuppliedCodes reject it with a clear message
-    }
-  }
-  return trimmed
-    .split(/[\n,]/)
-    .map((code) => code.trim())
-    .filter(Boolean);
-}
 
 /** Multipart sends booleans as "true"/"false" strings. */
 function parseBoolean(value: unknown): boolean {

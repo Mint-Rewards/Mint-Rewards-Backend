@@ -41,6 +41,8 @@ describe("/api/users/my-discounts", () => {
   let approvedCampaignId: string;
   let pendingCampaignId: string;
   let campaignOfPendingBrandId: string;
+  let expiredClaimedCampaignId: string;
+  let expiredUnclaimedCampaignId: string;
 
   type BrandStatus = "PENDING" | "APPROVED" | "REJECTED";
   type CampaignStatus = BrandStatus | "EXPIRED";
@@ -72,11 +74,13 @@ describe("/api/users/my-discounts", () => {
   const makeCampaign = async (
     registrationNumber: string,
     status: CampaignStatus,
+    options: { endDate?: string; claimedBy?: string } = {},
   ) => {
+    const { endDate = "2099-12-31", claimedBy } = options;
     const campaign = await CampaignModel.create({
-      name: `Campaign ${status} ${suffix}`,
+      name: `Campaign ${status} ${endDate} ${suffix}`,
       startDate: "2025-02-04",
-      endDate: "2099-12-31",
+      endDate,
       discountPercentage: "20",
       discountCodes: ["SAVE20", "SAVE20-B"],
       isSingleCode: false,
@@ -84,6 +88,7 @@ describe("/api/users/my-discounts", () => {
       brand: new mongoose.Types.ObjectId(),
       brandRegistration: registrationNumber,
       addresses: [],
+      ...(claimedBy ? { users: [new mongoose.Types.ObjectId(claimedBy)] } : {}),
     });
     campaignIds.push(campaign._id);
     return campaign;
@@ -99,6 +104,18 @@ describe("/api/users/my-discounts", () => {
     pendingCampaignId = (await makeCampaign(approvedReg, "PENDING"))._id.toString();
     campaignOfPendingBrandId = (
       await makeCampaign(unapprovedBrandReg, "APPROVED")
+    )._id.toString();
+
+    // Nothing in the codebase ever sets status EXPIRED, so an expired campaign
+    // stays APPROVED forever — the date is the only signal.
+    expiredClaimedCampaignId = (
+      await makeCampaign(approvedReg, "APPROVED", {
+        endDate: "2020-01-01",
+        claimedBy: userId,
+      })
+    )._id.toString();
+    expiredUnclaimedCampaignId = (
+      await makeCampaign(approvedReg, "APPROVED", { endDate: "2020-01-01" })
     )._id.toString();
   });
 
@@ -148,5 +165,47 @@ describe("/api/users/my-discounts", () => {
 
     expect(response.status).toBe(200);
     expect(["SAVE20", "SAVE20-B"]).toContain(data.code);
+  });
+
+  // The screen doubles as redemption history, so an expired campaign the user
+  // already claimed stays listed; one they never claimed is unredeemable and
+  // must not be offered.
+  it("keeps an expired campaign the user already claimed", async () => {
+    const response = await getMyDiscounts(userRequest(userId));
+    const data = await response.json();
+
+    const ids = data.discounts.map((d: any) => String(d._id));
+    expect(ids).toContain(expiredClaimedCampaignId);
+
+    const claimed = data.discounts.find(
+      (d: any) => String(d._id) === expiredClaimedCampaignId,
+    );
+    expect(claimed.isAvailed).toBe(true);
+  });
+
+  it("drops an expired campaign the user never claimed", async () => {
+    const response = await getMyDiscounts(userRequest(userId));
+    const data = await response.json();
+
+    const ids = data.discounts.map((d: any) => String(d._id));
+    expect(ids).not.toContain(expiredUnclaimedCampaignId);
+  });
+
+  it("refuses to issue a code for an expired campaign", async () => {
+    const response = await patchMyDiscounts(
+      userRequest(userId, { discountId: expiredUnclaimedCampaignId }),
+    );
+
+    expect(response.status).toBe(410);
+  });
+
+  // History is for reading, not claiming: already having claimed it does not
+  // reopen an expired campaign.
+  it("refuses to reissue a code for an expired campaign the user claimed", async () => {
+    const response = await patchMyDiscounts(
+      userRequest(userId, { discountId: expiredClaimedCampaignId }),
+    );
+
+    expect(response.status).toBe(410);
   });
 });

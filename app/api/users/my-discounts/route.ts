@@ -1,11 +1,21 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
 import { BrandModel, CampaignModel } from "@/lib/models";
+import { isCampaignActive } from "@/lib/campaignDates";
 import mongoose from "mongoose";
 
 const normalize = (value: unknown) =>
   String(value ?? "").trim().toLowerCase();
 
+/**
+ * DEPRECATED for the mobile client.
+ *
+ * This route serves *campaigns* under a "discounts" name — a naming carryover
+ * predating docs/VOCABULARY.md, where a Deal is the consumer incentive and a
+ * Discount is one type of Deal. The app now reads /api/users/deals instead.
+ * Kept live for any client not yet updated; not renamed, because the response
+ * key `discounts` and the body field `discountId` are a published contract.
+ */
 export async function GET(req: Request) {
   try {
     await connectToDatabase();
@@ -43,6 +53,15 @@ export async function GET(req: Request) {
 
         const isAvailed = Array.isArray(campaign.users) &&
           campaign.users.some((u) => u.toString() === userId);
+
+        // APPROVED alone is not enough: nothing in the codebase ever sets
+        // status EXPIRED, so an expired campaign stays APPROVED forever and
+        // was still being listed as claimable.
+        //
+        // This screen doubles as the user's redemption history, so a campaign
+        // the user already claimed is kept past its end date; one they never
+        // claimed is dropped, since it can no longer be redeemed.
+        if (!isCampaignActive(campaign) && !isAvailed) return null;
 
         return {
           _id: campaign._id,
@@ -100,6 +119,13 @@ export async function PATCH(req: Request) {
       return Response.json({ error: "Campaign not found." }, { status: 404 });
     }
 
+    // Unlike GET, there is no already-claimed exemption here: history is for
+    // reading, not for claiming. A code must never be issued for a campaign
+    // whose end date has passed.
+    if (!isCampaignActive(campaign)) {
+      return Response.json({ error: "This campaign has ended." }, { status: 410 });
+    }
+
     if (!campaign.discountCodes || campaign.discountCodes.length === 0) {
       return Response.json({ error: "No discount codes available." }, { status: 404 });
     }
@@ -137,15 +163,25 @@ export async function PUT(req: Request) {
 
     // Approved only, matching PATCH — marking an unmoderated campaign as
     // availed would burn the user's one redemption on it.
-    const campaign = await CampaignModel.findOneAndUpdate(
-      { _id: discountId, status: "APPROVED" },
-      { $addToSet: { users: new mongoose.Types.ObjectId(userId) } },
-      { new: true },
-    );
+    const campaign = await CampaignModel.findOne({
+      _id: discountId,
+      status: "APPROVED",
+    }).lean();
 
     if (!campaign) {
       return Response.json({ error: "Campaign not found." }, { status: 404 });
     }
+
+    // Checked before the write, matching PATCH: an expired campaign must not
+    // consume the user's redemption.
+    if (!isCampaignActive(campaign)) {
+      return Response.json({ error: "This campaign has ended." }, { status: 410 });
+    }
+
+    await CampaignModel.updateOne(
+      { _id: discountId, status: "APPROVED" },
+      { $addToSet: { users: new mongoose.Types.ObjectId(userId) } },
+    );
 
     return Response.json({ success: true });
   } catch (error: any) {

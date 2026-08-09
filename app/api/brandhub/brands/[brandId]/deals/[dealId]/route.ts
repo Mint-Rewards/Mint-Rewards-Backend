@@ -19,7 +19,10 @@ const ALLOWED_FIELDS = new Set([
   "discountAmount",
   "startDate",
   "endDate",
-  "maxUses",
+  // maxUses is deliberately absent: the server derives it from codes.length
+  // after cleaning. A client computing it from what it *submitted* overshoots
+  // whenever cleanSuppliedCodes drops an overlapping code, promising more
+  // redemptions than the inventory can cover (issue #44).
   "minimumPurchase",
   "status",
 ]);
@@ -153,9 +156,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     const mutation: Record<string, unknown> = {};
     if (Object.keys(update).length > 0) mutation.$set = update;
-    if (appendCodes) mutation.$push = { codes: { $each: appendCodes } };
+    // $addToSet, not $push: `current` is a pre-read snapshot, so two concurrent
+    // addCodes calls would each clean against it and $push the same code twice.
+    // $addToSet makes the de-duplication atomic in the database.
+    if (appendCodes) mutation.$addToSet = { codes: { $each: appendCodes } };
 
-    const deal = await DealModel.findOneAndUpdate(
+    let deal = await DealModel.findOneAndUpdate(
       { _id: dealId, brand: brandId },
       mutation,
       { new: true, runValidators: true },
@@ -166,6 +172,19 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         { success: false, message: "Deal not found" },
         { status: 404 },
       );
+    }
+
+    // One code is redeemable exactly once, by one user, so maxUses IS the code
+    // count. Derived here from what actually landed rather than trusted from
+    // the client, which also repairs deals whose maxUses drifted earlier.
+    const codeCount = (deal.codes ?? []).length;
+    if (deal.maxUses !== codeCount) {
+      deal =
+        (await DealModel.findOneAndUpdate(
+          { _id: dealId, brand: brandId },
+          { $set: { maxUses: codeCount } },
+          { new: true, runValidators: true },
+        )) ?? deal;
     }
 
     return Response.json({

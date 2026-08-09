@@ -4,8 +4,17 @@ import connectToDatabase from "@/lib/mongodb";
 import { BrandModel, CampaignModel } from "@/lib/models";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
+import {
+  cleanSuppliedCodes,
+  parseSuppliedCodes as parseDiscountCodes,
+} from "@/lib/dealCodes";
 
 const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
+
+/** Multipart sends booleans as "true"/"false" strings. */
+function parseBoolean(value: unknown): boolean {
+  return value === true || value === "true";
+}
 
 interface RouteParams {
   params: Promise<{ brandId: string }>;
@@ -116,7 +125,45 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // A campaign with no discountCodes is a dead coupon in the app: redeem
+    // rejects it with 409 "no discount codes available" and it renders a blank
+    // discount badge. There is no endpoint to attach codes after the fact, so
+    // require them here rather than let an unredeemable campaign be created.
+    const codeResult = cleanSuppliedCodes(parseDiscountCodes(body.discountCodes));
+    if ("error" in codeResult) {
+      return Response.json(
+        { success: false, message: codeResult.error },
+        { status: 400 },
+      );
+    }
+    const isSingleCode = parseBoolean(body.isSingleCode);
+
+    // Per-user codes hand each redeemer a distinct code from the pool, so the
+    // pool size is the redemption cap; a single shared code has no such limit.
+    if (!isSingleCode && codeResult.codes.length < 2) {
+      return Response.json(
+        {
+          success: false,
+          message:
+            "Provide more than one code, or set isSingleCode to share one code with every user",
+        },
+        { status: 400 },
+      );
+    }
+
+    // Schema stores discountPercentage as a string; accept either form.
+    const rawPercentage = body.discountPercentage;
+    const discountPercentage =
+      typeof rawPercentage === "number"
+        ? String(rawPercentage)
+        : typeof rawPercentage === "string" && rawPercentage.trim() !== ""
+          ? rawPercentage.trim()
+          : "";
+
     const campaign = await CampaignModel.create({
+      discountCodes: codeResult.codes,
+      isSingleCode,
+      ...(discountPercentage && { discountPercentage }),
       name: (name as string).trim(),
       ...(typeof startDate === "string" && startDate && { startDate }),
       ...(typeof endDate === "string" && endDate && { endDate }),

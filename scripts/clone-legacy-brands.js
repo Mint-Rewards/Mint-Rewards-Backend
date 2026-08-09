@@ -54,18 +54,28 @@ async function main() {
         companyName: name || "Unknown",
         brandName: name || "Unknown",
         email: getLegacyEmail(doc._id),
+        // The real pairing key. `email` still carries the legacy- form for
+        // backwards compatibility, but nothing reads it as an identity any
+        // more — a brand may freely edit its contact email. See
+        // lib/legacyBrandEmail.ts.
+        legacyBrandId: doc._id,
         logo: doc.logo || "",
         category: doc.category || "",
-        description: "",
-        address: "",
-        webLink: "https://example.com",
-        appLink: "",
-        contactName: "N/A",
-        phone: "0000000000",
+        // Carried across from the source rather than left blank: an approved
+        // clone supersedes its legacy document in /api/users/active-campaigns,
+        // so a placeholder here is what the app would render.
+        description: doc.description || "",
+        address: doc.address || "",
+        webLink: doc.webLink || "https://example.com",
+        appLink: doc.appLink || "",
+        contactName: doc.contactName || "N/A",
+        phone: doc.phone || "0000000000",
         registrationNumber: getLegacyRegistrationNumber(),
-        domain: "",
+        domain: doc.domain || "",
         themeColor,
-        status: "PENDING",
+        // Cloning an APPROVED brand as PENDING hid it from the app until an
+        // admin re-approved it (issue #101). Inherit the source's status.
+        status: doc.status === "APPROVED" ? "APPROVED" : "PENDING",
         role: "BRAND",
         emailVerified: false,
         verificationToken: null,

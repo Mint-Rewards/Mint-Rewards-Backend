@@ -5,7 +5,6 @@ import {
   CampaignDocument,
   CollectionDocument,
   DealDocument,
-  DiscountDocument,
   LocationDocument,
   LogisticsDocument,
   CaptainDocument,
@@ -89,9 +88,16 @@ const BrandSchema = new Schema<BrandDocument>(
   {
     // Optional: legacy brands predate organizations and must stay valid.
     orgId: { type: Schema.Types.ObjectId, ref: "Organization", index: true },
+    // Set on documents cloned from a legacy brand by
+    // scripts/clone-legacy-brands.js, pairing this document with its source.
+    // This pairing used to be encoded in `email` as legacy-<24hex>@example.com,
+    // which made contact data load-bearing: correcting the email in BrandHub
+    // Settings silently unjoined every campaign resolving through it. See
+    // lib/legacyBrandEmail.ts.
+    legacyBrandId: { type: Schema.Types.ObjectId, ref: "Brand", index: true },
     companyName: stringRequired,
     brandName: stringRequired,
-    email: { ...stringRequired, unique: true },
+    email: { ...stringRequired, unique: true, lowercase: true, trim: true },
     logo: String,
     themeImage: String,
     category: stringRequired,
@@ -211,38 +217,6 @@ const CollectionSchema = new Schema<CollectionDocument>(
         _id: false,
       },
     ],
-  },
-  { timestamps: false },
-);
-
-const DiscountSchema = new Schema<DiscountDocument>(
-  {
-    campaignName: String,
-    campaignId: {
-      type: Schema.Types.ObjectId,
-      ref: "Campaign",
-    },
-    brand: {
-      type: Schema.Types.ObjectId,
-      ref: "Brand",
-    },
-    startDate: stringRequired,
-    endDate: stringRequired,
-    locations: [
-      {
-        province: stringRequired,
-        city: stringRequired,
-        town: stringRequired,
-        _id: false,
-      },
-    ],
-    user: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-    },
-    code: { type: String, required: true },
-    redeemEndTime: String,
-    isDownloaded: { type: Boolean, default: false },
   },
   { timestamps: false },
 );
@@ -446,11 +420,6 @@ export const CollectionModel = getModel<CollectionDocument>(
   CollectionSchema,
   "collections",
 );
-export const DiscountModel = getModel<DiscountDocument>(
-  "Discount",
-  DiscountSchema,
-  "discounts",
-);
 export const LocationModel = getModel<LocationDocument>(
   "Location",
   LocationSchema,
@@ -497,6 +466,18 @@ const DealSchema = new Schema<DealDocument>(
       type: String,
       enum: ["pending", "active", "rejected", "inactive", "expired"],
       default: "pending",
+    },
+    users: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    claims: {
+      type: [
+        {
+          user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+          code: stringRequired,
+          claimedAt: { type: Date, default: Date.now },
+          _id: false,
+        },
+      ],
+      default: [],
     },
   },
   { timestamps: true },
@@ -576,7 +557,6 @@ export type {
   CaptainDocument,
   CollectionDocument,
   DealDocument,
-  DiscountDocument,
   LocationDocument,
   LogisticsDocument,
   BrandThemeDocument,

@@ -111,13 +111,18 @@ npm start
 Create a `.env.local` file at the project root with the following:
 
 ```env
-# Database
-MONGODB_URI=mongodb://localhost:27017/mint-rewards
+# Database — must be a replica set. BrandHub registration creates the
+# Organization, BrandUser and Brand in one transaction, and MongoDB only
+# supports transactions on a replica set. Atlas (mongodb+srv://) always is one;
+# a standalone local mongod is not. For local dev either point at Atlas or run
+# a single-node replica set:
+#   mongod --replSet rs0 --dbpath <path>   then, once:  mongosh --eval 'rs.initiate()'
+MONGODB_URI=mongodb://localhost:27017/mint-rewards?replicaSet=rs0
 
 # Authentication
 JWT_SECRET=your-jwt-secret
 NEXTAUTH_SECRET=your-nextauth-secret   # fallback if JWT_SECRET is absent
-JWT_EXPIRES_IN=7d
+JWT_EXPIRES_IN=30d
 
 # SMTP / Email
 NEXT_SMTP_HOST=smtp.example.com
@@ -252,12 +257,17 @@ Register a new brand partner. Accepts `multipart/form-data` (logo file included)
 ---
 
 #### `GET /api/brands`
-Return all brands with status `PENDING` along with their associated campaigns.
+Return every brand regardless of status, along with its non-`EXPIRED`
+campaigns. This is the moderation view — see `GET /api/brands/fetch` for
+approved inventory only.
 
 ---
 
 #### `GET /api/brands/fetch`
-Return all `PENDING` brands sorted by creation date (newest first).
+Return all `APPROVED` brands sorted by creation date (newest first), each with
+its `APPROVED` campaigns and `active` deals. Approved inventory only — use
+`GET /api/brands` for every brand regardless of status, or
+`GET /api/brands/deals?status=pending` for deals awaiting review.
 
 ---
 
@@ -339,7 +349,7 @@ Application event entries. Auto-deleted after **90 days** (TTL index on `timesta
 
 ## Authentication
 
-- Tokens are signed JWTs (HS256), valid for `JWT_EXPIRES_IN` (default `7d`).
+- Tokens are signed JWTs (HS256), valid for `JWT_EXPIRES_IN` (default `30d`).
 - Auth helpers in `lib/auth.ts`:
   - `checkAuth(request)` — decodes the Bearer token; returns `null` on failure.
   - `getAuthenticatedUserId(request)` — extracts `id` or `sub` from the token payload.

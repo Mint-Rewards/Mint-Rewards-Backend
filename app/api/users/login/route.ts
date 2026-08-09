@@ -9,16 +9,12 @@ import {
   hashKey,
   rateLimitResponse,
 } from "@/lib/rateLimit";
-import { serverEnv } from "@/lib/env";
 
 const JWT_SECRET =
   process.env.JWT_SECRET ||
   process.env.NEXTAUTH_SECRET ||
   process.env.NEXT_JWT_SECRET;
-// Read through serverEnv rather than keeping a second copy of the default —
-// this route is the main login path, so a divergent fallback here would have
-// silently issued shorter-lived tokens than every other issuer.
-const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
 export async function GET() {
   //testing route

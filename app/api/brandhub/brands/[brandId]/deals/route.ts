@@ -112,7 +112,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       ...(typeof body.discountAmount === "number" && { discountAmount: body.discountAmount }),
       ...(typeof body.startDate === "string" && body.startDate && { startDate: body.startDate }),
       ...(typeof body.endDate === "string" && body.endDate && { endDate: body.endDate }),
-      ...(typeof body.maxUses === "number" && { maxUses: body.maxUses }),
+      // Derived, never taken from the client: one code is redeemable exactly
+      // once by one user, so maxUses IS the code count (issue #44).
+      maxUses: codes.length,
       ...(typeof body.minimumPurchase === "number" && { minimumPurchase: body.minimumPurchase }),
     });
 

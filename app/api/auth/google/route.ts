@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { serverEnv, logPrefix } from '@/lib/env';
 import { logGoogleVerificationFailure } from '@/lib/googleAuthDiagnostics';
+import { googleAudiences } from '@/lib/googleAudiences';
 
 async function generateMintId(): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -44,10 +45,12 @@ export async function POST(req: NextRequest) {
     try {
       const ticket = await client.verifyIdToken({
         idToken,
-        audience: [
+        // Current clients plus the superseded ones still live in older
+        // installs — see lib/googleAudiences.ts for when to drop those.
+        audience: googleAudiences(
           serverEnv.googleIosClientId,
           serverEnv.googleWebClientId,
-        ],
+        ),
       });
       payload = ticket.getPayload();
     } catch (error: any) {

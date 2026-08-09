@@ -38,6 +38,10 @@ export interface EnvironmentalPeriod extends EnvironmentalStats {
 export interface Brand {
   // Optional: legacy brands predate organizations and have no owning org.
   orgId?: Types.ObjectId;
+  // Set on clones of a legacy brand, pairing them with their source document.
+  // Replaces the legacy-<24hex>@example.com email convention — see
+  // lib/legacyBrandEmail.ts.
+  legacyBrandId?: Types.ObjectId;
   companyName: string;
   brandName: string;
   email: string;
@@ -139,27 +143,6 @@ export interface Collection {
 }
 
 export interface CollectionDocument extends Collection, Document {}
-
-export interface DiscountLocation {
-  province: string;
-  city: string;
-  town: string;
-}
-
-export interface Discount {
-  campaignName?: string;
-  campaignId?: Types.ObjectId;
-  brand?: Types.ObjectId;
-  startDate: string;
-  endDate: string;
-  locations: DiscountLocation[];
-  user?: Types.ObjectId;
-  code: string;
-  redeemEndTime?: string;
-  isDownloaded: boolean;
-}
-
-export interface DiscountDocument extends Discount, Document {}
 
 export interface LocationCity {
   name: string;
@@ -272,6 +255,12 @@ export interface Deal {
   currentUses: number;
   minimumPurchase?: number | null;
   status: "pending" | "active" | "rejected" | "inactive" | "expired";
+  // App users who have already claimed a code, mirroring Campaign.users —
+  // this is what enforces one redemption per user.
+  users?: Types.ObjectId[];
+  // Parallel to `users`: the code handed to each of them, so a user re-opening
+  // a claimed deal is shown the same code instead of consuming another.
+  claims?: { user: Types.ObjectId; code: string; claimedAt: Date }[];
 }
 
 export interface DealDocument extends Deal, Document {}

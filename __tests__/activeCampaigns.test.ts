@@ -7,12 +7,13 @@ import { BrandModel, CampaignModel } from "../lib/models";
 import { GET as getActiveCampaigns } from "../app/api/users/active-campaigns/route";
 
 // The public brand list and the campaign list must agree on brand identity.
-// Production data has two documents per brand: a legacy APPROVED one, and the
-// PENDING BrandHub document (scripts/clone-legacy-brands.js) that campaigns are
-// linked against and that the app lists. Campaigns predating that migration
-// still reference the legacy id, so the response must key every campaign to a
-// brand id it actually returns — otherwise the brand card renders
-// "No active campaigns".
+// Production data has two documents per brand: a legacy one, and the BrandHub
+// document (scripts/clone-legacy-brands.js) that campaigns are linked against.
+// The app lists APPROVED brands, so once the clone is approved both documents
+// qualify — the route must list the clone alone rather than the brand twice.
+// Campaigns predating the migration still reference the legacy id, so the
+// response must key every campaign to a brand id it actually returns —
+// otherwise the brand card renders "No active campaigns".
 function userRequest(userId: string): Request {
   const secret =
     process.env.JWT_SECRET ||
@@ -32,6 +33,7 @@ describe("GET /api/users/active-campaigns", () => {
   let cloneBrandId: string;
   let campaignId: string;
   let legacyLinkedCampaignId: string;
+  let pendingBrandId: string;
 
   beforeAll(async () => {
     await connectToDatabase();
@@ -52,7 +54,9 @@ describe("GET /api/users/active-campaigns", () => {
     const clone = await BrandModel.create({
       companyName: `Legacy Brand ${suffix}`,
       brandName: `Legacy Brand ${suffix}`,
-      email: `legacy-${legacyBrandId}@example.com`,
+      // Contact email is ordinary data now; legacyBrandId is the pairing key.
+      email: `clone-${suffix}@example.com`,
+      legacyBrandId: new mongoose.Types.ObjectId(legacyBrandId),
       logo: "https://example.com/logo.png",
       category: "Retail",
       description: "",
@@ -63,7 +67,8 @@ describe("GET /api/users/active-campaigns", () => {
       phone: "0000000000",
       registrationNumber,
       themeColor: "#242E2E",
-      status: "PENDING",
+      // Approved in BrandHub — the state in which the app lists it.
+      status: "APPROVED",
       role: "BRAND",
     });
     cloneBrandId = clone._id.toString();
@@ -83,7 +88,7 @@ describe("GET /api/users/active-campaigns", () => {
     campaignId = campaign.insertedId.toString();
 
     // A campaign never repointed by the migration: it still names the legacy
-    // brand and carries no registration, so the legacy-* email pairing is the
+    // brand and carries no registration, so the legacyBrandId pairing is the
     // only route back to the listed BrandHub brand.
     const legacyLinked = await CampaignModel.collection.insertOne({
       name: `5% off ${suffix}`,
@@ -95,6 +100,26 @@ describe("GET /api/users/active-campaigns", () => {
       addresses: [],
     } as any);
     legacyLinkedCampaignId = legacyLinked.insertedId.toString();
+
+    // A brand awaiting review. Nothing about it should reach the app until an
+    // admin approves it in BrandHub.
+    const pending = await BrandModel.create({
+      companyName: `Pending Brand ${suffix}`,
+      brandName: `Pending Brand ${suffix}`,
+      email: `pending-${suffix}@example.com`,
+      category: "Retail",
+      description: "",
+      address: "",
+      webLink: "https://example.com",
+      appLink: "",
+      contactName: "N/A",
+      phone: "0000000000",
+      registrationNumber: `pending-reg-${suffix}`,
+      themeColor: "#242E2E",
+      status: "PENDING",
+      role: "BRAND",
+    });
+    pendingBrandId = pending._id.toString();
   });
 
   afterAll(async () => {
@@ -103,7 +128,7 @@ describe("GET /api/users/active-campaigns", () => {
     });
     await BrandModel.deleteMany({
       _id: {
-        $in: [legacyBrandId, cloneBrandId].map(
+        $in: [legacyBrandId, cloneBrandId, pendingBrandId].map(
           (id) => new mongoose.Types.ObjectId(id),
         ),
       },
@@ -111,7 +136,7 @@ describe("GET /api/users/active-campaigns", () => {
     await mongoose.disconnect();
   });
 
-  it("lists the PENDING BrandHub brands, not their legacy counterparts", async () => {
+  it("lists the approved BrandHub brand, not its legacy counterpart", async () => {
     const response = await getActiveCampaigns(userRequest(userId));
     const data = await response.json();
 
@@ -134,6 +159,14 @@ describe("GET /api/users/active-campaigns", () => {
     expect(brandIds.has(String(campaign.brand))).toBe(true);
   });
 
+  it("withholds a brand still awaiting admin approval", async () => {
+    const response = await getActiveCampaigns(userRequest(userId));
+    const data = await response.json();
+
+    const ids = data.activeBrands.map((b: any) => String(b._id));
+    expect(ids).not.toContain(pendingBrandId);
+  });
+
   it("resolves a campaign still pointing at the legacy brand id", async () => {
     const response = await getActiveCampaigns(userRequest(userId));
     const data = await response.json();
@@ -142,6 +175,30 @@ describe("GET /api/users/active-campaigns", () => {
       (c: any) => String(c._id) === legacyLinkedCampaignId,
     );
 
+    expect(campaign).toBeDefined();
+    expect(String(campaign.brand)).toBe(cloneBrandId);
+  });
+
+  // The pairing used to be encoded in the clone's email, so a brand manager
+  // correcting their contact address in BrandHub Settings silently unjoined
+  // every campaign resolving through it — the brand card went empty with no
+  // error surfaced anywhere (issue #98).
+  it("keeps the legacy pairing after the brand edits its contact email", async () => {
+    await BrandModel.updateOne(
+      { _id: new mongoose.Types.ObjectId(cloneBrandId) },
+      { $set: { email: `rebranded-${suffix}@example.com` } },
+    );
+
+    const response = await getActiveCampaigns(userRequest(userId));
+    const data = await response.json();
+
+    const brandIds = data.activeBrands.map((b: any) => String(b._id));
+    expect(brandIds).toContain(cloneBrandId);
+    expect(brandIds).not.toContain(legacyBrandId);
+
+    const campaign = data.activeCampaigns.find(
+      (c: any) => String(c._id) === legacyLinkedCampaignId,
+    );
     expect(campaign).toBeDefined();
     expect(String(campaign.brand)).toBe(cloneBrandId);
   });

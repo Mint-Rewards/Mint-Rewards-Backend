@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { OrganizationModel, BrandUserModel, BrandModel } from "@/lib/models";
 import { signBrandToken } from "@/lib/brandJwt";
 import { MODULE_CATALOGUE, hasActiveSubscription } from "@/lib/modules";
@@ -144,33 +144,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Email already in use" }, { status: 409 });
   }
 
-  // New orgs start with an active subscription to every catalogue module so
-  // all tabs are usable immediately; a billing flow can narrow this later.
-  const org = await OrganizationModel.create({
-    name: orgName,
-    moduleSubscriptions: MODULE_CATALOGUE.map((m) => ({
-      module: m.id,
-      status: "active",
-      activatedAt: new Date(),
-      expiresAt: null,
-    })),
-  });
   const passwordHash = await bcrypt.hash(password, 10);
-
-  const user = await BrandUserModel.create({
-    orgId: org._id,
-    email: normalizedEmail,
-    passwordHash,
-    orgRole: "owner",
-    moduleAccess: [],
-  });
-
-  const token = signBrandToken({
-    sub: user._id.toString(),
-    orgId: org._id.toString(),
-    orgRole: "owner",
-    moduleAccess: [],
-  });
 
   const brands: {
     id: string;
@@ -179,67 +153,135 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     logo: string | null;
   }[] = [];
 
-  if (brandName) {
-    // `email` is intentionally the org owner's own login email here (not a
-    // synthesized placeholder) — Brand.email has a unique index, so this can
-    // collide if a Brand elsewhere already used this address; handled below.
-    // category/webLink/contactName/phone are all schema-required — fall back
-    // to a placeholder for each when omitted so a missing optional field
-    // never throws an uncaught Mongoose ValidationError.
-    const brandId = new Types.ObjectId();
-    let brand;
-    try {
-      brand = await BrandModel.create({
-        _id: brandId,
-        orgId: org._id,
-        brandName,
-        companyName: orgName,
-        email,
-        category: category ?? "general",
-        webLink: webLink ?? "https://example.com",
-        appLink: appLink ?? "",
-        address: address ?? "",
-        description: description ?? "",
-        contactName: contactName ?? normalizedEmail,
-        phone: phone ?? "N/A",
-        registrationNumber: `BH-${brandId.toString()}`,
-        ...(logoUrl ? { logo: logoUrl } : {}),
-      });
-    } catch (error: unknown) {
-      // Duplicate key — most likely `email` already used by another Brand
-      // record. Fail cleanly instead of an uncaught 500.
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code?: number }).code === 11000
-      ) {
-        return NextResponse.json(
-          { error: "A brand with this email already exists" },
-          { status: 409 },
+  // All three documents are created inside one transaction. Previously the
+  // Organization and BrandUser were committed before BrandModel.create ran, so
+  // a duplicate brand email returned 409 while leaving a real org and login
+  // behind — and retrying then failed earlier, on the BrandUser check above,
+  // with "Email already in use". The user was stranded with an account holding
+  // zero brands after a UI that told them signup had failed (issue #99).
+  //
+  // Requires a replica set. Both deployed and CI use Atlas (mongodb+srv), and
+  // README.md documents the local requirement.
+  const session = await mongoose.startSession();
+  let org: Awaited<ReturnType<typeof OrganizationModel.create>>[number];
+  let user: Awaited<ReturnType<typeof BrandUserModel.create>>[number];
+
+  try {
+    await session.withTransaction(async () => {
+      // Reset on retry: withTransaction may run this callback more than once.
+      brands.length = 0;
+
+      // New orgs start with an active subscription to every catalogue module
+      // so all tabs are usable immediately; a billing flow can narrow this
+      // later.
+      [org] = await OrganizationModel.create(
+        [
+          {
+            name: orgName,
+            moduleSubscriptions: MODULE_CATALOGUE.map((m) => ({
+              module: m.id,
+              status: "active",
+              activatedAt: new Date(),
+              expiresAt: null,
+            })),
+          },
+        ],
+        { session },
+      );
+
+      [user] = await BrandUserModel.create(
+        [
+          {
+            orgId: org._id,
+            email: normalizedEmail,
+            passwordHash,
+            orgRole: "owner",
+            moduleAccess: [],
+          },
+        ],
+        { session },
+      );
+
+      if (brandName) {
+        // `email` is intentionally the org owner's own login email here (not a
+        // synthesized placeholder) — Brand.email has a unique index, so this
+        // can collide if a Brand elsewhere already used this address.
+        // category/webLink/contactName/phone are all schema-required — fall
+        // back to a placeholder for each when omitted so a missing optional
+        // field never throws an uncaught Mongoose ValidationError.
+        const brandId = new Types.ObjectId();
+        const [brand] = await BrandModel.create(
+          [
+            {
+              _id: brandId,
+              orgId: org._id,
+              brandName,
+              companyName: orgName,
+              email: normalizedEmail,
+              category: category ?? "general",
+              webLink: webLink ?? "https://example.com",
+              appLink: appLink ?? "",
+              address: address ?? "",
+              description: description ?? "",
+              contactName: contactName ?? normalizedEmail,
+              phone: phone ?? "N/A",
+              registrationNumber: `BH-${brandId.toString()}`,
+              ...(logoUrl ? { logo: logoUrl } : {}),
+            },
+          ],
+          { session },
         );
+
+        brands.push({
+          id: brand._id.toString(),
+          brandName: brand.brandName,
+          companyName: brand.companyName,
+          logo: brand.logo ?? null,
+        });
       }
-      throw error;
-    }
-    brands.push({
-      id: brand._id.toString(),
-      brandName: brand.brandName,
-      companyName: brand.companyName,
-      logo: brand.logo ?? null,
     });
+  } catch (error: unknown) {
+    // Duplicate key. The pre-check above is a TOCTOU read, not a constraint,
+    // so a concurrent signup can still collide on BrandUser.email; Brand.email
+    // can collide with a brand registered elsewhere. Either way the
+    // transaction has rolled back and nothing was written.
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: number }).code === 11000
+    ) {
+      const keyPattern = (error as { keyPattern?: Record<string, unknown> })
+        .keyPattern;
+      const message =
+        keyPattern && "registrationNumber" in keyPattern
+          ? "Could not allocate a unique brand record. Please retry."
+          : "This email is already registered.";
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
+    throw error;
+  } finally {
+    await session.endSession();
   }
+
+  const token = signBrandToken({
+    sub: user!._id.toString(),
+    orgId: org!._id.toString(),
+    orgRole: "owner",
+    moduleAccess: [],
+  });
 
   return NextResponse.json(
     {
       token,
-      orgId: org._id.toString(),
-      userId: user._id.toString(),
+      orgId: org!._id.toString(),
+      userId: user!._id.toString(),
       brands,
       defaultBrandId: brands[0]?.id ?? null,
       // Same contract as login. New orgs subscribe to the full catalogue at
       // creation, so this lists every module.
       subscribedModules: MODULE_CATALOGUE.filter((m) =>
-        hasActiveSubscription(org.moduleSubscriptions ?? [], m.id),
+        hasActiveSubscription(org!.moduleSubscriptions ?? [], m.id),
       ).map((m) => m.id),
     },
     { status: 201 },

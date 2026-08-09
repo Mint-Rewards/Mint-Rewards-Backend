@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { serverEnv, logPrefix } from '@/lib/env';
+import { logGoogleVerificationFailure } from '@/lib/googleAuthDiagnostics';
 import { googleAudiences } from '@/lib/googleAudiences';
 
 async function generateMintId(): Promise<string> {
@@ -54,6 +55,14 @@ export async function POST(req: NextRequest) {
       payload = ticket.getPayload();
     } catch (error: any) {
       console.error(`${logPrefix('auth:google')} verification failed:`, error.message);
+      // Console output is gone within a day; persist the reason so a field
+      // report that arrives later can still be diagnosed.
+      await logGoogleVerificationFailure({
+        idToken,
+        reason: error?.message ?? String(error),
+        iosClientId: serverEnv.googleIosClientId,
+        webClientId: serverEnv.googleWebClientId,
+      });
       payload = null;
     }
 

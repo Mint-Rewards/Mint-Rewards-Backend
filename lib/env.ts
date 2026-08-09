@@ -160,7 +160,10 @@ const parsed = {
   // this only collapses the previous JWT_SECRET -> NEXTAUTH_SECRET ->
   // NEXT_JWT_SECRET lookup chain down to one key.
   jwtSecret: requiredSecret("JWT_SECRET"),
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN?.trim() || "7d",
+  // 30 days. The app holds exactly one token and has no refresh mechanism, so
+  // this value is the whole session lifetime: when it expires, checkAuth in the
+  // client deletes the stored token and drops the user on the login screen.
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN?.trim() || "30d",
 
   // BrandHub (separate secret by design — see lib/brandJwt.ts)
   brandhubJwtSecret: requiredSecret("BRANDHUB_JWT_SECRET"),

@@ -28,13 +28,16 @@ export async function GET(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // APPROVED only, on both sides of the join: this previously filtered
-    // campaigns on `$ne: "EXPIRED"` and did not filter brands at all, so a
-    // campaign submitted in BrandHub was listed to users the moment it was
-    // created, before any moderation.
+    // Campaigns are moderated here (this previously filtered on
+    // `$ne: "EXPIRED"`, so a BrandHub submission was listed the moment it was
+    // created). Brands are deliberately NOT filtered by status: production's
+    // real brands are clones inserted as PENDING, and requiring APPROVED
+    // emptied the consumer brand list — see the note in
+    // app/api/users/active-campaigns/route.ts. Add `status: "APPROVED"` back
+    // here at the same time as there.
     const [campaigns, brands] = await Promise.all([
       CampaignModel.find({ status: "APPROVED" }).lean(),
-      BrandModel.find({ status: "APPROVED" }).lean(),
+      BrandModel.find().lean(),
     ]);
 
     // Brands with no registrationNumber would all collapse onto the "" key and

@@ -5,3 +5,14 @@ node_modules
 .next
 tsconfig.tsbuildinfo
 graphify-out/
+
+# Local agent/tooling scratch. None of this is part of the build, and it churns
+# constantly — kept on disk, out of the repo.
+.claude/
+.impeccable/
+.superpowers/
+.specify/
+.vscode/
+
+# docs/ is deliberately NOT ignored: docs/VOCABULARY.md is the canonical naming
+# reference for this repo, BrandHub and the app, so it has to stay in git.

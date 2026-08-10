@@ -18,6 +18,7 @@ import {
   isAppEnv,
   parseOrigins,
   databaseNameFromUri,
+  resolveMongoUriKey,
   type AppEnv,
 } from "@/lib/envShared";
 
@@ -145,13 +146,22 @@ function requiredOriginList(key: string): string[] {
 
 const APP_ENV = requiredAppEnv("APP_ENV");
 
+// Reported in the boot error and by databaseName(), so a misconfiguration
+// names the variable that actually supplied the URI.
+const MONGODB_URI_KEY = resolveMongoUriKey(
+  APP_ENV,
+  process.env.MONGODB_URI_TEST,
+);
+
 const parsed = {
   APP_ENV,
   isProduction: APP_ENV === "production",
 
-  // Database
+  // Database. In development this resolves to MONGODB_URI_TEST when one is
+  // set — see resolveMongoUriKey in lib/envShared.ts.
+  mongodbUriKey: MONGODB_URI_KEY,
   mongodbUri: requiredMatching(
-    "MONGODB_URI",
+    MONGODB_URI_KEY,
     /^mongodb(\+srv)?:\/\//,
     'a connection string starting with "mongodb://" or "mongodb+srv://"',
   ),

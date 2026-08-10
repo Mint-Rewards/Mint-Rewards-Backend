@@ -68,10 +68,13 @@
     "setupFilesAfterEnv": [
       "<rootDir>/jest.teardown.js"
     ],
+<<<<<<< Updated upstream
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/.worktrees/"
     ],
+=======
+>>>>>>> Stashed changes
     "testTimeout": 30000
   }
 }

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { serverEnv } from "@/lib/env";
 
 type MongooseCache = {
   conn: typeof import("mongoose") | null;
@@ -19,6 +20,13 @@ declare global {
  * (e.g. after a rejected connection) lands on a "soft deleted" global and
  * crashes the worker with "Maximum call stack size exceeded". Tests don't
  * need the hot-reload behavior, so use a plain module-level cache instead.
+ *
+ * IMPORTANT when changing env/URI configuration: this cache survives HMR, and
+ * `serverEnv` is parsed once at module load. Editing .env (or any variable that
+ * feeds resolveMongoUriKey) and letting Next hot-reload will keep serving the
+ * connection opened under the OLD value — a full server restart is required.
+ * This produced a false-negative during recent debugging, where a corrected URI
+ * looked like it had no effect.
  */
 const cached: MongooseCache = process.env.JEST_WORKER_ID
   ? { conn: null, promise: null }
@@ -31,13 +39,11 @@ async function connectToDatabase() {
   }
 
   if (!cached.promise) {
-    const MONGODB_URI = process.env.MONGODB_URI;
-
-    if (!MONGODB_URI) {
-      throw new Error(
-        "Please define the MONGODB_URI environment variable inside .env.local",
-      );
-    }
+    // Reading process.env.MONGODB_URI directly here bypassed lib/env.ts, so
+    // APP_ENV=development preferring MONGODB_URI_TEST had no effect on the
+    // connection the app actually opened — the only thing that ever redirected
+    // it was jest.setup.js overwriting process.env before import.
+    const MONGODB_URI = serverEnv.mongodbUri;
 
     const opts = {
       bufferCommands: false,

@@ -78,6 +78,10 @@ describe("requireModuleAccess chain", () => {
   });
 
   afterAll(async () => {
+    // If beforeAll never got a connection there are no fixtures to remove, and
+    // querying anyway throws "before initial connection is complete" — a second
+    // failure that buries the one that actually mattered.
+    if (mongoose.connection.readyState !== 1) return;
     await OrganizationModel.deleteMany({ name: /^RMA Test Org / });
     await mongoose.disconnect();
   });

@@ -45,9 +45,15 @@ async function connectToDatabase() {
     // it was jest.setup.js overwriting process.env before import.
     const MONGODB_URI = serverEnv.mongodbUri;
 
+    // Serverless invocations should give up fast rather than hold a function
+    // open, so 5s is right in production. Under jest it is not: a CI runner
+    // reaching Atlas cold routinely takes longer, and 5s also happens to be
+    // jest's default hook/test timeout — the two clocks expire together, jest
+    // wins the race, and the real MongoServerSelectionError is never printed.
+    // Suites see "Exceeded timeout of 5000 ms for a hook" and nothing else.
     const opts = {
       bufferCommands: false,
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: process.env.JEST_WORKER_ID ? 20000 : 5000,
     };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {

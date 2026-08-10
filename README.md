@@ -122,7 +122,7 @@ MONGODB_URI=mongodb://localhost:27017/mint-rewards?replicaSet=rs0
 # Authentication
 JWT_SECRET=your-jwt-secret
 NEXTAUTH_SECRET=your-nextauth-secret   # fallback if JWT_SECRET is absent
-JWT_EXPIRES_IN=30d
+JWT_EXPIRES_IN=7d
 
 # SMTP / Email
 NEXT_SMTP_HOST=smtp.example.com
@@ -349,7 +349,7 @@ Application event entries. Auto-deleted after **90 days** (TTL index on `timesta
 
 ## Authentication
 
-- Tokens are signed JWTs (HS256), valid for `JWT_EXPIRES_IN` (default `30d`).
+- Tokens are signed JWTs (HS256), valid for `JWT_EXPIRES_IN` (default `7d`).
 - Auth helpers in `lib/auth.ts`:
   - `checkAuth(request)` — decodes the Bearer token; returns `null` on failure.
   - `getAuthenticatedUserId(request)` — extracts `id` or `sub` from the token payload.

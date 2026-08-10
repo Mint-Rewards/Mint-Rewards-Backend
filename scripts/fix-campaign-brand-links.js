@@ -13,10 +13,59 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI;
+// This script deliberately CAN write to production — the broken campaign→brand
+// links it repairs are in the live data. So the database is chosen explicitly
+// rather than defaulted: --target=production reads MONGODB_URI,
+// --target=test reads MONGODB_URI_TEST. There is no default, because the
+// failure mode being guarded against is a prod write nobody meant to make.
+const TARGET = parseTarget();
+const MONGODB_URI_KEY =
+  TARGET === "production" ? "MONGODB_URI" : "MONGODB_URI_TEST";
+const MONGODB_URI = process.env[MONGODB_URI_KEY];
 
 if (!MONGODB_URI) {
-  throw new Error("Please set MONGODB_URI in your environment.");
+  throw new Error(
+    `${MONGODB_URI_KEY} is not set — required by --target=${TARGET}. ` +
+      "Define it in .env.",
+  );
+}
+
+function parseTarget() {
+  const flag = process.argv.find((a) => a.startsWith("--target="));
+  const value = flag?.slice("--target=".length);
+
+  if (value !== "production" && value !== "test") {
+    throw new Error(
+      "--target=production|test is required. This script can write to the " +
+        "primary database, so the target is never inferred: pass " +
+        "--target=test to run against MONGODB_URI_TEST, or " +
+        "--target=production to run against MONGODB_URI.",
+    );
+  }
+  return value;
+}
+
+// Post-connection assertion, mirroring the database-name guard in
+// seed-brandhub-demo.js / seed-brandhub-personas.js. The URI variable and the
+// database it actually resolves to are independent — a MONGODB_URI_TEST
+// pointing at mint_rewards, or a MONGODB_URI pointing at the test database,
+// both pass every check upstream of the connection. This is the one place the
+// real database name is observable, so the declared target is confirmed here.
+function assertDatabaseMatchesTarget(dbName) {
+  const looksLikeTest = /(^|[-_])test([-_]|$)|^test_db$/i.test(dbName);
+
+  if (TARGET === "test" && !looksLikeTest) {
+    throw new Error(
+      `Refusing to run: --target=test but the connected database is ` +
+        `"${dbName}", which does not look like a test database.`,
+    );
+  }
+  if (TARGET === "production" && looksLikeTest) {
+    throw new Error(
+      `Refusing to run: --target=production but the connected database is ` +
+        `"${dbName}", which looks like a test database. Check MONGODB_URI.`,
+    );
+  }
 }
 
 const APPLY = process.argv.includes("--apply");
@@ -25,6 +74,18 @@ const normalize = (value) => String(value ?? "").trim().toLowerCase();
 
 async function main() {
   await mongoose.connect(MONGODB_URI, { bufferCommands: false });
+
+  try {
+    assertDatabaseMatchesTarget(mongoose.connection.db.databaseName);
+  } catch (err) {
+    await mongoose.disconnect();
+    throw err;
+  }
+
+  console.log(
+    `Target: ${TARGET} (${MONGODB_URI_KEY}) — database ` +
+      `"${mongoose.connection.db.databaseName}"${APPLY ? "" : " [dry run]"}`,
+  );
 
   const brands = mongoose.connection.collection("brands");
   const campaigns = mongoose.connection.collection("campaigns");

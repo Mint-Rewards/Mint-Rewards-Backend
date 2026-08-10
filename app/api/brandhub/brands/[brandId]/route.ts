@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
 import { BrandModel } from "@/lib/models";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
+import { uploadBrandLogo, isLogoUploadError } from "@/lib/brandLogoUpload";
 
 interface RouteParams {
   params: Promise<{ brandId: string }>;
 }
-
-const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5 MB — matches registration's limit
 
 // Fields a brand may update themselves (parity with legacy
 // PATCH /api/brands/[id]/settings). Status and role are admin-only.
@@ -134,31 +132,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     let logoUrl: string | null = null;
     if (logoFile) {
-      if (!logoFile.type.startsWith("image/")) {
+      const uploaded = await uploadBrandLogo(brandId, logoFile);
+      if (isLogoUploadError(uploaded)) {
         return Response.json(
-          { success: false, message: "Logo must be an image file" },
-          { status: 400 },
+          { success: false, message: uploaded.message },
+          { status: uploaded.status },
         );
       }
-      if (logoFile.size > MAX_LOGO_BYTES) {
-        return Response.json(
-          { success: false, message: "Logo must be 5MB or smaller" },
-          { status: 400 },
-        );
-      }
-      const extension = logoFile.name.includes(".")
-        ? `.${logoFile.name.split(".").pop()?.toLowerCase()}`
-        : "";
-      const blob = await put(
-        `brands/${brandId}/logo-${Date.now()}${extension || ".png"}`,
-        Buffer.from(await logoFile.arrayBuffer()),
-        {
-          access: "public",
-          contentType: logoFile.type || "application/octet-stream",
-          token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
-        },
-      );
-      logoUrl = blob.url;
+      logoUrl = uploaded;
     }
 
     const update: Record<string, unknown> = {};

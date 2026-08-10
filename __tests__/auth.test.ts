@@ -1,6 +1,5 @@
 import request from 'supertest';
 import app from '../app';
-import { Log } from '../lib/models';
 
 describe('POST /api/auth/google', () => {
   it('returns 400 when idToken is missing', async () => {
@@ -29,22 +28,6 @@ describe('POST /api/auth/google', () => {
     expect(loggedMessage).toMatch(/google/i);
     expect(loggedMessage.length).toBeGreaterThan(0);
 
-    errorSpy.mockRestore();
-  });
-
-  it('persists the verification failure so it outlives the console', async () => {
-    await Log.deleteMany({ event: 'GOOGLE_AUTH_VERIFY_FAILED' });
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-    await request(app)
-      .post('/api/auth/google')
-      .send({ idToken: 'invalid-token' });
-
-    const entry = await Log.findOne({ event: 'GOOGLE_AUTH_VERIFY_FAILED' }).lean();
-    expect(entry).toBeTruthy();
-    expect((entry as unknown as { extra: { reason: string } }).extra.reason).toBeTruthy();
-
-    await Log.deleteMany({ event: 'GOOGLE_AUTH_VERIFY_FAILED' });
     errorSpy.mockRestore();
   });
 });

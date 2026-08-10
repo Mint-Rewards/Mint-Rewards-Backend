@@ -16,6 +16,33 @@ export function isAppEnv(value: string | undefined): value is AppEnv {
 }
 
 /**
+ * Which environment variable supplies the connection string for this boot.
+ *
+ * APP_ENV=development prefers MONGODB_URI_TEST, so a local `next dev` reaches
+ * the isolated test database rather than whatever MONGODB_URI happens to hold
+ * — which, with a .env shared with the seed scripts, was the production
+ * mint_rewards database. `npm run dev:testdb` did this by hand; nothing forced
+ * it, and the plain `dev` script did not.
+ *
+ * Falls back to MONGODB_URI when no test URI is defined: the deployed dev
+ * backend (Vercel Preview, branch dev) sets only MONGODB_URI and already
+ * points it at the test database, so requiring MONGODB_URI_TEST there would
+ * fail its boot on a variable it has no reason to carry.
+ *
+ * Production ignores MONGODB_URI_TEST entirely — a stray value in the
+ * production environment must not be able to divert live traffic.
+ */
+export function resolveMongoUriKey(
+  appEnv: AppEnv,
+  mongodbUriTest: string | undefined,
+): "MONGODB_URI" | "MONGODB_URI_TEST" {
+  if (appEnv === "development" && mongodbUriTest?.trim()) {
+    return "MONGODB_URI_TEST";
+  }
+  return "MONGODB_URI";
+}
+
+/**
  * Parse a comma-separated origin allowlist into exact-match origins.
  * Entries are trimmed, blanks dropped, and any trailing slash removed so
  * "https://x.app/" and "https://x.app" both match the browser's Origin header,

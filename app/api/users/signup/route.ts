@@ -157,21 +157,6 @@ export async function POST(req: Request) {
 
     await newUser.save();
 
-    // Handle referral rewards
-    const referralUsers = await UserModel.find({ referrals: { $in: [email] } });
-
-    if (referralUsers.length > 0) {
-      const referralUser = referralUsers[0];
-
-      if (referralUser.email !== newUser.email) {
-        newUser.points = 150;
-        await newUser.save();
-
-        referralUser.points += 50;
-        await referralUser.save();
-      }
-    }
-
     try {
       await sendSignupEmail(email, otp);
     } catch (emailErr) {

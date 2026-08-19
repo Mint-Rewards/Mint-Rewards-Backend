@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { serverEnv } from '@/lib/env';
+import { awardReferralIfApplicable } from '@/lib/referrals';
 
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const APPLE_ISSUER = 'https://appleid.apple.com';
@@ -89,9 +90,15 @@ export async function POST(req: NextRequest) {
         avatar: '',
         appleId: sub,
         mintId,
+        // Baseline signup grant for ALL new Apple users, referred or not —
+        // matches the `points: 100` in users/signup/route.ts. Without it these
+        // accounts fell through to the schema default of 0.
+        points: 100,
         emailVerified: true,
         firstTimeLogin: true,
       });
+
+      await awardReferralIfApplicable(user._id, user.email);
     }
 
     const jwtPayload = { id: user.id };

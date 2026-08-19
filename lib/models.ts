@@ -317,6 +317,7 @@ const UserSchema = new Schema<UserDocument>(
     totalCollections: stringDefaultEmpty,
     totalWasteCollected: stringDefaultEmpty,
     referrals: { type: [String], default: [] },
+    referralRewardGranted: { type: Boolean, default: false },
     pickupHistory: { type: [pickupHistorySchema], default: [] },
     created: { type: Date, default: Date.now },
     firstTimeLogin: { type: Boolean, default: true },

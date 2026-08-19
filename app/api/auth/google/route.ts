@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { serverEnv, logPrefix } from '@/lib/env';
 import { googleAudiences } from '@/lib/googleAudiences';
+import { awardReferralIfApplicable } from '@/lib/referrals';
 
 async function generateMintId(): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -80,9 +81,15 @@ export async function POST(req: NextRequest) {
         password: randomPassword,
         avatar: picture || '',
         mintId,
+        // Baseline signup grant for ALL new Google users, referred or not —
+        // matches the `points: 100` in users/signup/route.ts. Without it these
+        // accounts fell through to the schema default of 0.
+        points: 100,
         emailVerified: true,
         firstTimeLogin: true,
       });
+
+      await awardReferralIfApplicable(user._id, user.email);
     }
     const jwtPayload = { id: user.id };
     const token = jwt.sign(jwtPayload, JWT_SECRET, {

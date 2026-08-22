@@ -15,7 +15,8 @@ const RESEND_THROTTLE_MS = 60 * 1000;
 
 // Identical response whether or not the email exists — prevents enumeration.
 const GENERIC_RESPONSE = {
-  message: "If an unverified account exists for that email, a new code has been sent.",
+  message:
+    "If an unverified account exists for that email, a new code has been sent.",
 };
 
 export async function POST(req: Request) {
@@ -51,7 +52,8 @@ export async function POST(req: Request) {
       3,
       10 * 60 * 1000,
     );
-    if (emailLimit.limited) return rateLimitResponse(emailLimit.retryAfterSeconds);
+    if (emailLimit.limited)
+      return rateLimitResponse(emailLimit.retryAfterSeconds);
 
     await connectToDatabase();
 

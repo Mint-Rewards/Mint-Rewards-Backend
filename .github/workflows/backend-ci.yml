@@ -44,7 +44,7 @@ jobs:
       ADMIN_JWT_SECRET: ci-placeholder-admin-jwt-secret
       ADMIN_EMAIL: admin@example.com
       # bcrypt hash of a throwaway string; never used to authenticate in CI.
-      ADMIN_PASSWORD_HASH: '$2b$10$CwTycUXWue0Thq9StjUM0uJ8.PjMDCLPu2H8dQmDCkPGYr8SoQO0O'
+      ADMIN_PASSWORD_HASH: "$2b$10$CwTycUXWue0Thq9StjUM0uJ8.PjMDCLPu2H8dQmDCkPGYr8SoQO0O"
       OTP_PEPPER: ci-placeholder-otp-pepper
       GOOGLE_IOS_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
       GOOGLE_WEB_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
@@ -62,8 +62,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          cache: 'npm'
+          node-version: "24"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci

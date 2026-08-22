@@ -126,15 +126,25 @@ async function main() {
 
   console.log("\nSeed complete");
   console.log("Org ID:  ", orgId.toString());
-  console.log("Owner:   owner@demo.com  (orgRole: owner — all subscribed modules, full access)");
-  console.log("Admin:   admin@demo.com  (orgRole: admin — all subscribed modules, full access)");
+  console.log(
+    "Owner:   owner@demo.com  (orgRole: owner — all subscribed modules, full access)",
+  );
+  console.log(
+    "Admin:   admin@demo.com  (orgRole: admin — all subscribed modules, full access)",
+  );
   console.log("Member:  member@demo.com (consumer-reporting:write)");
   console.log(`\nTest credentials: ${DEMO_PASSWORD} for all three accounts`);
-  console.log("\nSubscriptions: consumer-reporting active, esg never subscribed (402 expected)");
+  console.log(
+    "\nSubscriptions: consumer-reporting active, esg never subscribed (402 expected)",
+  );
   console.log("\nBrand IDs:");
   console.log("  Alpha (org-owned): ", brandIds[0].toString());
   console.log("  Beta  (org-owned): ", brandIds[1].toString());
-  console.log("  Orphan (no orgId): ", brandIds[2].toString(), "— 404 expected via brandhub\n");
+  console.log(
+    "  Orphan (no orgId): ",
+    brandIds[2].toString(),
+    "— 404 expected via brandhub\n",
+  );
 
   await mongoose.disconnect();
 }

@@ -100,7 +100,9 @@ export async function POST(req: Request, { params }: RouteParams) {
         {
           $inc: { currentUses: 1 },
           $addToSet: { users: userObjectId },
-          $push: { claims: { user: userObjectId, code, claimedAt: new Date() } },
+          $push: {
+            claims: { user: userObjectId, code, claimedAt: new Date() },
+          },
         },
         { new: true },
       ).lean();

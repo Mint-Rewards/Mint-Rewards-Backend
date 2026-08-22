@@ -70,7 +70,10 @@ function assertDatabaseMatchesTarget(dbName) {
 
 const APPLY = process.argv.includes("--apply");
 
-const normalize = (value) => String(value ?? "").trim().toLowerCase();
+const normalize = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
 
 async function main() {
   await mongoose.connect(MONGODB_URI, { bufferCommands: false });
@@ -103,7 +106,9 @@ async function main() {
   const unresolved = [];
 
   for (const campaign of allCampaigns) {
-    const match = brandByRegistration.get(normalize(campaign.brandRegistration));
+    const match = brandByRegistration.get(
+      normalize(campaign.brandRegistration),
+    );
 
     if (!match) {
       unresolved.push({
@@ -135,9 +140,13 @@ async function main() {
   }
 
   if (unresolved.length > 0) {
-    console.log(`\nCampaigns with no matching brand (left untouched): ${unresolved.length}`);
+    console.log(
+      `\nCampaigns with no matching brand (left untouched): ${unresolved.length}`,
+    );
     for (const u of unresolved) {
-      console.log(`  "${u.name}" (${u.campaignId}): brandRegistration="${u.brandRegistration}"`);
+      console.log(
+        `  "${u.name}" (${u.campaignId}): brandRegistration="${u.brandRegistration}"`,
+      );
     }
   }
 

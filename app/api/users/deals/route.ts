@@ -38,12 +38,13 @@ export async function GET(req: Request) {
     const approvedBrands = await BrandModel.find({ status: "APPROVED" })
       .select("_id companyName brandName logo themeColor category")
       .lean();
-    const brandById = new Map(
-      approvedBrands.map((b) => [b._id.toString(), b]),
-    );
+    const brandById = new Map(approvedBrands.map((b) => [b._id.toString(), b]));
 
     const now = Date.now();
-    const isLive = (deal: { startDate?: string | null; endDate?: string | null }) => {
+    const isLive = (deal: {
+      startDate?: string | null;
+      endDate?: string | null;
+    }) => {
       const start = deal.startDate ? Date.parse(deal.startDate) : NaN;
       const end = deal.endDate ? Date.parse(deal.endDate) : NaN;
       if (!Number.isNaN(start) && now < start) return false;

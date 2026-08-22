@@ -129,7 +129,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     // rejects it with 409 "no discount codes available" and it renders a blank
     // discount badge. There is no endpoint to attach codes after the fact, so
     // require them here rather than let an unredeemable campaign be created.
-    const codeResult = cleanSuppliedCodes(parseDiscountCodes(body.discountCodes));
+    const codeResult = cleanSuppliedCodes(
+      parseDiscountCodes(body.discountCodes),
+    );
     if ("error" in codeResult) {
       return Response.json(
         { success: false, message: codeResult.error },
@@ -170,14 +172,24 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       brand: brandId,
       brandRegistration: brand.registrationNumber,
       status: "PENDING",
-      ...(typeof body.description === "string" && { description: body.description }),
-      ...(typeof body.campaignType === "string" && { campaignType: body.campaignType }),
-      ...(typeof body.targetAudience === "string" && { targetAudience: body.targetAudience }),
+      ...(typeof body.description === "string" && {
+        description: body.description,
+      }),
+      ...(typeof body.campaignType === "string" && {
+        campaignType: body.campaignType,
+      }),
+      ...(typeof body.targetAudience === "string" && {
+        targetAudience: body.targetAudience,
+      }),
       ...(typeof body.budget === "number" && { budget: body.budget }),
-      ...(body.budget && !Number.isNaN(Number(body.budget)) && typeof body.budget !== "number"
+      ...(body.budget &&
+      !Number.isNaN(Number(body.budget)) &&
+      typeof body.budget !== "number"
         ? { budget: Number(body.budget) }
         : {}),
-      ...(typeof body.backgroundColor === "string" && { backgroundColor: body.backgroundColor }),
+      ...(typeof body.backgroundColor === "string" && {
+        backgroundColor: body.backgroundColor,
+      }),
       ...(typeof body.badge === "string" && { badge: body.badge }),
       ...(typeof body.subtitle === "string" && { subtitle: body.subtitle }),
       ...(bannerUrl && { banner: bannerUrl }),

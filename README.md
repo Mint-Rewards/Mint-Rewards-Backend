@@ -24,15 +24,15 @@ Built with **Next.js 16 API Routes**, **MongoDB/Mongoose**, and deployed on Verc
 
 ## Tech Stack
 
-| Layer          | Technology                                    |
-|----------------|-----------------------------------------------|
-| Framework      | Next.js 16 (App Router, API Routes)           |
-| Language       | TypeScript 5                                  |
-| Database       | MongoDB via Mongoose 9                        |
-| Auth           | JWT (jsonwebtoken) + bcryptjs                 |
-| File Storage   | Vercel Blob                                   |
-| Email          | Nodemailer (SMTP)                             |
-| Runtime        | Node.js 18+                                   |
+| Layer        | Technology                          |
+| ------------ | ----------------------------------- |
+| Framework    | Next.js 16 (App Router, API Routes) |
+| Language     | TypeScript 5                        |
+| Database     | MongoDB via Mongoose 9              |
+| Auth         | JWT (jsonwebtoken) + bcryptjs       |
+| File Storage | Vercel Blob                         |
+| Email        | Nodemailer (SMTP)                   |
+| Runtime      | Node.js 18+                         |
 
 ---
 
@@ -155,15 +155,17 @@ Authorization: Bearer <jwt_token>
 ### Users
 
 #### `POST /api/users/signup`
+
 Register a new user account.
 
 **Body:**
+
 ```json
 {
   "email": "user@example.com",
   "password": "secret",
   "location": { "province": "...", "city": "...", "town": "..." },
-  "referralCode": "ABC12345"   // optional — referrer's mintId
+  "referralCode": "ABC12345" // optional — referrer's mintId
 }
 ```
 
@@ -172,9 +174,11 @@ Register a new user account.
 ---
 
 #### `POST /api/users/login`
+
 Authenticate and receive a JWT token.
 
 **Body:**
+
 ```json
 { "email": "user@example.com", "password": "secret" }
 ```
@@ -184,14 +188,17 @@ Authenticate and receive a JWT token.
 ---
 
 #### `GET /api/users/my-profile` — Protected
+
 Return the authenticated user's full profile.
 
 ---
 
 #### `PUT /api/users/update-profile` — Protected
+
 Update editable profile fields.
 
 **Body (any subset):**
+
 ```json
 {
   "userName": "...",
@@ -205,19 +212,23 @@ Update editable profile fields.
 ---
 
 #### `DELETE /api/users/delete-account` — Protected
+
 Permanently delete the authenticated user's account.
 
 ---
 
 #### `GET /api/users/active-campaigns` — Protected
+
 Return all approved brands and their active campaigns.
 
 ---
 
 #### `POST /api/users/referrals` — Protected
+
 Send referral invitation emails to a list of addresses.
 
 **Body:**
+
 ```json
 { "emails": ["friend@example.com", "other@example.com"] }
 ```
@@ -225,6 +236,7 @@ Send referral invitation emails to a list of addresses.
 ---
 
 #### `POST /api/users/reset-password`
+
 Request a password-reset OTP sent to the user's email.
 
 **Body:** `{ "email": "user@example.com" }`
@@ -232,6 +244,7 @@ Request a password-reset OTP sent to the user's email.
 ---
 
 #### `POST /api/users/verify-otp`
+
 Verify the OTP received during password reset.
 
 **Body:** `{ "email": "user@example.com", "otp": "1234" }`
@@ -239,6 +252,7 @@ Verify the OTP received during password reset.
 ---
 
 #### `POST /api/users/set-password`
+
 Set a new password after a successful OTP verification.
 
 **Body:** `{ "email": "user@example.com", "password": "newSecret" }`
@@ -248,6 +262,7 @@ Set a new password after a successful OTP verification.
 ### Brands
 
 #### `POST /api/brands/register`
+
 Register a new brand partner. Accepts `multipart/form-data` (logo file included).
 
 **Fields:** `companyName`, `brandName`, `email`, `phone`, `contactName`, `category`, `description`, `registrationNumber`, `logo` (file), etc.
@@ -257,6 +272,7 @@ Register a new brand partner. Accepts `multipart/form-data` (logo file included)
 ---
 
 #### `GET /api/brands`
+
 Return every brand regardless of status, along with its non-`EXPIRED`
 campaigns. This is the moderation view — see `GET /api/brands/fetch` for
 approved inventory only.
@@ -264,6 +280,7 @@ approved inventory only.
 ---
 
 #### `GET /api/brands/fetch`
+
 Return all `APPROVED` brands sorted by creation date (newest first), each with
 its `APPROVED` campaigns and `active` deals. Approved inventory only — use
 `GET /api/brands` for every brand regardless of status, or
@@ -272,6 +289,7 @@ its `APPROVED` campaigns and `active` deals. Approved inventory only — use
 ---
 
 #### `GET /api/brands/[id]`
+
 Return a single brand by its MongoDB `_id`.
 
 ---
@@ -279,9 +297,11 @@ Return a single brand by its MongoDB `_id`.
 ### Logs
 
 #### `POST /api/logs`
+
 Create an application event log entry (fire-and-forget; does not block the caller).
 
 **Body:**
+
 ```json
 {
   "event": "page_view",
@@ -296,6 +316,7 @@ Create an application event log entry (fire-and-forget; does not block the calle
 ---
 
 #### `GET /api/logs`
+
 Query log entries. Supports URL query params: `userId`, `event`, `route`, `level`, `from` (ISO date), `to` (ISO date). Returns up to 100 entries.
 
 ---
@@ -303,46 +324,52 @@ Query log entries. Supports URL query params: `userId`, `event`, `route`, `level
 ## Data Models
 
 ### User
-| Field              | Type     | Notes                                      |
-|--------------------|----------|--------------------------------------------|
-| `email`            | String   | Unique                                     |
-| `password`         | String   | Bcrypt hashed                              |
-| `mintId`           | String   | Unique 8-digit ID                          |
-| `role`             | Enum     | `MEMBER`, `ADMIN`, `CAPTAIN`, `BRAND`, etc.|
-| `points`           | Number   | Starts at 100; +150 per successful referral|
-| `referrals`        | [String] | Referred email addresses                   |
-| `firstTimeLogin`   | Boolean  | UI onboarding flag                         |
-| `emailVerified`    | Boolean  |                                            |
-| `otpVerification`  | String   | Stored during password reset flow          |
+
+| Field             | Type     | Notes                                       |
+| ----------------- | -------- | ------------------------------------------- |
+| `email`           | String   | Unique                                      |
+| `password`        | String   | Bcrypt hashed                               |
+| `mintId`          | String   | Unique 8-digit ID                           |
+| `role`            | Enum     | `MEMBER`, `ADMIN`, `CAPTAIN`, `BRAND`, etc. |
+| `points`          | Number   | Starts at 100; +150 per successful referral |
+| `referrals`       | [String] | Referred email addresses                    |
+| `firstTimeLogin`  | Boolean  | UI onboarding flag                          |
+| `emailVerified`   | Boolean  |                                             |
+| `otpVerification` | String   | Stored during password reset flow           |
 
 ### Brand
-| Field                | Type   | Notes                                |
-|----------------------|--------|--------------------------------------|
-| `companyName`        | String |                                      |
-| `email`              | String | Unique                               |
-| `registrationNumber` | String | Unique                               |
-| `logo`               | String | Vercel Blob URL                      |
-| `status`             | Enum   | `PENDING`, `APPROVED`, `REJECTED`    |
-| `themeColor`         | String | Default `#3B82F6`                    |
+
+| Field                | Type   | Notes                             |
+| -------------------- | ------ | --------------------------------- |
+| `companyName`        | String |                                   |
+| `email`              | String | Unique                            |
+| `registrationNumber` | String | Unique                            |
+| `logo`               | String | Vercel Blob URL                   |
+| `status`             | Enum   | `PENDING`, `APPROVED`, `REJECTED` |
+| `themeColor`         | String | Default `#3B82F6`                 |
 
 ### Campaign
-| Field               | Type     | Notes                             |
-|---------------------|----------|-----------------------------------|
-| `name`              | String   |                                   |
-| `brand`             | ObjectId | Ref → Brand                       |
-| `discountCodes`     | [String] | Required, non-empty               |
-| `isSingleCode`      | Boolean  | One code shared vs. per-user      |
-| `discountPercentage`| Number   |                                   |
-| `status`            | Enum     | `PENDING`, `APPROVED`, `REJECTED`, `EXPIRED` |
-| `startDate/endDate` | Date     |                                   |
+
+| Field                | Type     | Notes                                        |
+| -------------------- | -------- | -------------------------------------------- |
+| `name`               | String   |                                              |
+| `brand`              | ObjectId | Ref → Brand                                  |
+| `discountCodes`      | [String] | Required, non-empty                          |
+| `isSingleCode`       | Boolean  | One code shared vs. per-user                 |
+| `discountPercentage` | Number   |                                              |
+| `status`             | Enum     | `PENDING`, `APPROVED`, `REJECTED`, `EXPIRED` |
+| `startDate/endDate`  | Date     |                                              |
 
 ### Captain
+
 Waste collection agents. Fields: `email`, `password` (hashed), `name`, `phone`, `nationalId`, `nationalIdImage`, `avatar`. Role is always `CAPTAIN`.
 
 ### Collection
+
 Represents a waste collection event. Tracks `area`, `city`, `radius`, participating `users`, assigned `captainsWithDates`, and `status` (`PENDING` / `COMPLETED`).
 
 ### Log
+
 Application event entries. Auto-deleted after **90 days** (TTL index on `timestamp`). Fields include `event`, `level`, `userId`, `route`, `deviceId`, `platform`, `appVersion`, and an `extra` catch-all JSON field.
 
 ---
@@ -357,15 +384,15 @@ Application event entries. Auto-deleted after **90 days** (TTL index on `timesta
 
 ### User Roles
 
-| Role                 | Description              |
-|----------------------|--------------------------|
-| `ADMIN`              | System administrator     |
-| `MEMBER`             | Regular end user         |
-| `CAPTAIN`            | Waste collection captain |
-| `LOGISTIC`           | Logistics partner        |
-| `BRAND`              | Brand/business partner   |
-| `BUSINESS_DEVELOPMENT` | BD team member         |
-| `BD_ADMIN`           | BD administrator         |
+| Role                   | Description              |
+| ---------------------- | ------------------------ |
+| `ADMIN`                | System administrator     |
+| `MEMBER`               | Regular end user         |
+| `CAPTAIN`              | Waste collection captain |
+| `LOGISTIC`             | Logistics partner        |
+| `BRAND`                | Brand/business partner   |
+| `BUSINESS_DEVELOPMENT` | BD team member           |
+| `BD_ADMIN`             | BD administrator         |
 
 ---
 
@@ -373,10 +400,11 @@ Application event entries. Auto-deleted after **90 days** (TTL index on `timesta
 
 Email is sent via Nodemailer over SMTP (configured through `NEXT_SMTP_*` env vars). Templates live in `emailServices/` and are plain HTML strings.
 
-| Template                    | Trigger                              |
-|-----------------------------|--------------------------------------|
-| `signupConfirmation`        | New user registration                |
-| `paswordReset`              | Password reset OTP                   |
-| `referralEmail`             | Referral invitations                 |
-| `profileNotComplete`        | Profile completion reminder          |
+| Template             | Trigger                     |
+| -------------------- | --------------------------- |
+| `signupConfirmation` | New user registration       |
+| `paswordReset`       | Password reset OTP          |
+| `referralEmail`      | Referral invitations        |
+| `profileNotComplete` | Profile completion reminder |
+
 # pipeline verified

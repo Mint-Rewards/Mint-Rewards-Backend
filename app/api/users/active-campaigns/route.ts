@@ -4,7 +4,10 @@ import { BrandModel, CampaignModel } from "@/lib/models";
 import { isCampaignActive } from "@/lib/campaignDates";
 import { legacyBrandIdOf } from "@/lib/legacyBrandEmail";
 
-const normalize = (value: unknown) => String(value ?? "").trim().toLowerCase();
+const normalize = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
 
 /**
  * Brands exist twice in the data: an original legacy document, and the PENDING
@@ -39,7 +42,9 @@ function resolveListedBrandId(
   );
   if (byRegistration) return byRegistration;
 
-  return listedIdByPairedId.get(brand) ?? listedIdByPairedId.get(brandId) ?? null;
+  return (
+    listedIdByPairedId.get(brand) ?? listedIdByPairedId.get(brandId) ?? null
+  );
 }
 
 export async function GET(req: Request) {

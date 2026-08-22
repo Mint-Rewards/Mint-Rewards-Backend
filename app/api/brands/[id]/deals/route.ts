@@ -164,16 +164,27 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         // once by one user, so maxUses IS the code count (issue #44).
         maxUses: codes.length,
       }),
-      ...(typeof body.description === "string" && { description: body.description }),
-      ...(typeof body.discountPercentage === "number" && { discountPercentage: body.discountPercentage }),
-      ...(typeof body.discountAmount === "number" && { discountAmount: body.discountAmount }),
+      ...(typeof body.description === "string" && {
+        description: body.description,
+      }),
+      ...(typeof body.discountPercentage === "number" && {
+        discountPercentage: body.discountPercentage,
+      }),
+      ...(typeof body.discountAmount === "number" && {
+        discountAmount: body.discountAmount,
+      }),
       ...(!codes &&
         typeof body.promoCode === "string" &&
         body.promoCode && { promoCode: body.promoCode }),
-      ...(typeof body.startDate === "string" && body.startDate && { startDate: body.startDate }),
-      ...(typeof body.endDate === "string" && body.endDate && { endDate: body.endDate }),
-      ...(!codes && typeof body.maxUses === "number" && { maxUses: body.maxUses }),
-      ...(typeof body.minimumPurchase === "number" && { minimumPurchase: body.minimumPurchase }),
+      ...(typeof body.startDate === "string" &&
+        body.startDate && { startDate: body.startDate }),
+      ...(typeof body.endDate === "string" &&
+        body.endDate && { endDate: body.endDate }),
+      ...(!codes &&
+        typeof body.maxUses === "number" && { maxUses: body.maxUses }),
+      ...(typeof body.minimumPurchase === "number" && {
+        minimumPurchase: body.minimumPurchase,
+      }),
     });
 
     return Response.json({ success: true, deal }, { status: 201 });

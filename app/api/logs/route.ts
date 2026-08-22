@@ -10,7 +10,10 @@ export async function POST(req: NextRequest) {
 
     const { event, deviceId, platform, appVersion, buildNumber } = body;
     if (!event || !deviceId || !platform || !appVersion || !buildNumber) {
-      return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Missing required fields." },
+        { status: 400 },
+      );
     }
 
     await Log.create({
@@ -59,6 +62,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ logs, total: logs.length });
   } catch {
-    return NextResponse.json({ error: "Failed to retrieve logs." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to retrieve logs." },
+      { status: 500 },
+    );
   }
 }

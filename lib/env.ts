@@ -241,7 +241,11 @@ const parsed = {
 
   // Global admin
   adminJwtSecret: requiredSecret("ADMIN_JWT_SECRET"),
-  adminEmail: requiredMatching("ADMIN_EMAIL", /^[^@\s]+@[^@\s]+$/, "an email address"),
+  adminEmail: requiredMatching(
+    "ADMIN_EMAIL",
+    /^[^@\s]+@[^@\s]+$/,
+    "an email address",
+  ),
   adminPasswordHash: unescapeDollars(
     requiredMatching(
       "ADMIN_PASSWORD_HASH",

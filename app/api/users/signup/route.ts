@@ -117,7 +117,8 @@ export async function POST(req: Request) {
       10,
       60 * 60 * 1000,
     );
-    if (emailLimit.limited) return rateLimitResponse(emailLimit.retryAfterSeconds);
+    if (emailLimit.limited)
+      return rateLimitResponse(emailLimit.retryAfterSeconds);
 
     const existingUser = await UserModel.findOne({ email });
 
@@ -185,7 +186,10 @@ export async function POST(req: Request) {
       user: userResponse,
     });
   } catch (error) {
-    console.error(`${logPrefix("users:signup")} unhandled error:`, error instanceof Error ? error.message : "unknown");
+    console.error(
+      `${logPrefix("users:signup")} unhandled error:`,
+      error instanceof Error ? error.message : "unknown",
+    );
     return Response.json(
       {
         error: "Your request could not be processed. Please try again.",

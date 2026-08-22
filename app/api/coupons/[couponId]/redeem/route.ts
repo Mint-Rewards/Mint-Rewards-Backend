@@ -131,8 +131,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       },
     });
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : "Unexpected error";
+    const message = error instanceof Error ? error.message : "Unexpected error";
     console.error("[PATCH /api/coupons/:couponId/redeem]", message);
     return Response.json(
       { error: "Your request could not be processed. Please try again." },

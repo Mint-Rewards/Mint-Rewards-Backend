@@ -43,11 +43,18 @@ export interface ReferralEmailOptions {
  * Errors are logged rather than thrown, unlike the other three templates. The
  * one caller fans this out over up to 10 addresses in a Promise.all; one bad
  * recipient must not fail the other nine or the request itself.
+ *
+ * It returns whether the send succeeded rather than returning void. Swallowing
+ * the error was correct; swallowing the *outcome* was not — the route used to
+ * record every address as referred and answer "Referrals added successfully."
+ * even when every send failed, which left the recipient permanently
+ * unreachable through this feature (issue #144, defects 2-4). The caller now
+ * records an address only once this returns true.
  */
 export default async function sendReferralEmail({
   recipientEmail,
   referrerName,
-}: ReferralEmailOptions) {
+}: ReferralEmailOptions): Promise<boolean> {
   try {
     // Sanitise before anything is built. The subject line is the reason this
     // cannot be a per-interpolation concern: it is not HTML, so escapeHtml
@@ -195,9 +202,12 @@ export default async function sendReferralEmail({
     });
 
     console.log("Email sent:", info.messageId);
-  } catch (err: any) {
+    return true;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "unknown error";
     console.error(
-      `Failed to send referral email to ${recipientEmail}: ${err?.message || "unknown error"}`,
+      `Failed to send referral email to ${recipientEmail}: ${message}`,
     );
+    return false;
   }
 }

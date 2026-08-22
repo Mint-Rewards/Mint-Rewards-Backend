@@ -4,9 +4,9 @@ import connectToDatabase from "@/lib/mongodb";
 import { UserModel } from "@/lib/models";
 import { checkRateLimit, clientIp, rateLimitResponse } from "@/lib/rateLimit";
 import { serverEnv } from "@/lib/env";
+import { validatePasswordLength } from "@/lib/password";
 
 const JWT_SECRET = serverEnv.jwtSecret;
-const MIN_PASSWORD_LENGTH = 8;
 
 export async function POST(req: Request) {
   try {
@@ -28,11 +28,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      return Response.json(
-        { error: "Password must be at least 8 characters long." },
-        { status: 400 },
-      );
+    const passwordError = validatePasswordLength(password);
+    if (passwordError) {
+      return Response.json({ error: passwordError }, { status: 400 });
     }
 
     if (!resetToken || typeof resetToken !== "string") {

@@ -56,27 +56,31 @@ export async function GET(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Only brands an admin has approved in BrandHub are listed. This filter
-    // previously read PENDING, which inverted moderation: an unreviewed brand
-    // was live in the app and approving it removed it. Brands cloned by
-    // scripts/clone-legacy-brands.js are inserted as PENDING, so any that
-    // predate this change stay hidden until they are approved in BrandHub.
-    const approvedBrands = await BrandModel.find({
-      status: "APPROVED",
+    // PENDING, deliberately, until the BrandHub moderation work lands.
+    //
+    // Every real brand in production is a clone written by
+    // scripts/clone-legacy-brands.js, and clones are inserted PENDING. Listing
+    // APPROVED instead — correct moderation, but ahead of the data — emptied
+    // the app's brand list on 2026-08-09: users saw only the two brands that
+    // happened to be APPROVED and reported the app was "showing the test
+    // database". Approving the clones (scripts/approve-legacy-clones.js) is
+    // what makes the APPROVED filter safe; restore it once that has run.
+    const listedBrands = await BrandModel.find({
+      status: "PENDING",
     });
 
     // A cloned BrandHub document carries `legacyBrandId`, pairing it with the
-    // legacy document it was cloned from. Both can be APPROVED at once, which
+    // legacy document it was cloned from. Both can be listed at once, which
     // would render the same brand twice in the app, so a legacy document is
-    // dropped from the listing as soon as its clone is approved. The clone is
-    // the survivor: it is the document BrandHub edits.
+    // dropped as soon as its clone is listed. The clone is the survivor: it is
+    // the document BrandHub edits.
     const supersededLegacyIds = new Set(
-      approvedBrands
+      listedBrands
         .map((b) => legacyBrandIdOf(b))
         .filter((id): id is string => id !== null),
     );
 
-    const activeBrands = approvedBrands.filter(
+    const activeBrands = listedBrands.filter(
       (b) => !supersededLegacyIds.has(b._id.toString()),
     );
 

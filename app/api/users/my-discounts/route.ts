@@ -5,7 +5,9 @@ import { isCampaignActive } from "@/lib/campaignDates";
 import mongoose from "mongoose";
 
 const normalize = (value: unknown) =>
-  String(value ?? "").trim().toLowerCase();
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
 
 /**
  * DEPRECATED for the mobile client.
@@ -51,10 +53,13 @@ export async function GET(req: Request) {
 
     const discounts = campaigns
       .map((campaign) => {
-        const brand = brandByRegistration.get(normalize(campaign.brandRegistration));
+        const brand = brandByRegistration.get(
+          normalize(campaign.brandRegistration),
+        );
         if (!brand) return null;
 
-        const isAvailed = Array.isArray(campaign.users) &&
+        const isAvailed =
+          Array.isArray(campaign.users) &&
           campaign.users.some((u) => u.toString() === userId);
 
         // APPROVED alone is not enough: nothing in the codebase ever sets
@@ -87,7 +92,11 @@ export async function GET(req: Request) {
     return Response.json({ discounts });
   } catch (error: any) {
     return Response.json(
-      { error: error?.message || "Your request could not be processed. Please try again." },
+      {
+        error:
+          error?.message ||
+          "Your request could not be processed. Please try again.",
+      },
       { status: 500 },
     );
   }
@@ -108,7 +117,10 @@ export async function PATCH(req: Request) {
     const { discountId } = await req.json();
 
     if (!discountId) {
-      return Response.json({ error: "discountId is required." }, { status: 400 });
+      return Response.json(
+        { error: "discountId is required." },
+        { status: 400 },
+      );
     }
 
     // Approved only — a code must never be issued for a campaign that has not
@@ -126,21 +138,33 @@ export async function PATCH(req: Request) {
     // reading, not for claiming. A code must never be issued for a campaign
     // whose end date has passed.
     if (!isCampaignActive(campaign)) {
-      return Response.json({ error: "This campaign has ended." }, { status: 410 });
+      return Response.json(
+        { error: "This campaign has ended." },
+        { status: 410 },
+      );
     }
 
     if (!campaign.discountCodes || campaign.discountCodes.length === 0) {
-      return Response.json({ error: "No discount codes available." }, { status: 404 });
+      return Response.json(
+        { error: "No discount codes available." },
+        { status: 404 },
+      );
     }
 
     const code = campaign.isSingleCode
       ? campaign.discountCodes[0]
-      : campaign.discountCodes[Math.floor(Math.random() * campaign.discountCodes.length)];
+      : campaign.discountCodes[
+          Math.floor(Math.random() * campaign.discountCodes.length)
+        ];
 
     return Response.json({ code });
   } catch (error: any) {
     return Response.json(
-      { error: error?.message || "Your request could not be processed. Please try again." },
+      {
+        error:
+          error?.message ||
+          "Your request could not be processed. Please try again.",
+      },
       { status: 500 },
     );
   }
@@ -161,7 +185,10 @@ export async function PUT(req: Request) {
     const { discountId } = await req.json();
 
     if (!discountId) {
-      return Response.json({ error: "discountId is required." }, { status: 400 });
+      return Response.json(
+        { error: "discountId is required." },
+        { status: 400 },
+      );
     }
 
     // Approved only, matching PATCH — marking an unmoderated campaign as
@@ -178,7 +205,10 @@ export async function PUT(req: Request) {
     // Checked before the write, matching PATCH: an expired campaign must not
     // consume the user's redemption.
     if (!isCampaignActive(campaign)) {
-      return Response.json({ error: "This campaign has ended." }, { status: 410 });
+      return Response.json(
+        { error: "This campaign has ended." },
+        { status: 410 },
+      );
     }
 
     await CampaignModel.updateOne(
@@ -189,7 +219,11 @@ export async function PUT(req: Request) {
     return Response.json({ success: true });
   } catch (error: any) {
     return Response.json(
-      { error: error?.message || "Your request could not be processed. Please try again." },
+      {
+        error:
+          error?.message ||
+          "Your request could not be processed. Please try again.",
+      },
       { status: 500 },
     );
   }

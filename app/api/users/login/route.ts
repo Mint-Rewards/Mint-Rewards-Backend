@@ -56,7 +56,8 @@ export async function POST(req: Request) {
       5,
       15 * 60 * 1000,
     );
-    if (emailLimit.limited) return rateLimitResponse(emailLimit.retryAfterSeconds);
+    if (emailLimit.limited)
+      return rateLimitResponse(emailLimit.retryAfterSeconds);
 
     await connectToDatabase();
 

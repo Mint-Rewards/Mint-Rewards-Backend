@@ -76,10 +76,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       address?: string;
       description?: string;
     } | null;
-    ({ orgName, email, password, brandName, category, contactName } = body ?? {});
+    ({ orgName, email, password, brandName, category, contactName } =
+      body ?? {});
     contactName = contactName?.trim() || undefined;
     phone = body?.phone?.trim() || undefined;
-    webLink = (body?.webLink?.trim() || body?.website?.trim()) || undefined;
+    webLink = body?.webLink?.trim() || body?.website?.trim() || undefined;
     appLink = body?.appLink?.trim() || undefined;
     address = body?.address?.trim() || undefined;
     description = body?.description?.trim() || undefined;
@@ -140,7 +141,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }).lean();
 
   if (existing) {
-    return NextResponse.json({ error: "Email already in use" }, { status: 409 });
+    return NextResponse.json(
+      { error: "Email already in use" },
+      { status: 409 },
+    );
   }
 
   const passwordHash = await bcrypt.hash(password, 10);

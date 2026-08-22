@@ -31,7 +31,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const ipLimit = await checkRateLimit("otp:ip", clientIp(req), 15, 15 * 60 * 1000);
+    const ipLimit = await checkRateLimit(
+      "otp:ip",
+      clientIp(req),
+      15,
+      15 * 60 * 1000,
+    );
     if (ipLimit.limited) return rateLimitResponse(ipLimit.retryAfterSeconds);
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -41,7 +46,8 @@ export async function POST(req: Request) {
       5,
       15 * 60 * 1000,
     );
-    if (emailLimit.limited) return rateLimitResponse(emailLimit.retryAfterSeconds);
+    if (emailLimit.limited)
+      return rateLimitResponse(emailLimit.retryAfterSeconds);
 
     await connectToDatabase();
 

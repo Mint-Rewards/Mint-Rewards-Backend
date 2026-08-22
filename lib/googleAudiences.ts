@@ -44,6 +44,10 @@ export function googleAudiences(
   currentWebClientId: string,
 ): string[] {
   return Array.from(
-    new Set([currentIosClientId, currentWebClientId, ...LEGACY_GOOGLE_AUDIENCES]),
+    new Set([
+      currentIosClientId,
+      currentWebClientId,
+      ...LEGACY_GOOGLE_AUDIENCES,
+    ]),
   );
 }

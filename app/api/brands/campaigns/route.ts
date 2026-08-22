@@ -19,7 +19,10 @@ export async function GET(req: NextRequest) {
 
     const campaigns = await CampaignModel.find(filter)
       .sort({ _id: -1 })
-      .populate("brand", "brandName companyName logo category status themeColor")
+      .populate(
+        "brand",
+        "brandName companyName logo category status themeColor",
+      )
       .lean();
 
     return Response.json({ success: true, campaigns, total: campaigns.length });

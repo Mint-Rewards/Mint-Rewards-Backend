@@ -19,9 +19,7 @@ export function verifyBrandToken(token: string): BrandJwtPayload {
   return jwt.verify(token, secret) as BrandJwtPayload;
 }
 
-export function extractBearerToken(
-  authHeader?: string | null,
-): string | null {
+export function extractBearerToken(authHeader?: string | null): string | null {
   if (!authHeader?.startsWith("Bearer ")) return null;
   return authHeader.slice(7);
 }

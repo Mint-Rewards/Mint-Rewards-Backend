@@ -74,7 +74,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       const formData = await req.formData().catch(() => null);
       if (!formData) {
         return NextResponse.json(
-          { success: false, error: "Invalid form data", message: "Invalid form data" },
+          {
+            success: false,
+            error: "Invalid form data",
+            message: "Invalid form data",
+          },
           { status: 400 },
         );
       }
@@ -88,7 +92,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         body = (await req.json()) as Record<string, unknown>;
       } catch {
         return NextResponse.json(
-          { success: false, error: "Invalid JSON body", message: "Invalid JSON body" },
+          {
+            success: false,
+            error: "Invalid JSON body",
+            message: "Invalid JSON body",
+          },
           { status: 400 },
         );
       }
@@ -100,7 +108,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     // one of the valid values, and `reason` becomes the rejection reason.
     // A body without `status` is now allowed — that's the profile-edit case.
     if (body.status !== undefined) {
-      if (typeof body.status !== "string" || !VALID_STATUSES.includes(body.status)) {
+      if (
+        typeof body.status !== "string" ||
+        !VALID_STATUSES.includes(body.status)
+      ) {
         return NextResponse.json(
           {
             success: false,
@@ -130,7 +141,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       const uploaded = await uploadBrandLogo(id, logoFile);
       if (isLogoUploadError(uploaded)) {
         return NextResponse.json(
-          { success: false, error: uploaded.message, message: uploaded.message },
+          {
+            success: false,
+            error: uploaded.message,
+            message: uploaded.message,
+          },
           { status: uploaded.status },
         );
       }
@@ -167,7 +182,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         (error as { code?: number }).code === 11000
       ) {
         return NextResponse.json(
-          { success: false, error: "Email already in use", message: "Email already in use" },
+          {
+            success: false,
+            error: "Email already in use",
+            message: "Email already in use",
+          },
           { status: 409 },
         );
       }
@@ -176,7 +195,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     if (!brand) {
       return NextResponse.json(
-        { success: false, error: "Brand not found", message: "Brand not found" },
+        {
+          success: false,
+          error: "Brand not found",
+          message: "Brand not found",
+        },
         { status: 404 },
       );
     }
@@ -184,6 +207,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ success: true, brand }, { status: 200 });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unexpected error";
-    return NextResponse.json({ success: false, error: message, message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: message, message },
+      { status: 500 },
+    );
   }
 }

@@ -100,7 +100,10 @@ export function generateDealCodes(
 
   let cleanPrefix = "";
   if (prefix !== undefined) {
-    if (typeof prefix !== "string" || !PREFIX_RE.test(prefix.trim().toUpperCase())) {
+    if (
+      typeof prefix !== "string" ||
+      !PREFIX_RE.test(prefix.trim().toUpperCase())
+    ) {
       return {
         error: "generateCodes.prefix must be 1-10 chars, A-Z 0-9 - _ only",
       };

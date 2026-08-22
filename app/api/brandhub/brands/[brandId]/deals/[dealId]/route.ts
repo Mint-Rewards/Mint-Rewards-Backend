@@ -61,7 +61,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         return Response.json(
           {
             success: false,
-            message: "Brands may only toggle status between active and inactive",
+            message:
+              "Brands may only toggle status between active and inactive",
           },
           { status: 403 },
         );
@@ -79,7 +80,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         return Response.json(
           {
             success: false,
-            message: "This deal is awaiting admin approval and can't be toggled yet",
+            message:
+              "This deal is awaiting admin approval and can't be toggled yet",
           },
           { status: 403 },
         );
@@ -132,7 +134,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     // as campaigns. `inactive` is the brand's own deliberate pause, not a
     // moderation state, so an edit shouldn't move it. `pending` is already
     // where it needs to be.
-    if (body.status === undefined && (Object.keys(update).length > 0 || appendCodes)) {
+    if (
+      body.status === undefined &&
+      (Object.keys(update).length > 0 || appendCodes)
+    ) {
       const current = await DealModel.findOne({ _id: dealId, brand: brandId })
         .select("status")
         .lean();

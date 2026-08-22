@@ -24,25 +24,25 @@ export interface ILog extends mongoose.Document {
   // Event classification
   event: string;
   level: "info" | "warn" | "error";
- 
+
   // User context
   userId?: string;
   userEmail?: string;
- 
+
   // Navigation context
   route?: string;
   previousRoute?: string;
- 
+
   // Device / app context
   deviceId: string;
   deviceModel: string;
   platform: "ios" | "android" | "web" | string;
   appVersion: string;
   buildNumber: string;
- 
+
   // Timing
   timestamp: Date;
- 
+
   // Arbitrary extra data
   extra?: Record<string, unknown>;
 }
@@ -120,7 +120,10 @@ const BrandSchema = new Schema<BrandDocument>(
     emailVerified: { type: Boolean, default: false },
     verificationToken: String,
     environmentalStats: { type: EnvironmentalStatsSchema, default: undefined },
-    environmentalPeriods: { type: [EnvironmentalPeriodSchema], default: undefined },
+    environmentalPeriods: {
+      type: [EnvironmentalPeriodSchema],
+      default: undefined,
+    },
   },
   { timestamps: true },
 );
@@ -367,25 +370,25 @@ const LogSchema = new Schema<ILog>(
       default: "info",
       index: true,
     },
- 
+
     // User context — optional so pre-auth events are still captured
     userId: { type: String, index: true },
     userEmail: { type: String },
- 
+
     // Navigation context
     route: { type: String, index: true },
     previousRoute: { type: String },
- 
+
     // Device context
     deviceId: { type: String, required: true, index: true },
     deviceModel: { type: String, default: "unknown" },
     platform: { type: String, required: true },
     appVersion: { type: String, required: true },
     buildNumber: { type: String, required: true },
- 
+
     // ISO timestamp sent from the client
     timestamp: { type: Date, required: true, index: true },
- 
+
     // Flexible blob for event-specific data
     extra: { type: Schema.Types.Mixed },
   },
@@ -394,7 +397,7 @@ const LogSchema = new Schema<ILog>(
     timestamps: false,
     // Store as a lean collection — logs are write-heavy, rarely updated
     versionKey: false,
-  }
+  },
 );
 
 const getModel = <T extends mongoose.Document>(

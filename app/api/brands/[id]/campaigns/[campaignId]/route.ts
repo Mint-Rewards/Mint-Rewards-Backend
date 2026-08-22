@@ -105,7 +105,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     for (const [key, value] of Object.entries(body)) {
       if (ADMIN_ONLY.has(key)) {
         update[key] = typeof value === "string" ? value.toUpperCase() : value;
-      } else if (BRAND_EDITABLE.has(key) && value !== undefined && value !== null) {
+      } else if (
+        BRAND_EDITABLE.has(key) &&
+        value !== undefined &&
+        value !== null
+      ) {
         update[key] = typeof value === "string" ? value.trim() : value;
       }
     }

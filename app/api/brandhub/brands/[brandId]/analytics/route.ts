@@ -65,7 +65,11 @@ function aggregatePeriods(
   to: Date | null,
 ) {
   const included = buckets.filter((b) =>
-    overlapsPeriod({ startDate: b.periodStart, endDate: b.periodEnd }, from, to),
+    overlapsPeriod(
+      { startDate: b.periodStart, endDate: b.periodEnd },
+      from,
+      to,
+    ),
   );
   if (included.length === 0) {
     return {

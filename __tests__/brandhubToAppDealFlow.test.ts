@@ -4,7 +4,12 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 import connectToDatabase from "../lib/mongodb";
-import { BrandModel, BrandUserModel, DealModel, OrganizationModel } from "../lib/models";
+import {
+  BrandModel,
+  BrandUserModel,
+  DealModel,
+  OrganizationModel,
+} from "../lib/models";
 import { POST as registerOrg } from "../app/api/brandhub/auth/register/route";
 import { PATCH as moderateBrand } from "../app/api/brands/[id]/route";
 import { POST as createBrandDeal } from "../app/api/brandhub/brands/[brandId]/deals/route";
@@ -24,7 +29,11 @@ import { POST as redeemDeal } from "../app/api/users/deals/[dealId]/redeem/route
  * code the backend never issued.
  */
 
-const brandJsonRequest = (url: string, token: string, body?: unknown): NextRequest =>
+const brandJsonRequest = (
+  url: string,
+  token: string,
+  body?: unknown,
+): NextRequest =>
   new NextRequest(url, {
     method: body === undefined ? "GET" : "POST",
     headers: {
@@ -56,7 +65,10 @@ const userRequest = (userId: string, url: string, method = "GET"): Request => {
     process.env.NEXT_JWT_SECRET ||
     "";
   const token = jwt.sign({ id: userId }, secret);
-  return new Request(url, { method, headers: { authorization: `Bearer ${token}` } });
+  return new Request(url, {
+    method,
+    headers: { authorization: `Bearer ${token}` },
+  });
 };
 
 type AppDeal = {
@@ -198,7 +210,9 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
       { params: Promise.resolve({ brandId }) },
     );
     expect(pending.status).toBe(201);
-    pendingDealId = ((await pending.json()) as { deal: { _id: string } }).deal._id.toString();
+    pendingDealId = (
+      (await pending.json()) as { deal: { _id: string } }
+    ).deal._id.toString();
 
     // An ACTIVE deal belonging to a brand that was never approved.
     const orphan = await DealModel.create({
@@ -228,7 +242,9 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
       { params: Promise.resolve({ id: brandId, dealId: approvedDealId }) },
     );
     expect(response.status).toBe(200);
-    await expect(DealModel.findById(approvedDealId).lean()).resolves.toMatchObject({
+    await expect(
+      DealModel.findById(approvedDealId).lean(),
+    ).resolves.toMatchObject({
       status: "active",
     });
   });
@@ -245,7 +261,9 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
   });
 
   it("carries the fields the app card and ticket render", async () => {
-    const deal = (await listDeals()).find((d) => String(d._id) === approvedDealId)!;
+    const deal = (await listDeals()).find(
+      (d) => String(d._id) === approvedDealId,
+    )!;
 
     expect(deal.title).toBe(`Exclusive deal from Flow Brand ${suffix}`);
     expect(deal.discountPercentage).toBe(15);
@@ -269,13 +287,18 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
     );
     expect(response.status).toBe(200);
 
-    const body = (await response.json()) as { code: string; alreadyClaimed: boolean };
+    const body = (await response.json()) as {
+      code: string;
+      alreadyClaimed: boolean;
+    };
     expect(["FLOW-001", "FLOW-002"]).toContain(body.code);
     expect(body.alreadyClaimed).toBe(false);
   });
 
   it("reports the deal as claimed, with that user's own code attached", async () => {
-    const deal = (await listDeals()).find((d) => String(d._id) === approvedDealId)!;
+    const deal = (await listDeals()).find(
+      (d) => String(d._id) === approvedDealId,
+    )!;
 
     expect(deal.isAvailed).toBe(true);
     expect(["FLOW-001", "FLOW-002"]).toContain(deal.code);
@@ -284,7 +307,9 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
   // The app treats a claim as final, but re-claiming must not burn a second
   // code — that is what makes a failed PDF render recoverable.
   it("is idempotent per user: re-claiming returns the same code", async () => {
-    const first = (await listDeals()).find((d) => String(d._id) === approvedDealId)!.code;
+    const first = (await listDeals()).find(
+      (d) => String(d._id) === approvedDealId,
+    )!.code;
 
     const response = await redeemDeal(
       userRequest(
@@ -294,7 +319,10 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
       ),
       { params: Promise.resolve({ dealId: approvedDealId }) },
     );
-    const body = (await response.json()) as { code: string; alreadyClaimed: boolean };
+    const body = (await response.json()) as {
+      code: string;
+      alreadyClaimed: boolean;
+    };
 
     expect(response.status).toBe(200);
     expect(body.code).toBe(first);
@@ -305,7 +333,9 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
   });
 
   it("hands a different user a different code", async () => {
-    const mine = (await listDeals()).find((d) => String(d._id) === approvedDealId)!.code;
+    const mine = (await listDeals()).find(
+      (d) => String(d._id) === approvedDealId,
+    )!.code;
 
     const response = await redeemDeal(
       userRequest(

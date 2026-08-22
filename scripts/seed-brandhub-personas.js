@@ -220,7 +220,9 @@ async function main() {
     // "@", so the raw brand-...@brandhub.local string leaks into the
     // Settings "Contact Email" field. Pass a real, unique address.
     if (!overrides.email) {
-      throw new Error(`createBrand: email is required for "${overrides.brandName}"`);
+      throw new Error(
+        `createBrand: email is required for "${overrides.brandName}"`,
+      );
     }
     const doc = {
       _id: brandId,
@@ -262,7 +264,15 @@ async function main() {
   const pool = (n) =>
     Array.from({ length: n }, () => new mongoose.Types.ObjectId());
 
-  const campaignDoc = (brandId, name, status, startOff, endOff, users, extra = {}) => ({
+  const campaignDoc = (
+    brandId,
+    name,
+    status,
+    startOff,
+    endOff,
+    users,
+    extra = {},
+  ) => ({
     name,
     brand: brandId,
     brandRegistration: `BH-${brandId.toString()}`,
@@ -330,20 +340,52 @@ async function main() {
 
     const u = pool(9);
     await campaigns.insertMany([
-      campaignDoc(brandId, "Refill & Reward", "APPROVED", -45, 25, [u[0], u[1], u[2], u[3], u[4]], {
-        campaignType: "loyalty",
-        badge: "POPULAR",
-        subtitle: "Bring back 3 empties, get one free",
-      }),
-      campaignDoc(brandId, "Spring Glow Bundle", "APPROVED", -12, 18, [u[0], u[5], u[6]], {
-        campaignType: "seasonal",
-      }),
-      campaignDoc(brandId, "Founders Week", "APPROVED", -120, -95, [u[1], u[2], u[7]], {
-        campaignType: "brandAwareness",
-      }),
-      campaignDoc(brandId, "Botanical Launch", "APPROVED", -75, -50, [u[3], u[8]], {
-        campaignType: "productLaunch",
-      }),
+      campaignDoc(
+        brandId,
+        "Refill & Reward",
+        "APPROVED",
+        -45,
+        25,
+        [u[0], u[1], u[2], u[3], u[4]],
+        {
+          campaignType: "loyalty",
+          badge: "POPULAR",
+          subtitle: "Bring back 3 empties, get one free",
+        },
+      ),
+      campaignDoc(
+        brandId,
+        "Spring Glow Bundle",
+        "APPROVED",
+        -12,
+        18,
+        [u[0], u[5], u[6]],
+        {
+          campaignType: "seasonal",
+        },
+      ),
+      campaignDoc(
+        brandId,
+        "Founders Week",
+        "APPROVED",
+        -120,
+        -95,
+        [u[1], u[2], u[7]],
+        {
+          campaignType: "brandAwareness",
+        },
+      ),
+      campaignDoc(
+        brandId,
+        "Botanical Launch",
+        "APPROVED",
+        -75,
+        -50,
+        [u[3], u[8]],
+        {
+          campaignType: "productLaunch",
+        },
+      ),
       campaignDoc(brandId, "Summer Serum Drop", "PENDING", 10, 40, []),
       campaignDoc(brandId, "Influencer Collab Q3", "PENDING", 20, 60, [], {
         campaignType: "influencer",
@@ -351,9 +393,17 @@ async function main() {
       campaignDoc(brandId, "Discount Stack Test", "REJECTED", -30, 10, []),
       // Explicitly EXPIRED, distinct from "APPROVED with a past end date" —
       // the frontend derives one and the backend stores the other.
-      campaignDoc(brandId, "Winter Repair Ritual", "EXPIRED", -200, -160, [u[4], u[5]], {
-        campaignType: "seasonal",
-      }),
+      campaignDoc(
+        brandId,
+        "Winter Repair Ritual",
+        "EXPIRED",
+        -200,
+        -160,
+        [u[4], u[5]],
+        {
+          campaignType: "seasonal",
+        },
+      ),
     ]);
 
     const activeDeal = (title, pct, extra = {}) =>
@@ -366,9 +416,18 @@ async function main() {
       });
 
     await deals.insertMany([
-      activeDeal("15% Off Cleansers", 15, { codes: ["VERD15"], promoCode: "VERD15" }),
-      activeDeal("20% Off Serums", 20, { codes: ["SERUM20"], promoCode: "SERUM20" }),
-      activeDeal("10% Off First Order", 10, { codes: ["WELCOME10"], promoCode: "WELCOME10" }),
+      activeDeal("15% Off Cleansers", 15, {
+        codes: ["VERD15"],
+        promoCode: "VERD15",
+      }),
+      activeDeal("20% Off Serums", 20, {
+        codes: ["SERUM20"],
+        promoCode: "SERUM20",
+      }),
+      activeDeal("10% Off First Order", 10, {
+        codes: ["WELCOME10"],
+        promoCode: "WELCOME10",
+      }),
       activeDeal("Refill Bundle Saver", 25, { maxUses: 500, currentUses: 138 }),
       dealDoc(brandId, "Black Friday Doorbuster", "expired", {
         discountPercentage: 40,
@@ -397,7 +456,9 @@ async function main() {
       dealDoc(brandId, "Gift Set Idea (unpublished)", "inactive", {
         discountPercentage: 20,
       }),
-      dealDoc(brandId, "Loyalty Tier Draft", "inactive", { discountPercentage: 5 }),
+      dealDoc(brandId, "Loyalty Tier Draft", "inactive", {
+        discountPercentage: 5,
+      }),
       dealDoc(brandId, "Bundle Pricing Proposal", "pending", {
         discountPercentage: 35,
         startDate: offsetDay(5),
@@ -408,7 +469,12 @@ async function main() {
       }),
     ]);
 
-    summary.push(["Aisha Karim", "aisha@verdant.co", brandId, "8 campaigns, 12 deals, impact snapshot"]);
+    summary.push([
+      "Aisha Karim",
+      "aisha@verdant.co",
+      brandId,
+      "8 campaigns, 12 deals, impact snapshot",
+    ]);
   }
 
   // ---- 2. Marcus Chen — multi-brand marketing lead ------------------------
@@ -442,8 +508,15 @@ async function main() {
     });
     const vu = pool(6);
     await campaigns.insertMany([
-      campaignDoc(verde, "Snack Smarter", "APPROVED", -30, 30, [vu[0], vu[1], vu[2]]),
-      campaignDoc(verde, "Trail Mix Tuesdays", "APPROVED", -60, -20, [vu[1], vu[3]]),
+      campaignDoc(verde, "Snack Smarter", "APPROVED", -30, 30, [
+        vu[0],
+        vu[1],
+        vu[2],
+      ]),
+      campaignDoc(verde, "Trail Mix Tuesdays", "APPROVED", -60, -20, [
+        vu[1],
+        vu[3],
+      ]),
       campaignDoc(verde, "Back To School Packs", "PENDING", 14, 44, []),
     ]);
     await deals.insertMany([
@@ -487,7 +560,12 @@ async function main() {
     });
     const su = pool(7);
     await campaigns.insertMany([
-      campaignDoc(sol, "Can Return Rewards", "APPROVED", -50, 40, [su[0], su[1], su[2], su[3]]),
+      campaignDoc(sol, "Can Return Rewards", "APPROVED", -50, 40, [
+        su[0],
+        su[1],
+        su[2],
+        su[3],
+      ]),
       campaignDoc(sol, "Citrus Season", "APPROVED", -15, 15, [su[0], su[4]]),
       campaignDoc(sol, "Festival Pop-Up", "REJECTED", -10, 20, []),
     ]);
@@ -580,7 +658,8 @@ async function main() {
       companyName: "Cielo Apparel SA",
       email: "diego@cieloapparel.com",
       category: "Fashion & Apparel",
-      description: "Circular textile programme — garments back, fibres forward.",
+      description:
+        "Circular textile programme — garments back, fibres forward.",
       address: "Gran Vía 42, Madrid",
       webLink: "https://cieloapparel.com",
       contactName: "Diego Fernández",
@@ -599,10 +678,21 @@ async function main() {
 
     const du = pool(4);
     await campaigns.insertMany([
-      campaignDoc(brandId, "Take-Back Tuesdays", "APPROVED", -180, 60, [du[0], du[1], du[2]], {
-        campaignType: "loyalty",
-      }),
-      campaignDoc(brandId, "Denim Recycling Drive", "APPROVED", -90, -30, [du[1], du[3]]),
+      campaignDoc(
+        brandId,
+        "Take-Back Tuesdays",
+        "APPROVED",
+        -180,
+        60,
+        [du[0], du[1], du[2]],
+        {
+          campaignType: "loyalty",
+        },
+      ),
+      campaignDoc(brandId, "Denim Recycling Drive", "APPROVED", -90, -30, [
+        du[1],
+        du[3],
+      ]),
     ]);
     await deals.insertOne(
       dealDoc(brandId, "€10 Off When You Return a Garment", "active", {
@@ -653,24 +743,46 @@ async function main() {
     // lifecycleOf only reports "live" for an approved record inside its window.
     for (let i = 0; i < 5; i++) {
       yCampaigns.push(
-        campaignDoc(brandId, `Sparkling Summer Vol.${i + 1}`, "APPROVED", -20 - i * 5, 20 + i * 5,
-          yu.slice(0, 3 + i), { campaignType: "seasonal" }),
+        campaignDoc(
+          brandId,
+          `Sparkling Summer Vol.${i + 1}`,
+          "APPROVED",
+          -20 - i * 5,
+          20 + i * 5,
+          yu.slice(0, 3 + i),
+          { campaignType: "seasonal" },
+        ),
       );
     }
     // Scheduled: APPROVED but the window has not opened yet.
     for (let i = 0; i < 5; i++) {
       yCampaigns.push(
-        campaignDoc(brandId, `Autumn Yuzu Drop ${i + 1}`, "APPROVED", 10 + i * 7, 40 + i * 7, [], {
-          campaignType: "productLaunch",
-        }),
+        campaignDoc(
+          brandId,
+          `Autumn Yuzu Drop ${i + 1}`,
+          "APPROVED",
+          10 + i * 7,
+          40 + i * 7,
+          [],
+          {
+            campaignType: "productLaunch",
+          },
+        ),
       );
     }
     // Ended: window closed. Left APPROVED so the frontend's derived-expiry
     // path (hasExpired) is exercised rather than a stored EXPIRED status.
     for (let i = 0; i < 5; i++) {
       yCampaigns.push(
-        campaignDoc(brandId, `Winter Citrus ${i + 1}`, "APPROVED", -150 - i * 10, -120 - i * 10,
-          yu.slice(i, i + 4), { campaignType: "seasonal" }),
+        campaignDoc(
+          brandId,
+          `Winter Citrus ${i + 1}`,
+          "APPROVED",
+          -150 - i * 10,
+          -120 - i * 10,
+          yu.slice(i, i + 4),
+          { campaignType: "seasonal" },
+        ),
       );
     }
     await campaigns.insertMany(yCampaigns);
@@ -680,37 +792,50 @@ async function main() {
     const yDeals = [];
     for (let i = 0; i < 7; i++) {
       yDeals.push(
-        dealDoc(brandId, `Coupon — ${10 + i * 5}% Off Multipack`, i < 5 ? "active" : "inactive", {
-          discountPercentage: 10 + i * 5,
-          startDate: offsetDay(-15),
-          endDate: offsetDay(45),
-          codes: [`OZONE${10 + i * 5}`],
-          promoCode: `OZONE${10 + i * 5}`,
-          maxUses: 1000,
-          currentUses: 120 + i * 37,
-        }),
+        dealDoc(
+          brandId,
+          `Coupon — ${10 + i * 5}% Off Multipack`,
+          i < 5 ? "active" : "inactive",
+          {
+            discountPercentage: 10 + i * 5,
+            startDate: offsetDay(-15),
+            endDate: offsetDay(45),
+            codes: [`OZONE${10 + i * 5}`],
+            promoCode: `OZONE${10 + i * 5}`,
+            maxUses: 1000,
+            currentUses: 120 + i * 37,
+          },
+        ),
       );
     }
     for (let i = 0; i < 7; i++) {
       yDeals.push(
-        dealDoc(brandId, `Tiered — Spend ¥${(i + 2) * 1000}, Save ¥${(i + 1) * 200}`,
-          i < 4 ? "active" : "expired", {
+        dealDoc(
+          brandId,
+          `Tiered — Spend ¥${(i + 2) * 1000}, Save ¥${(i + 1) * 200}`,
+          i < 4 ? "active" : "expired",
+          {
             discountAmount: (i + 1) * 200,
             minimumPurchase: (i + 2) * 1000,
             startDate: offsetDay(i < 4 ? -10 : -120),
             endDate: offsetDay(i < 4 ? 30 : -90),
-          }),
+          },
+        ),
       );
     }
     for (let i = 0; i < 6; i++) {
       yDeals.push(
-        dealDoc(brandId, `BOGO — Buy ${i + 1} Get 1 Free`,
-          ["active", "pending", "rejected", "inactive", "expired", "active"][i], {
+        dealDoc(
+          brandId,
+          `BOGO — Buy ${i + 1} Get 1 Free`,
+          ["active", "pending", "rejected", "inactive", "expired", "active"][i],
+          {
             discountPercentage: 50,
             minimumPurchase: (i + 1) * 500,
             startDate: offsetDay(-5),
             endDate: offsetDay(40),
-          }),
+          },
+        ),
       );
     }
     await deals.insertMany(yDeals);
@@ -724,14 +849,18 @@ async function main() {
   }
 
   // ---- Report ------------------------------------------------------------
-  console.log(`\n✅ Seeded 5 QA personas into "${dbName}". Password: ${PASSWORD}\n`);
+  console.log(
+    `\n✅ Seeded 5 QA personas into "${dbName}". Password: ${PASSWORD}\n`,
+  );
   for (const [name, email, brandId, note] of summary) {
     console.log(`  ${name}`);
     console.log(`    login : ${email} / ${PASSWORD}`);
     console.log(`    brand : ${brandId}`);
     console.log(`    data  : ${note}\n`);
   }
-  console.log("  Re-run to reset. Run with --drop to remove without recreating.\n");
+  console.log(
+    "  Re-run to reset. Run with --drop to remove without recreating.\n",
+  );
 
   await mongoose.disconnect();
 }

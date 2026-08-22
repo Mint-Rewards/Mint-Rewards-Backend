@@ -1,7 +1,8 @@
-import sendSecureEmail from "./emailFunction";
+import sendSecureEmail, { SuppressedAddressError } from "./emailFunction";
 import { serverEnv } from "@/lib/env";
 import { escapeHtml } from "@/lib/escapeHtml";
 import { sanitizeDisplayName } from "@/lib/sanitizeDisplayName";
+import { unsubscribeUrl as buildUnsubscribeUrl } from "@/lib/unsubscribeToken";
 
 /**
  * Store fallbacks for when IOS_STORE_URL / ANDROID_STORE_URL are unset.
@@ -43,11 +44,18 @@ export interface ReferralEmailOptions {
  * Errors are logged rather than thrown, unlike the other three templates. The
  * one caller fans this out over up to 10 addresses in a Promise.all; one bad
  * recipient must not fail the other nine or the request itself.
+ *
+ * It returns whether the send succeeded rather than returning void. Swallowing
+ * the error was correct; swallowing the *outcome* was not — the route used to
+ * record every address as referred and answer "Referrals added successfully."
+ * even when every send failed, which left the recipient permanently
+ * unreachable through this feature (issue #144, defects 2-4). The caller now
+ * records an address only once this returns true.
  */
 export default async function sendReferralEmail({
   recipientEmail,
   referrerName,
-}: ReferralEmailOptions) {
+}: ReferralEmailOptions): Promise<boolean> {
   try {
     // Sanitise before anything is built. The subject line is the reason this
     // cannot be a per-interpolation concern: it is not HTML, so escapeHtml
@@ -60,6 +68,15 @@ export default async function sendReferralEmail({
     const playStoreUrl =
       serverEnv.appConfig.androidStoreUrl ?? PLAY_STORE_SEARCH;
     const downloadUrl = serverEnv.appDownloadUrl;
+
+    // Both parts read these two, so the footer cannot be fixed in one and left
+    // stale in the other — the specific failure issue #145 calls out about the
+    // postal address placeholder.
+    const unsubscribeLink = buildUnsubscribeUrl(
+      recipientEmail,
+      serverEnv.publicBaseUrl,
+    );
+    const postalAddress = serverEnv.emailPostalAddress;
 
     const headline = referrer
       ? `${referrer} invited you to Mint Rewards`
@@ -93,7 +110,8 @@ export default async function sendReferralEmail({
       "— Mint Rewards Team",
       "",
       "You received this because someone shared Mint Rewards with you. We won't email you again unless you sign up.",
-      "Mint Rewards · [TODO: postal address]",
+      `Unsubscribe: ${unsubscribeLink}`,
+      `Mint Rewards · ${postalAddress}`,
     ].join("\n");
 
     // --- HTML part ---------------------------------------------------------
@@ -176,7 +194,8 @@ export default async function sendReferralEmail({
             <td style="padding:20px 32px 32px;border-top:1px solid #E8ECEB;
                        font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:${MUTED};">
               You received this because someone shared Mint Rewards with you. We won't email you again unless you sign up.
-              <br>Mint Rewards · [TODO: postal address]
+              <br><a href="${escapeHtml(unsubscribeLink)}" style="color:${MUTED};">Unsubscribe</a>
+              <br>Mint Rewards · ${escapeHtml(postalAddress)}
             </td>
           </tr>
         </table>
@@ -192,12 +211,28 @@ export default async function sendReferralEmail({
       subject: headline,
       html,
       text,
+      // Nobody asked for this message, so it suppresses on an unsubscribe as
+      // well as on the bounces and complaints that stop transactional mail.
+      category: "outreach",
+      unsubscribeUrl: unsubscribeLink,
     });
 
     console.log("Email sent:", info.messageId);
-  } catch (err: any) {
+    return true;
+  } catch (err) {
+    // A suppressed address is an expected outcome, not a fault: the recipient
+    // asked not to be emailed, or the address bounced. Logging it at error
+    // level would train everyone to ignore the log that also carries real
+    // send failures.
+    if (err instanceof SuppressedAddressError) {
+      console.log(`Referral email suppressed for ${recipientEmail}`);
+      return false;
+    }
+
+    const message = err instanceof Error ? err.message : "unknown error";
     console.error(
-      `Failed to send referral email to ${recipientEmail}: ${err?.message || "unknown error"}`,
+      `Failed to send referral email to ${recipientEmail}: ${message}`,
     );
+    return false;
   }
 }

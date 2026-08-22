@@ -26,10 +26,7 @@ export async function POST(req: Request) {
     try {
       body = await req.json();
     } catch {
-      return Response.json(
-        { error: "Invalid request body." },
-        { status: 400 },
-      );
+      return Response.json({ error: "Invalid request body." }, { status: 400 });
     }
     const email = body.email;
 
@@ -44,7 +41,12 @@ export async function POST(req: Request) {
     // findOne below. This route discloses whether an account exists (404
     // ACCOUNT_NOT_FOUND), so these limits are the only thing throttling that
     // disclosure. Moving the existence check above them makes enumeration free.
-    const ipLimit = await checkRateLimit("reset:ip", clientIp(req), 5, 15 * 60 * 1000);
+    const ipLimit = await checkRateLimit(
+      "reset:ip",
+      clientIp(req),
+      5,
+      15 * 60 * 1000,
+    );
     if (ipLimit.limited) return rateLimitResponse(ipLimit.retryAfterSeconds);
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -54,7 +56,8 @@ export async function POST(req: Request) {
       3,
       60 * 60 * 1000,
     );
-    if (emailLimit.limited) return rateLimitResponse(emailLimit.retryAfterSeconds);
+    if (emailLimit.limited)
+      return rateLimitResponse(emailLimit.retryAfterSeconds);
 
     await connectToDatabase();
 
@@ -67,7 +70,10 @@ export async function POST(req: Request) {
         // `code` is part of the client contract, not decoration: the client
         // requires status 404 AND this code before it tells the user no account
         // exists, so a route-missing 404 falls through to a generic error.
-        { error: "No account found for that email.", code: "ACCOUNT_NOT_FOUND" },
+        {
+          error: "No account found for that email.",
+          code: "ACCOUNT_NOT_FOUND",
+        },
         { status: 404 },
       );
     }

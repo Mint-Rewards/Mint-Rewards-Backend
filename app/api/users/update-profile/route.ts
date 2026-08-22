@@ -65,7 +65,7 @@ export async function PUT(req: Request) {
     }
 
     return Response.json(updatedUser);
-  } catch (error) {
+  } catch {
     return Response.json(
       {
         error: "Your request could not be processed. Please try again.",

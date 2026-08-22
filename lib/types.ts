@@ -218,6 +218,7 @@ export interface User {
   totalCollections: string;
   totalWasteCollected: string;
   referrals: string[];
+  referralRewardGranted: boolean;
   pickupHistory: PickupHistoryEntry[];
   created: Date;
   firstTimeLogin: boolean;

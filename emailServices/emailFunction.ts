@@ -5,6 +5,11 @@ type SendSecureEmailParams = {
   to: string;
   subject: string;
   html: string;
+  /**
+   * Optional plain-text alternative part. Templates that supply one get a
+   * multipart/alternative message; the three that do not are unaffected.
+   */
+  text?: string;
 };
 
 export default async function sendSecureEmail({
@@ -12,6 +17,7 @@ export default async function sendSecureEmail({
   to,
   subject,
   html,
+  text,
 }: SendSecureEmailParams) {
   const { RESEND_API_KEY } = process.env;
 
@@ -26,6 +32,7 @@ export default async function sendSecureEmail({
     to,
     subject,
     html,
+    ...(text === undefined ? {} : { text }),
   });
 
   if (error) {

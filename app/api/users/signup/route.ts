@@ -12,11 +12,11 @@ import {
   rateLimitResponse,
 } from "@/lib/rateLimit";
 import { serverEnv, logPrefix } from "@/lib/env";
+import { EMAIL_REGEX, MAX_EMAIL_LENGTH } from "@/lib/emailFormat";
 import { validatePasswordLength } from "@/lib/password";
 
 const JWT_SECRET = serverEnv.jwtSecret;
 const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
-const MAX_EMAIL_LENGTH = 254;
 
 async function generateMintId() {
   for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -67,12 +67,9 @@ export async function POST(req: Request) {
       return Response.json({ error: "Invalid email format." }, { status: 400 });
     }
 
-    // Label classes exclude '.', so each dot boundary has exactly one possible
-    // split and the match is linear. The previous /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    // let '.' match inside the domain classes too, making the split ambiguous
-    // and backtracking polynomial on non-matching input (CodeQL js/polynomial-redos).
-    const emailRegex = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
-    if (!emailRegex.test(email)) {
+    // Regex and length cap moved to lib/emailFormat.ts so the referral
+    // endpoint validates identically. Rule and behaviour unchanged.
+    if (!EMAIL_REGEX.test(email)) {
       console.log("Invalid email format");
       return Response.json({ error: "Invalid email format." }, { status: 400 });
     }
@@ -162,21 +159,6 @@ export async function POST(req: Request) {
     });
 
     await newUser.save();
-
-    // Handle referral rewards
-    const referralUsers = await UserModel.find({ referrals: { $in: [email] } });
-
-    if (referralUsers.length > 0) {
-      const referralUser = referralUsers[0];
-
-      if (referralUser.email !== newUser.email) {
-        newUser.points = 150;
-        await newUser.save();
-
-        referralUser.points += 50;
-        await referralUser.save();
-      }
-    }
 
     try {
       await sendSignupEmail(email, otp);

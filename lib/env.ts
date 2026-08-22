@@ -263,6 +263,12 @@ const parsed = {
   resendApiKey: required("RESEND_API_KEY"),
   emailFrom: required("EMAIL_FROM"),
 
+  // Referral email download link. A UA-sniffing redirect that forwards to the
+  // right store, intended to live on mintrewards.app. That route does not
+  // exist yet, so unset is the expected state today and the referral template
+  // falls back to offering both stores side by side rather than guessing one.
+  appDownloadUrl: optionalHttpsUrl("APP_DOWNLOAD_URL"),
+
   // Non-production mail sink. Every outbound message is rewritten to this
   // address regardless of its real recipient — see emailServices/emailFunction.
   // null in production, and lib/env.ts rejects the key being set there at all.

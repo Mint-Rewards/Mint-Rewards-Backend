@@ -176,7 +176,7 @@ export async function POST(req: Request) {
     );
 
     return Response.json("Referrals added successfully.");
-  } catch (error) {
+  } catch {
     return Response.json(
       {
         error: "Your request could not be processed. Please try again.",

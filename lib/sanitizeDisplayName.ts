@@ -22,6 +22,11 @@
 const MAX_DISPLAY_NAME_LENGTH = 40;
 
 // C0 (00-1F, which includes CR and LF), DEL (7F), and C1 (80-9F).
+//
+// no-control-regex fires on exactly the characters this is here to strip:
+// matching CR and LF is the point, since a name carrying either reaches an
+// email subject line as header injection.
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTERS = /[\x00-\x1F\x7F-\x9F]/g;
 
 export function sanitizeDisplayName(value: unknown): string | undefined {

@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     return Response.json({
       user: user,
     });
-  } catch (error) {
+  } catch {
     return Response.json(
       {
         error: "Your request could not be processed. Please try again.",

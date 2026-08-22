@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       .lean();
 
     return NextResponse.json({ logs, total: logs.length });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to retrieve logs." }, { status: 500 });
   }
 }

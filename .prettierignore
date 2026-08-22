@@ -1,0 +1,10 @@
+# Generated or vendored — formatting these produces churn nobody reviews.
+node_modules
+.next
+coverage
+package-lock.json
+next-env.d.ts
+
+# Full checkouts of other branches. Reformatting them here would show up as
+# uncommitted noise in a worktree that is mid-change.
+.worktrees

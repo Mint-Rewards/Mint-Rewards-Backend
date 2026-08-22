@@ -13,6 +13,7 @@ import {
 } from "@/lib/rateLimit";
 import { serverEnv, logPrefix } from "@/lib/env";
 import { EMAIL_REGEX, MAX_EMAIL_LENGTH } from "@/lib/emailFormat";
+import { validatePasswordLength } from "@/lib/password";
 
 const JWT_SECRET = serverEnv.jwtSecret;
 const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
@@ -71,6 +72,11 @@ export async function POST(req: Request) {
     if (!EMAIL_REGEX.test(email)) {
       console.log("Invalid email format");
       return Response.json({ error: "Invalid email format." }, { status: 400 });
+    }
+
+    const passwordError = validatePasswordLength(password);
+    if (passwordError) {
+      return Response.json({ error: passwordError }, { status: 400 });
     }
 
     if (password !== confirmPassword) {

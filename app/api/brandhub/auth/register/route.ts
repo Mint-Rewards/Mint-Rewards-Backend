@@ -6,6 +6,7 @@ import mongoose, { Types } from "mongoose";
 import { OrganizationModel, BrandUserModel, BrandModel } from "@/lib/models";
 import { signBrandToken } from "@/lib/brandJwt";
 import { MODULE_CATALOGUE, hasActiveSubscription } from "@/lib/modules";
+import { validatePasswordLength } from "@/lib/password";
 
 const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -91,11 +92,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (password.length < 8) {
-    return NextResponse.json(
-      { error: "Password must be at least 8 characters" },
-      { status: 400 },
-    );
+  const passwordError = validatePasswordLength(password);
+  if (passwordError) {
+    return NextResponse.json({ error: passwordError }, { status: 400 });
   }
 
   // Validate and upload the logo before creating any documents, so a bad

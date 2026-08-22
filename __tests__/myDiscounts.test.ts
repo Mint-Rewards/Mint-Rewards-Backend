@@ -141,12 +141,17 @@ describe("/api/users/my-discounts", () => {
     expect(ids).not.toContain(pendingCampaignId);
   });
 
-  it("withholds an approved campaign whose brand is not approved", async () => {
+  // Brand status is deliberately not a filter here: production's brands are
+  // all PENDING clones, and requiring APPROVED emptied the consumer brand list
+  // on 2026-08-09. Campaign moderation (the two tests above) holds the line
+  // meanwhile. Flip this back alongside the route, once
+  // scripts/approve-legacy-clones.js has run against production.
+  it("lists an approved campaign whose brand is still pending", async () => {
     const response = await getMyDiscounts(userRequest(userId));
     const data = await response.json();
 
     const ids = data.discounts.map((d: any) => String(d._id));
-    expect(ids).not.toContain(campaignOfPendingBrandId);
+    expect(ids).toContain(campaignOfPendingBrandId);
   });
 
   it("refuses to issue a code for an unapproved campaign", async () => {

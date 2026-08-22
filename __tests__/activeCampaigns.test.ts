@@ -9,8 +9,9 @@ import { GET as getActiveCampaigns } from "../app/api/users/active-campaigns/rou
 // The public brand list and the campaign list must agree on brand identity.
 // Production data has two documents per brand: a legacy one, and the BrandHub
 // document (scripts/clone-legacy-brands.js) that campaigns are linked against.
-// The app lists APPROVED brands, so once the clone is approved both documents
-// qualify — the route must list the clone alone rather than the brand twice.
+// The app lists PENDING brands — the state clone-legacy-brands.js writes — so
+// both documents qualify and the route must list the clone alone rather than
+// the brand twice.
 // Campaigns predating the migration still reference the legacy id, so the
 // response must key every campaign to a brand id it actually returns —
 // otherwise the brand card renders "No active campaigns".
@@ -38,7 +39,8 @@ describe("GET /api/users/active-campaigns", () => {
   beforeAll(async () => {
     await connectToDatabase();
 
-    // Original brand doc: APPROVED, no registrationNumber, minimal legacy shape.
+    // Original brand doc: no registrationNumber, minimal legacy shape. Listed
+    // in its own right, so the clone has to supersede it explicitly.
     const legacy = await BrandModel.collection.insertOne({
       companyName: `Legacy Brand ${suffix}`,
       brandName: `Legacy Brand ${suffix}`,
@@ -46,7 +48,7 @@ describe("GET /api/users/active-campaigns", () => {
       logo: "https://example.com/logo.png",
       category: "Retail",
       themeColor: "#242E2E",
-      status: "APPROVED",
+      status: "PENDING",
     } as any);
     legacyBrandId = legacy.insertedId.toString();
 
@@ -67,8 +69,8 @@ describe("GET /api/users/active-campaigns", () => {
       phone: "0000000000",
       registrationNumber,
       themeColor: "#242E2E",
-      // Approved in BrandHub — the state in which the app lists it.
-      status: "APPROVED",
+      // The state clone-legacy-brands.js writes, and the one the app lists.
+      status: "PENDING",
       role: "BRAND",
     });
     cloneBrandId = clone._id.toString();
@@ -101,8 +103,7 @@ describe("GET /api/users/active-campaigns", () => {
     } as any);
     legacyLinkedCampaignId = legacyLinked.insertedId.toString();
 
-    // A brand awaiting review. Nothing about it should reach the app until an
-    // admin approves it in BrandHub.
+    // A standalone brand awaiting review, with no legacy counterpart.
     const pending = await BrandModel.create({
       companyName: `Pending Brand ${suffix}`,
       brandName: `Pending Brand ${suffix}`,
@@ -136,7 +137,7 @@ describe("GET /api/users/active-campaigns", () => {
     await mongoose.disconnect();
   });
 
-  it("lists the approved BrandHub brand, not its legacy counterpart", async () => {
+  it("lists the BrandHub clone, not its legacy counterpart", async () => {
     const response = await getActiveCampaigns(userRequest(userId));
     const data = await response.json();
 
@@ -159,12 +160,17 @@ describe("GET /api/users/active-campaigns", () => {
     expect(brandIds.has(String(campaign.brand))).toBe(true);
   });
 
-  it("withholds a brand still awaiting admin approval", async () => {
+  // Moderation is inverted here on purpose: PENDING is the listed state,
+  // because every real brand in production is a PENDING clone. Requiring
+  // APPROVED instead emptied the app's brand list on 2026-08-09. Flip this
+  // expectation to `not.toContain` at the same time as the route, once
+  // scripts/approve-legacy-clones.js has run against production.
+  it("lists a brand still awaiting BrandHub approval", async () => {
     const response = await getActiveCampaigns(userRequest(userId));
     const data = await response.json();
 
     const ids = data.activeBrands.map((b: any) => String(b._id));
-    expect(ids).not.toContain(pendingBrandId);
+    expect(ids).toContain(pendingBrandId);
   });
 
   it("resolves a campaign still pointing at the legacy brand id", async () => {

@@ -3,7 +3,8 @@ import { UserModel } from "@/lib/models";
 export const REFERRAL_REWARD_POINTS = 50;
 
 /**
- * Pays out a referral for a user who has just become verified.
+ * Pays out a referral for a user who has completed their profile (phone and
+ * address both set).
  *
  * Idempotency lives on the *new* user's `referralRewardGranted` flag: the flag
  * flip and the new user's points are one atomic findOneAndUpdate filtered on
@@ -11,8 +12,8 @@ export const REFERRAL_REWARD_POINTS = 50;
  * and neither side is paid twice. The referrer is looked up before that claim
  * so a user with no referrer never burns their flag.
  *
- * Never throws — a payout failure must not fail the verification that
- * triggered it. Mirrors the signup-email try/catch in users/signup/route.ts.
+ * Never throws — a payout failure must not fail the profile update that
+ * triggered it.
  */
 export async function awardReferralIfApplicable(
   userId: unknown,

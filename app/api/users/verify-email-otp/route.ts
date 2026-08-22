@@ -10,7 +10,6 @@ import {
   rateLimitResponse,
 } from "@/lib/rateLimit";
 import { serverEnv } from "@/lib/env";
-import { awardReferralIfApplicable } from "@/lib/referrals";
 
 const JWT_SECRET = serverEnv.jwtSecret;
 const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
@@ -98,10 +97,6 @@ export async function POST(req: Request) {
     if (!consumed) {
       return genericFailure();
     }
-
-    // The otpHash-guarded write above is the idempotency anchor: exactly one
-    // request per user ever reaches here.
-    await awardReferralIfApplicable(user._id, normalizedEmail);
 
     const token = jwt.sign({ id: user.id }, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],

@@ -7,7 +7,6 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { serverEnv } from '@/lib/env';
-import { awardReferralIfApplicable } from '@/lib/referrals';
 
 const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
 const APPLE_ISSUER = 'https://appleid.apple.com';
@@ -97,8 +96,6 @@ export async function POST(req: NextRequest) {
         emailVerified: true,
         firstTimeLogin: true,
       });
-
-      await awardReferralIfApplicable(user._id, user.email);
     }
 
     const jwtPayload = { id: user.id };

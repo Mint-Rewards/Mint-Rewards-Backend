@@ -2,32 +2,10 @@ import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
 import { UserModel } from "@/lib/models";
 import sendReferralEmail from "@/emailServices/referralEmail";
-import {
-  checkRateLimit,
-  clientIp,
-  hashKey,
-  rateLimitResponse,
-} from "@/lib/rateLimit";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-// Sends per referring user per day. The IP gate sits above it so one host
-// can't cycle accounts to get around the per-user budget.
-const MAX_SENDS_PER_USER_PER_DAY = 5;
-const MAX_SENDS_PER_IP_PER_DAY = 20;
-// Lifetime ceiling on how many addresses one user may ever refer.
-const MAX_LIFETIME_REFERRALS = 20;
 
 export async function POST(req: Request) {
   try {
     await connectToDatabase();
-
-    const ipLimit = await checkRateLimit(
-      "referrals:ip",
-      clientIp(req),
-      MAX_SENDS_PER_IP_PER_DAY,
-      DAY_MS,
-    );
-    if (ipLimit.limited) return rateLimitResponse(ipLimit.retryAfterSeconds);
 
     const userId = await getAuthenticatedUserId({
       headers: {
@@ -38,14 +16,6 @@ export async function POST(req: Request) {
     if (!userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const userLimit = await checkRateLimit(
-      "referrals:user",
-      hashKey(String(userId)),
-      MAX_SENDS_PER_USER_PER_DAY,
-      DAY_MS,
-    );
-    if (userLimit.limited) return rateLimitResponse(userLimit.retryAfterSeconds);
 
     const body = await req.json();
     const { emails } = body as { emails?: string[] };
@@ -106,27 +76,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Cap on the merged set rather than on normalizedEmails.length, so
-    // re-sending an address the user has already referred doesn't burn
-    // headroom twice. Reject the whole batch instead of truncating it —
-    // silently dropping addresses would report success for invites that
-    // were never sent.
     const merged = [...new Set([...user.referrals, ...normalizedEmails])];
-
-    if (merged.length > MAX_LIFETIME_REFERRALS) {
-      const remaining = Math.max(
-        0,
-        MAX_LIFETIME_REFERRALS - user.referrals.length,
-      );
-      return Response.json(
-        {
-          error: `You can refer a maximum of ${MAX_LIFETIME_REFERRALS} people. You have ${remaining} referral${remaining === 1 ? "" : "s"} remaining.`,
-          remaining,
-        },
-        { status: 400 },
-      );
-    }
-
     user.referrals = merged;
     await user.save();
 

@@ -8,7 +8,6 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { serverEnv, logPrefix } from '@/lib/env';
 import { googleAudiences } from '@/lib/googleAudiences';
-import { awardReferralIfApplicable } from '@/lib/referrals';
 
 async function generateMintId(): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -88,8 +87,6 @@ export async function POST(req: NextRequest) {
         emailVerified: true,
         firstTimeLogin: true,
       });
-
-      await awardReferralIfApplicable(user._id, user.email);
     }
     const jwtPayload = { id: user.id };
     const token = jwt.sign(jwtPayload, JWT_SECRET, {

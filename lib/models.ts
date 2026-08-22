@@ -316,6 +316,11 @@ const UserSchema = new Schema<UserDocument>(
     points: { type: Number, default: 0 },
     totalCollections: stringDefaultEmpty,
     totalWasteCollected: stringDefaultEmpty,
+    // Unbounded: every address this user has ever referred, never pruned. At
+    // the current rate limit (3 requests/hour, 10 addresses each) the 16MB
+    // document cap is months away, and issue #144 may relocate this data
+    // entirely — so this is a caveat, not a task. See the multikey index on
+    // this field below.
     referrals: { type: [String], default: [] },
     referralRewardGranted: { type: Boolean, default: false },
     pickupHistory: { type: [pickupHistorySchema], default: [] },
@@ -445,6 +450,12 @@ LogSchema.index({ deviceId: 1, timestamp: -1 });
 LogSchema.index({ timestamp: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });
 
 export const Log = getModel<ILog>("Log", LogSchema);
+
+// Multikey index over the referral address array. POST /api/users/referrals
+// runs a `referrals: { $in: [...] }` lookup on every request to establish
+// whether an address has already been invited by anyone; unindexed that is a
+// collection scan across every user, and it only gets more expensive.
+UserSchema.index({ referrals: 1 });
 
 export const UserModel = getModel<UserDocument>("User", UserSchema, "users");
 

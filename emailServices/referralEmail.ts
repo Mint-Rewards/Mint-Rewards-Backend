@@ -1,7 +1,8 @@
-import sendSecureEmail from "./emailFunction";
+import sendSecureEmail, { SuppressedAddressError } from "./emailFunction";
 import { serverEnv } from "@/lib/env";
 import { escapeHtml } from "@/lib/escapeHtml";
 import { sanitizeDisplayName } from "@/lib/sanitizeDisplayName";
+import { unsubscribeUrl as buildUnsubscribeUrl } from "@/lib/unsubscribeToken";
 
 /**
  * Store fallbacks for when IOS_STORE_URL / ANDROID_STORE_URL are unset.
@@ -68,6 +69,15 @@ export default async function sendReferralEmail({
       serverEnv.appConfig.androidStoreUrl ?? PLAY_STORE_SEARCH;
     const downloadUrl = serverEnv.appDownloadUrl;
 
+    // Both parts read these two, so the footer cannot be fixed in one and left
+    // stale in the other — the specific failure issue #145 calls out about the
+    // postal address placeholder.
+    const unsubscribeLink = buildUnsubscribeUrl(
+      recipientEmail,
+      serverEnv.publicBaseUrl,
+    );
+    const postalAddress = serverEnv.emailPostalAddress;
+
     const headline = referrer
       ? `${referrer} invited you to Mint Rewards`
       : "You've been invited to Mint Rewards";
@@ -100,7 +110,8 @@ export default async function sendReferralEmail({
       "— Mint Rewards Team",
       "",
       "You received this because someone shared Mint Rewards with you. We won't email you again unless you sign up.",
-      "Mint Rewards · [TODO: postal address]",
+      `Unsubscribe: ${unsubscribeLink}`,
+      `Mint Rewards · ${postalAddress}`,
     ].join("\n");
 
     // --- HTML part ---------------------------------------------------------
@@ -183,7 +194,8 @@ export default async function sendReferralEmail({
             <td style="padding:20px 32px 32px;border-top:1px solid #E8ECEB;
                        font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:${MUTED};">
               You received this because someone shared Mint Rewards with you. We won't email you again unless you sign up.
-              <br>Mint Rewards · [TODO: postal address]
+              <br><a href="${escapeHtml(unsubscribeLink)}" style="color:${MUTED};">Unsubscribe</a>
+              <br>Mint Rewards · ${escapeHtml(postalAddress)}
             </td>
           </tr>
         </table>
@@ -199,11 +211,24 @@ export default async function sendReferralEmail({
       subject: headline,
       html,
       text,
+      // Nobody asked for this message, so it suppresses on an unsubscribe as
+      // well as on the bounces and complaints that stop transactional mail.
+      category: "outreach",
+      unsubscribeUrl: unsubscribeLink,
     });
 
     console.log("Email sent:", info.messageId);
     return true;
   } catch (err) {
+    // A suppressed address is an expected outcome, not a fault: the recipient
+    // asked not to be emailed, or the address bounced. Logging it at error
+    // level would train everyone to ignore the log that also carries real
+    // send failures.
+    if (err instanceof SuppressedAddressError) {
+      console.log(`Referral email suppressed for ${recipientEmail}`);
+      return false;
+    }
+
     const message = err instanceof Error ? err.message : "unknown error";
     console.error(
       `Failed to send referral email to ${recipientEmail}: ${message}`,

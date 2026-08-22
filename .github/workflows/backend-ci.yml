@@ -71,6 +71,15 @@ jobs:
       - name: SCA — npm audit
         run: npm audit --audit-level=high
 
+      # Lint and format run before the type check: they are the two gates
+      # this repo never had (issue #146), they need no secrets, and they fail
+      # in seconds rather than after a full tsc pass.
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
       - name: Type check
         run: npm run typecheck
 

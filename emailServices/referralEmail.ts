@@ -83,12 +83,16 @@ export default async function sendReferralEmail({
       : "You've been invited to Mint Rewards";
 
     const intro = referrer
-      ? `${referrer} uses Mint Rewards to earn rewards for recycling, and thought you'd want in.`
+      ? `${referrer} earns rewards for recycling with Mint, and wants you in on it too!`
       : "Someone thought you'd want in on Mint Rewards — earn rewards every time you recycle.";
 
     const attribution = referrer
       ? `Sign up with this email address (${recipientEmail}) so ${referrer} gets their reward too.`
       : `Sign up with this email address (${recipientEmail}) so the person who invited you gets their reward too.`;
+
+    const reward = referrer 
+      ? "Do that and you'll both score a 100 point bonus, instantly. That's it. Recycle, earn, repeat." 
+      : "Do that and you'll both score a 100 point bonus, instantly. That's it. Recycle, earn, repeat.";
 
     const preheader =
       "Download the app and start earning rewards for recycling.";

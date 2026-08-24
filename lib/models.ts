@@ -326,6 +326,91 @@ const UserSchema = new Schema<UserDocument>(
     // this field below.
     referrals: { type: [String], default: [] },
     referralRewardGranted: { type: Boolean, default: false },
+
+    // ---- Structured location (P0.3) ------------------------------------
+    // Additive. `latitude`, `longitude`, `address`, `province`, `city`,
+    // `town`, `townOther`, `subArea` and `subAreaOther` above are UNCHANGED
+    // and dual-written until every reader has migrated to these fields.
+    //
+    // NOTE the type mismatch with the legacy pair: `latitude`/`longitude` are
+    // Strings defaulting to "", while GeoJSON coordinates are [Number]. Any
+    // dual-write must parseFloat and SKIP the GeoJSON write when the legacy
+    // string is "" or unparseable — writing NaN into a 2dsphere-indexed field
+    // makes the document unindexable.
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      // [lng, lat] — GeoJSON order, the reverse of how humans say it.
+      coordinates: { type: [Number] },
+      source: {
+        type: String,
+        enum: [
+          "map_pin",
+          "area_centroid",
+          "city_centroid",
+          "legacy_string",
+          "collector_verified",
+        ],
+      },
+      // Anything other than "building" must be excluded from routing: every
+      // user on a centroid path shares one identical coordinate, which is
+      // usable for clustering but not for getting a collector to a door.
+      precision: {
+        type: String,
+        enum: ["building", "block", "area", "city", "unknown"],
+      },
+      accuracyMeters: Number,
+      capturedAt: Date,
+    },
+
+    // Canonical registry values. The registry has no synthetic ids — its keys
+    // ARE the display names, which is exactly why those strings can never be
+    // edited (see utils/pakistan_areas.ts in the app repo). `cityId` holds
+    // "Karachi", not a slug.
+    structuredAddress: {
+      cityId: String,
+      areaId: String,
+      blockId: String,
+      // Free text, used when the registry has no matching entry. Mutually
+      // exclusive with the canonical field beside it, mirroring the existing
+      // town/townOther and subArea/subAreaOther pairs.
+      areaOther: String,
+      blockOther: String,
+      houseNo: String,
+      streetOrBlock: String,
+    },
+
+    locationVerification: {
+      status: {
+        type: String,
+        enum: [
+          "unverified",
+          "auto_verified",
+          "user_corrected",
+          "mismatch",
+          "unresolved",
+        ],
+      },
+      method: String,
+      // NEVER collapse geocodedAreaRaw with selectedAreaId. Every row where
+      // they differ is a labelled geocoder failure at a known coordinate — the
+      // training data for the gazetteer. Overwriting one throws that away.
+      geocodedAreaRaw: String,
+      geocodedAreaId: String,
+      selectedAreaId: String,
+      distanceMeters: Number,
+      checkedAt: Date,
+      resolvedBy: String,
+    },
+
+    // Server-side completion definition is versioned so a future re-prompt is
+    // a version bump plus a registry addition, not a client release.
+    locationVersion: { type: Number, default: 0 },
+    locationCompletedAt: Date,
+
     pickupHistory: { type: [pickupHistorySchema], default: [] },
     created: { type: Date, default: Date.now },
     firstTimeLogin: { type: Boolean, default: true },

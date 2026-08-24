@@ -196,6 +196,31 @@ export interface PickupHistoryEntry {
   comment: string;
 }
 
+export type LocationSource =
+  | "map_pin"
+  | "area_centroid"
+  | "city_centroid"
+  | "legacy_string"
+  | "collector_verified";
+
+/**
+ * Anything other than "building" must be excluded from routing — centroid-path
+ * users all share one coordinate.
+ */
+export type LocationPrecision =
+  | "building"
+  | "block"
+  | "area"
+  | "city"
+  | "unknown";
+
+export type LocationVerificationStatus =
+  | "unverified"
+  | "auto_verified"
+  | "user_corrected"
+  | "mismatch"
+  | "unresolved";
+
 export interface User {
   userName: string;
   email: string;
@@ -219,6 +244,40 @@ export interface User {
   totalWasteCollected: string;
   referrals: string[];
   referralRewardGranted: boolean;
+
+  // ---- Structured location (P0.3) --------------------------------------
+  // Additive; the legacy latitude/longitude/address/town fields above stay
+  // and are dual-written until every reader migrates.
+  location?: {
+    type?: "Point";
+    /** [lng, lat] — GeoJSON order. */
+    coordinates?: number[];
+    source?: LocationSource;
+    precision?: LocationPrecision;
+    accuracyMeters?: number;
+    capturedAt?: Date;
+  };
+  structuredAddress?: {
+    cityId?: string;
+    areaId?: string;
+    blockId?: string;
+    areaOther?: string;
+    blockOther?: string;
+    houseNo?: string;
+    streetOrBlock?: string;
+  };
+  locationVerification?: {
+    status?: LocationVerificationStatus;
+    method?: string;
+    geocodedAreaRaw?: string;
+    geocodedAreaId?: string;
+    selectedAreaId?: string;
+    distanceMeters?: number;
+    checkedAt?: Date;
+    resolvedBy?: string;
+  };
+  locationVersion?: number;
+  locationCompletedAt?: Date;
   pickupHistory: PickupHistoryEntry[];
   created: Date;
   firstTimeLogin: boolean;

@@ -6,6 +6,7 @@ import mongoose, { Types } from "mongoose";
 import { OrganizationModel, BrandUserModel, BrandModel } from "@/lib/models";
 import { signBrandToken } from "@/lib/brandJwt";
 import { MODULE_CATALOGUE, hasActiveSubscription } from "@/lib/modules";
+import { validatePasswordLength } from "@/lib/password";
 
 const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -75,10 +76,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       address?: string;
       description?: string;
     } | null;
-    ({ orgName, email, password, brandName, category, contactName } = body ?? {});
+    ({ orgName, email, password, brandName, category, contactName } =
+      body ?? {});
     contactName = contactName?.trim() || undefined;
     phone = body?.phone?.trim() || undefined;
-    webLink = (body?.webLink?.trim() || body?.website?.trim()) || undefined;
+    webLink = body?.webLink?.trim() || body?.website?.trim() || undefined;
     appLink = body?.appLink?.trim() || undefined;
     address = body?.address?.trim() || undefined;
     description = body?.description?.trim() || undefined;
@@ -91,11 +93,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (password.length < 8) {
-    return NextResponse.json(
-      { error: "Password must be at least 8 characters" },
-      { status: 400 },
-    );
+  const passwordError = validatePasswordLength(password);
+  if (passwordError) {
+    return NextResponse.json({ error: passwordError }, { status: 400 });
   }
 
   // Validate and upload the logo before creating any documents, so a bad
@@ -141,7 +141,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }).lean();
 
   if (existing) {
-    return NextResponse.json({ error: "Email already in use" }, { status: 409 });
+    return NextResponse.json(
+      { error: "Email already in use" },
+      { status: 409 },
+    );
   }
 
   const passwordHash = await bcrypt.hash(password, 10);

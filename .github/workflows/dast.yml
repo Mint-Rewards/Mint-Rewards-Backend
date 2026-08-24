@@ -26,8 +26,8 @@ jobs:
       - name: Run OWASP ZAP API Scan
         uses: zaproxy/action-api-scan@v0.10.0
         with:
-          target: 'https://mint-rewards-backend.vercel.app/api/health'
-          fail_action: false   # Set to true after resolving baseline findings
-          issue_title: 'ZAP DAST Scan Report'
+          target: "https://mint-rewards-backend.vercel.app/api/health"
+          fail_action: false # Set to true after resolving baseline findings
+          issue_title: "ZAP DAST Scan Report"
           token: ${{ secrets.GITHUB_TOKEN }}
-          cmd_options: '-a'
+          cmd_options: "-a"

@@ -1,6 +1,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
 import { UserModel } from "@/lib/models";
+import { awardReferralIfApplicable } from "@/lib/referrals";
 
 export async function PUT(req: Request) {
   try {
@@ -59,8 +60,12 @@ export async function PUT(req: Request) {
       );
     }
 
+    if (updatedUser.phone && updatedUser.address) {
+      await awardReferralIfApplicable(updatedUser._id, updatedUser.email);
+    }
+
     return Response.json(updatedUser);
-  } catch (error) {
+  } catch {
     return Response.json(
       {
         error: "Your request could not be processed. Please try again.",

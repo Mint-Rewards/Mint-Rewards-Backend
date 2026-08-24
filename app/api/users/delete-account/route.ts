@@ -25,7 +25,7 @@ export async function DELETE(req: Request) {
     return Response.json({
       message: "Account deleted successfully",
     });
-  } catch (error) {
+  } catch {
     return Response.json(
       {
         error: "Your request could not be processed. Please try again.",

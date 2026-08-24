@@ -11,7 +11,7 @@ import jwt from "jsonwebtoken";
  * issues the token.
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const body = await req.json().catch(() => null) as {
+  const body = (await req.json().catch(() => null)) as {
     email?: string;
     password?: string;
   } | null;
@@ -31,7 +31,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (!adminEmail || !adminPasswordHash || !jwtSecret) {
     console.error("[adminAuth] Missing one or more admin env vars");
-    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Server misconfiguration" },
+      { status: 500 },
+    );
   }
 
   // Run bcrypt.compare regardless of whether the email matched so that
@@ -43,11 +46,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  const token = jwt.sign(
-    { role: "admin", email: adminEmail },
-    jwtSecret,
-    { expiresIn: "8h" },
-  );
+  const token = jwt.sign({ role: "admin", email: adminEmail }, jwtSecret, {
+    expiresIn: "8h",
+  });
 
   return NextResponse.json({ token });
 }

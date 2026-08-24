@@ -30,7 +30,10 @@ export function requireAdminAuth(req: NextRequest): AuthOk | NextResponse {
 
   if (!secret) {
     console.error("[requireAdminAuth] ADMIN_JWT_SECRET is not set");
-    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Server misconfiguration" },
+      { status: 500 },
+    );
   }
 
   try {
@@ -42,6 +45,9 @@ export function requireAdminAuth(req: NextRequest): AuthOk | NextResponse {
 
     return { admin: payload };
   } catch {
-    return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Invalid or expired token" },
+      { status: 401 },
+    );
   }
 }

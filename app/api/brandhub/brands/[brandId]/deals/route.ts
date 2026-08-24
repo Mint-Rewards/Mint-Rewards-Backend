@@ -107,15 +107,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       // Legacy readers (admin/mobile) expect the single promoCode field.
       promoCode: codes[0],
       status: "pending",
-      ...(typeof body.description === "string" && { description: body.description }),
-      ...(typeof body.discountPercentage === "number" && { discountPercentage: body.discountPercentage }),
-      ...(typeof body.discountAmount === "number" && { discountAmount: body.discountAmount }),
-      ...(typeof body.startDate === "string" && body.startDate && { startDate: body.startDate }),
-      ...(typeof body.endDate === "string" && body.endDate && { endDate: body.endDate }),
+      ...(typeof body.description === "string" && {
+        description: body.description,
+      }),
+      ...(typeof body.discountPercentage === "number" && {
+        discountPercentage: body.discountPercentage,
+      }),
+      ...(typeof body.discountAmount === "number" && {
+        discountAmount: body.discountAmount,
+      }),
+      ...(typeof body.startDate === "string" &&
+        body.startDate && { startDate: body.startDate }),
+      ...(typeof body.endDate === "string" &&
+        body.endDate && { endDate: body.endDate }),
       // Derived, never taken from the client: one code is redeemable exactly
       // once by one user, so maxUses IS the code count (issue #44).
       maxUses: codes.length,
-      ...(typeof body.minimumPurchase === "number" && { minimumPurchase: body.minimumPurchase }),
+      ...(typeof body.minimumPurchase === "number" && {
+        minimumPurchase: body.minimumPurchase,
+      }),
     });
 
     return Response.json({ success: true, deal }, { status: 201 });

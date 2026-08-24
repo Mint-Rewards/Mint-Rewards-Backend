@@ -24,25 +24,25 @@ export interface ILog extends mongoose.Document {
   // Event classification
   event: string;
   level: "info" | "warn" | "error";
- 
+
   // User context
   userId?: string;
   userEmail?: string;
- 
+
   // Navigation context
   route?: string;
   previousRoute?: string;
- 
+
   // Device / app context
   deviceId: string;
   deviceModel: string;
   platform: "ios" | "android" | "web" | string;
   appVersion: string;
   buildNumber: string;
- 
+
   // Timing
   timestamp: Date;
- 
+
   // Arbitrary extra data
   extra?: Record<string, unknown>;
 }
@@ -120,7 +120,10 @@ const BrandSchema = new Schema<BrandDocument>(
     emailVerified: { type: Boolean, default: false },
     verificationToken: String,
     environmentalStats: { type: EnvironmentalStatsSchema, default: undefined },
-    environmentalPeriods: { type: [EnvironmentalPeriodSchema], default: undefined },
+    environmentalPeriods: {
+      type: [EnvironmentalPeriodSchema],
+      default: undefined,
+    },
   },
   { timestamps: true },
 );
@@ -316,7 +319,13 @@ const UserSchema = new Schema<UserDocument>(
     points: { type: Number, default: 0 },
     totalCollections: stringDefaultEmpty,
     totalWasteCollected: stringDefaultEmpty,
+    // Unbounded: every address this user has ever referred, never pruned. At
+    // the current rate limit (3 requests/hour, 10 addresses each) the 16MB
+    // document cap is months away, and issue #144 may relocate this data
+    // entirely — so this is a caveat, not a task. See the multikey index on
+    // this field below.
     referrals: { type: [String], default: [] },
+    referralRewardGranted: { type: Boolean, default: false },
     pickupHistory: { type: [pickupHistorySchema], default: [] },
     created: { type: Date, default: Date.now },
     firstTimeLogin: { type: Boolean, default: true },
@@ -361,25 +370,25 @@ const LogSchema = new Schema<ILog>(
       default: "info",
       index: true,
     },
- 
+
     // User context — optional so pre-auth events are still captured
     userId: { type: String, index: true },
     userEmail: { type: String },
- 
+
     // Navigation context
     route: { type: String, index: true },
     previousRoute: { type: String },
- 
+
     // Device context
     deviceId: { type: String, required: true, index: true },
     deviceModel: { type: String, default: "unknown" },
     platform: { type: String, required: true },
     appVersion: { type: String, required: true },
     buildNumber: { type: String, required: true },
- 
+
     // ISO timestamp sent from the client
     timestamp: { type: Date, required: true, index: true },
- 
+
     // Flexible blob for event-specific data
     extra: { type: Schema.Types.Mixed },
   },
@@ -388,7 +397,7 @@ const LogSchema = new Schema<ILog>(
     timestamps: false,
     // Store as a lean collection — logs are write-heavy, rarely updated
     versionKey: false,
-  }
+  },
 );
 
 const getModel = <T extends mongoose.Document>(
@@ -444,6 +453,12 @@ LogSchema.index({ deviceId: 1, timestamp: -1 });
 LogSchema.index({ timestamp: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });
 
 export const Log = getModel<ILog>("Log", LogSchema);
+
+// Multikey index over the referral address array. POST /api/users/referrals
+// runs a `referrals: { $in: [...] }` lookup on every request to establish
+// whether an address has already been invited by anyone; unindexed that is a
+// collection scan across every user, and it only gets more expensive.
+UserSchema.index({ referrals: 1 });
 
 export const UserModel = getModel<UserDocument>("User", UserSchema, "users");
 

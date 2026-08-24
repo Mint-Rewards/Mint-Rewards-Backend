@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main, dev]
   schedule:
-    - cron: '0 6 * * 1'  # Every Monday at 6am (catches new CVEs on unchanged code)
+    - cron: "0 6 * * 1" # Every Monday at 6am (catches new CVEs on unchanged code)
 
 jobs:
   analyze:
@@ -19,7 +19,7 @@ jobs:
 
     strategy:
       matrix:
-        language: ['javascript']  # Covers both JS and TS
+        language: ["javascript"] # Covers both JS and TS
 
     steps:
       - name: Checkout code

@@ -144,7 +144,11 @@ async function main() {
     const source = brandById.get(legacyId);
 
     if (!source) {
-      orphans.push({ cloneId: clone._id.toString(), legacyId, name: clone.companyName });
+      orphans.push({
+        cloneId: clone._id.toString(),
+        legacyId,
+        name: clone.companyName,
+      });
       continue;
     }
 
@@ -186,14 +190,18 @@ async function main() {
   console.log(`Clones needing changes: ${updates.length}\n`);
 
   for (const u of updates) {
-    console.log(`  "${u.name}" (${u.cloneId}) <- legacy ${u.legacyId} [${u.sourceStatus}]`);
+    console.log(
+      `  "${u.name}" (${u.cloneId}) <- legacy ${u.legacyId} [${u.sourceStatus}]`,
+    );
     for (const [field, value] of Object.entries(u.set)) {
       console.log(`      ${field}: ${JSON.stringify(value)}`);
     }
   }
 
   if (orphans.length > 0) {
-    console.log(`\nClones whose source document is missing (left untouched): ${orphans.length}`);
+    console.log(
+      `\nClones whose source document is missing (left untouched): ${orphans.length}`,
+    );
     for (const o of orphans) {
       console.log(`  "${o.name}" (${o.cloneId}): legacyBrandId=${o.legacyId}`);
     }

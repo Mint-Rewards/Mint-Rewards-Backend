@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { OAuth2Client } from 'google-auth-library';
-import dbConnect from '@/lib/mongodb';
-import { UserModel } from '@/lib/models';
-import { SignOptions } from 'jsonwebtoken';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
-import { serverEnv, logPrefix } from '@/lib/env';
-import { googleAudiences } from '@/lib/googleAudiences';
+import { NextRequest, NextResponse } from "next/server";
+import { OAuth2Client } from "google-auth-library";
+import dbConnect from "@/lib/mongodb";
+import { UserModel } from "@/lib/models";
+import { SignOptions } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import { serverEnv, logPrefix } from "@/lib/env";
+import { googleAudiences } from "@/lib/googleAudiences";
 
 async function generateMintId(): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -17,7 +17,7 @@ async function generateMintId(): Promise<string> {
       return mintId;
     }
   }
-  throw new Error('Unable to allocate a unique mint ID');
+  throw new Error("Unable to allocate a unique mint ID");
 }
 
 // All validated at boot in lib/env.ts. Non-null assertions on process.env
@@ -34,8 +34,8 @@ export async function POST(req: NextRequest) {
 
     if (!idToken) {
       return NextResponse.json(
-        { Status: 'Error', ErrorMessage: 'No ID token provided' },
-        { status: 400 }
+        { Status: "Error", ErrorMessage: "No ID token provided" },
+        { status: 400 },
       );
     }
 
@@ -53,14 +53,17 @@ export async function POST(req: NextRequest) {
       });
       payload = ticket.getPayload();
     } catch (error: any) {
-      console.error(`${logPrefix('auth:google')} verification failed:`, error.message);
+      console.error(
+        `${logPrefix("auth:google")} verification failed:`,
+        error.message,
+      );
       payload = null;
     }
 
     if (!payload) {
       return NextResponse.json(
-        { Status: 'Error', ErrorMessage: 'Invalid token' },
-        { status: 401 }
+        { Status: "Error", ErrorMessage: "Invalid token" },
+        { status: 401 },
       );
     }
 
@@ -73,38 +76,44 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       const mintId = await generateMintId();
-      const randomPassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+      const randomPassword = await bcrypt.hash(
+        crypto.randomBytes(32).toString("hex"),
+        10,
+      );
       user = await UserModel.create({
-        userName: name || email?.split('@')[0] || 'User',
+        userName: name || email?.split("@")[0] || "User",
         email: email?.toLowerCase(),
         password: randomPassword,
-        avatar: picture || '',
+        avatar: picture || "",
         mintId,
+        // Baseline signup grant for ALL new Google users, referred or not —
+        // matches the `points: 100` in users/signup/route.ts. Without it these
+        // accounts fell through to the schema default of 0.
+        points: 100,
         emailVerified: true,
         firstTimeLogin: true,
       });
     }
     const jwtPayload = { id: user.id };
     const token = jwt.sign(jwtPayload, JWT_SECRET, {
-      expiresIn: JWT_EXPIRES_IN as SignOptions['expiresIn'],
+      expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
     });
 
     const { password: _password, ...userResponse } = user.toObject();
 
     return NextResponse.json({
-      Status: 'Success',
+      Status: "Success",
       data: {
         ...userResponse,
         token: `Bearer ${token}`,
         picture, // from Google, in case you want to use it as fallback avatar
       },
     });
-
   } catch (error: any) {
-    console.error('Google auth error:', error.message, error.stack);
+    console.error("Google auth error:", error.message, error.stack);
     return NextResponse.json(
-        { Status: 'Error', ErrorMessage: 'Authentication failed' },
-        { status: 500 }
+      { Status: "Error", ErrorMessage: "Authentication failed" },
+      { status: 500 },
     );
-    }
+  }
 }

@@ -241,7 +241,11 @@ const parsed = {
 
   // Global admin
   adminJwtSecret: requiredSecret("ADMIN_JWT_SECRET"),
-  adminEmail: requiredMatching("ADMIN_EMAIL", /^[^@\s]+@[^@\s]+$/, "an email address"),
+  adminEmail: requiredMatching(
+    "ADMIN_EMAIL",
+    /^[^@\s]+@[^@\s]+$/,
+    "an email address",
+  ),
   adminPasswordHash: unescapeDollars(
     requiredMatching(
       "ADMIN_PASSWORD_HASH",
@@ -262,6 +266,34 @@ const parsed = {
   // Email
   resendApiKey: required("RESEND_API_KEY"),
   emailFrom: required("EMAIL_FROM"),
+
+  // Referral email download link. A UA-sniffing redirect that forwards to the
+  // right store, intended to live on mintrewards.app. That route does not
+  // exist yet, so unset is the expected state today and the referral template
+  // falls back to offering both stores side by side rather than guessing one.
+  appDownloadUrl: optionalHttpsUrl("APP_DOWNLOAD_URL"),
+
+  // Public origin of this backend, used to build absolute links that land in
+  // email — today, the unsubscribe link in the referral template. Defaults to
+  // the production deployment, which is the same host the CI smoke test pings,
+  // so an unset variable produces a link that works rather than one that
+  // points at localhost.
+  publicBaseUrl:
+    optionalHttpsUrl("PUBLIC_BASE_URL") ??
+    "https://mint-rewards-backend.vercel.app/",
+
+  // Signing secret for the Resend webhook (Svix format, "whsec_..."). Optional
+  // on purpose: making it required would take every existing deployment down
+  // at boot before the webhook is registered in the Resend dashboard. The
+  // route fails closed instead — unset means it rejects every delivery rather
+  // than trusting unsigned input.
+  resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET?.trim() || null,
+
+  // Physical mailing address for email footers. Required by anti-spam law in
+  // most of the jurisdictions this sends into, and until it is set the
+  // templates render a visible placeholder rather than silently omitting it.
+  emailPostalAddress:
+    process.env.EMAIL_POSTAL_ADDRESS?.trim() || "[TODO: postal address]",
 
   // Non-production mail sink. Every outbound message is rewritten to this
   // address regardless of its real recipient — see emailServices/emailFunction.

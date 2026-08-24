@@ -60,16 +60,11 @@ async function main() {
   const deals = mongoose.connection.collection("deals");
 
   // Reset: remove any prior demo org and everything hanging off it.
-  const priorOrgs = await organizations
-    .find({ name: DEMO_ORG_NAME })
-    .toArray();
+  const priorOrgs = await organizations.find({ name: DEMO_ORG_NAME }).toArray();
   const priorOrgIds = priorOrgs.map((o) => o._id);
   const priorBrands = await brands
     .find({
-      $or: [
-        { orgId: { $in: priorOrgIds } },
-        { brandName: DEMO_BRAND_NAME },
-      ],
+      $or: [{ orgId: { $in: priorOrgIds } }, { brandName: DEMO_BRAND_NAME }],
     })
     .toArray();
   const priorBrandIds = priorBrands.map((b) => b._id);
@@ -178,7 +173,14 @@ async function main() {
     () => new mongoose.Types.ObjectId(),
   );
 
-  const campaign = (name, status, startOffsetDays, endOffsetDays, userIdxs, extra = {}) => ({
+  const campaign = (
+    name,
+    status,
+    startOffsetDays,
+    endOffsetDays,
+    userIdxs,
+    extra = {},
+  ) => ({
     name,
     brand: brandId,
     brandRegistration: `BH-${brandId.toString()}`,
@@ -267,12 +269,20 @@ async function main() {
   console.log(`\nDemo seed complete (db: ${dbName})`);
   console.log("Org ID:  ", orgId.toString());
   console.log("Brand ID:", brandId.toString());
-  console.log("Owner:   owner@demo.com  (orgRole: owner — full access to subscribed modules)");
-  console.log("Admin:   admin@demo.com  (orgRole: admin — same bypass as owner)");
-  console.log("Member:  member@demo.com (manage on all subscribed modules — all tabs enabled)");
+  console.log(
+    "Owner:   owner@demo.com  (orgRole: owner — full access to subscribed modules)",
+  );
+  console.log(
+    "Admin:   admin@demo.com  (orgRole: admin — same bypass as owner)",
+  );
+  console.log(
+    "Member:  member@demo.com (manage on all subscribed modules — all tabs enabled)",
+  );
   console.log(`Password: ${DEMO_PASSWORD} for all three`);
   console.log(`Subscriptions (all active): ${SUBSCRIBED_MODULES.join(", ")}`);
-  console.log("Content: 6 campaigns (3 APPROVED / 2 PENDING / 1 REJECTED, 12 redemptions, 8 unique users), 4 deals (2 active / 1 inactive / 1 expired)\n");
+  console.log(
+    "Content: 6 campaigns (3 APPROVED / 2 PENDING / 1 REJECTED, 12 redemptions, 8 unique users), 4 deals (2 active / 1 inactive / 1 expired)\n",
+  );
 
   await mongoose.disconnect();
 }

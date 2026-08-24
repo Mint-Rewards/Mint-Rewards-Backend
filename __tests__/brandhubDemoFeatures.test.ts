@@ -104,7 +104,10 @@ describe("BrandHub demo features", () => {
       jsonRequest(
         `http://localhost/api/brandhub/brands/${brandId}/deals`,
         ownerToken,
-        { title: "Generated inventory", generateCodes: { count: 25, prefix: "eco" } },
+        {
+          title: "Generated inventory",
+          generateCodes: { count: 25, prefix: "eco" },
+        },
       ),
       { params: Promise.resolve({ brandId }) },
     );
@@ -127,9 +130,15 @@ describe("BrandHub demo features", () => {
   });
 
   it.each([
-    ["both code sources", { title: "Both", codes: ["ABCD"], generateCodes: { count: 1 } }],
+    [
+      "both code sources",
+      { title: "Both", codes: ["ABCD"], generateCodes: { count: 1 } },
+    ],
     ["neither code source", { title: "Neither" }],
-    ["a generated count over 500", { title: "Over cap", generateCodes: { count: 501 } }],
+    [
+      "a generated count over 500",
+      { title: "Over cap", generateCodes: { count: 501 } },
+    ],
   ])("returns 400 for %s", async (_label, payload) => {
     const response = await createDeal(
       jsonRequest(
@@ -160,7 +169,10 @@ describe("BrandHub demo features", () => {
       jsonRequest(
         `http://localhost/api/brandhub/brands/${brandId}/deals`,
         ownerToken,
-        { title: "Supplied inventory", codes: [" eco_123 ", "ECO_123", "SAVE-44"] },
+        {
+          title: "Supplied inventory",
+          codes: [" eco_123 ", "ECO_123", "SAVE-44"],
+        },
       ),
       { params: Promise.resolve({ brandId }) },
     );
@@ -222,7 +234,9 @@ describe("BrandHub demo features", () => {
     const body = (await response.json()) as { campaign: { status: string } };
     expect(response.status).toBe(200);
     expect(body.campaign.status).toBe("PENDING");
-    await expect(CampaignModel.findById(campaign._id).lean()).resolves.toMatchObject({
+    await expect(
+      CampaignModel.findById(campaign._id).lean(),
+    ).resolves.toMatchObject({
       status: "PENDING",
     });
   });

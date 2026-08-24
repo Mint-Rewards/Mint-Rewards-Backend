@@ -43,7 +43,7 @@ export async function checkAuth(
 
     const verified = jwt.verify(bearerToken, jwtSecret);
     return verified ?? null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

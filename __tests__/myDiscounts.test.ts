@@ -47,10 +47,7 @@ describe("/api/users/my-discounts", () => {
   type BrandStatus = "PENDING" | "APPROVED" | "REJECTED";
   type CampaignStatus = BrandStatus | "EXPIRED";
 
-  const makeBrand = async (
-    registrationNumber: string,
-    status: BrandStatus,
-  ) => {
+  const makeBrand = async (registrationNumber: string, status: BrandStatus) => {
     const brand = await BrandModel.create({
       companyName: `Brand ${registrationNumber}`,
       brandName: `Brand ${registrationNumber}`,
@@ -100,8 +97,12 @@ describe("/api/users/my-discounts", () => {
     await makeBrand(approvedReg, "APPROVED");
     await makeBrand(unapprovedBrandReg, "PENDING");
 
-    approvedCampaignId = (await makeCampaign(approvedReg, "APPROVED"))._id.toString();
-    pendingCampaignId = (await makeCampaign(approvedReg, "PENDING"))._id.toString();
+    approvedCampaignId = (
+      await makeCampaign(approvedReg, "APPROVED")
+    )._id.toString();
+    pendingCampaignId = (
+      await makeCampaign(approvedReg, "PENDING")
+    )._id.toString();
     campaignOfPendingBrandId = (
       await makeCampaign(unapprovedBrandReg, "APPROVED")
     )._id.toString();

@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createRemoteJWKSet, jwtVerify } from 'jose';
-import dbConnect from '@/lib/mongodb';
-import { UserModel } from '@/lib/models';
-import { SignOptions } from 'jsonwebtoken';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
-import { serverEnv } from '@/lib/env';
+import { NextRequest, NextResponse } from "next/server";
+import { createRemoteJWKSet, jwtVerify } from "jose";
+import dbConnect from "@/lib/mongodb";
+import { UserModel } from "@/lib/models";
+import { SignOptions } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import { serverEnv } from "@/lib/env";
 
-const APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
-const APPLE_ISSUER = 'https://appleid.apple.com';
+const APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
+const APPLE_ISSUER = "https://appleid.apple.com";
 
 const JWT_SECRET = serverEnv.jwtSecret;
 const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
@@ -22,7 +22,7 @@ async function generateMintId(): Promise<string> {
       return mintId;
     }
   }
-  throw new Error('Unable to allocate a unique mint ID');
+  throw new Error("Unable to allocate a unique mint ID");
 }
 
 export async function POST(req: NextRequest) {
@@ -31,8 +31,8 @@ export async function POST(req: NextRequest) {
 
     if (!identityToken) {
       return NextResponse.json(
-        { Status: 'Error', ErrorMessage: 'No identity token provided' },
-        { status: 400 }
+        { Status: "Error", ErrorMessage: "No identity token provided" },
+        { status: 400 },
       );
     }
 
@@ -48,8 +48,8 @@ export async function POST(req: NextRequest) {
 
     if (!sub) {
       return NextResponse.json(
-        { Status: 'Error', ErrorMessage: 'Invalid token payload' },
-        { status: 401 }
+        { Status: "Error", ErrorMessage: "Invalid token payload" },
+        { status: 401 },
       );
     }
 
@@ -70,25 +70,29 @@ export async function POST(req: NextRequest) {
 
     // 3. Create a new user if none found
     if (!user) {
-      const givenName = fullName?.givenName ?? '';
-      const familyName = fullName?.familyName ?? '';
+      const givenName = fullName?.givenName ?? "";
+      const familyName = fullName?.familyName ?? "";
       const displayName =
-        [givenName, familyName].filter(Boolean).join(' ').trim() ||
-        (email ? email.split('@')[0] : 'User');
+        [givenName, familyName].filter(Boolean).join(" ").trim() ||
+        (email ? email.split("@")[0] : "User");
 
       const mintId = await generateMintId();
       const randomPassword = await bcrypt.hash(
-        crypto.randomBytes(32).toString('hex'),
-        10
+        crypto.randomBytes(32).toString("hex"),
+        10,
       );
 
       user = await UserModel.create({
         userName: displayName,
         email: email?.toLowerCase() ?? `${sub}@privaterelay.appleid.com`,
         password: randomPassword,
-        avatar: '',
+        avatar: "",
         appleId: sub,
         mintId,
+        // Baseline signup grant for ALL new Apple users, referred or not —
+        // matches the `points: 100` in users/signup/route.ts. Without it these
+        // accounts fell through to the schema default of 0.
+        points: 100,
         emailVerified: true,
         firstTimeLogin: true,
       });
@@ -96,23 +100,23 @@ export async function POST(req: NextRequest) {
 
     const jwtPayload = { id: user.id };
     const token = jwt.sign(jwtPayload, JWT_SECRET, {
-      expiresIn: JWT_EXPIRES_IN as SignOptions['expiresIn'],
+      expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
     });
 
     const { password: _password, ...userResponse } = user.toObject();
 
     return NextResponse.json({
-      Status: 'Success',
+      Status: "Success",
       data: {
         ...userResponse,
         token: `Bearer ${token}`,
       },
     });
   } catch (error: any) {
-    console.error('Apple auth error:', error.message, error.stack);
+    console.error("Apple auth error:", error.message, error.stack);
     return NextResponse.json(
-      { Status: 'Error', ErrorMessage: 'Authentication failed' },
-      { status: 500 }
+      { Status: "Error", ErrorMessage: "Authentication failed" },
+      { status: 500 },
     );
   }
 }

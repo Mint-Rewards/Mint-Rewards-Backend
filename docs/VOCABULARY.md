@@ -9,13 +9,13 @@ model, a route, a type, a component or a user-facing string.
 
 ## The four terms
 
-| Term | Means | The test |
-|---|---|---|
-| **Brand** | The consumer-facing identity that sponsors engagement. Logs into BrandHub, runs Campaigns, offers Deals. | "Who is this from?" |
-| **Campaign** | A time-bound sustainability/recycling **programme**. The container for collection activity, scoped geographically and in time. **Not** a consumer incentive. | "What programme is this?" |
-| **Deal** | The umbrella term for any **consumer incentive**. Tied to a Brand. | "What do I get?" |
-| **Discount** | **One type** of Deal: a price reduction, by percentage or fixed amount. Not a synonym for Deal. | "…and it's money off." |
-| **Coupon / promo code** | Only the **redemption mechanism** — the code or voucher tied to a Deal. Never the incentive itself. | "What do I hand over at checkout?" |
+| Term                    | Means                                                                                                                                                        | The test                           |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| **Brand**               | The consumer-facing identity that sponsors engagement. Logs into BrandHub, runs Campaigns, offers Deals.                                                     | "Who is this from?"                |
+| **Campaign**            | A time-bound sustainability/recycling **programme**. The container for collection activity, scoped geographically and in time. **Not** a consumer incentive. | "What programme is this?"          |
+| **Deal**                | The umbrella term for any **consumer incentive**. Tied to a Brand.                                                                                           | "What do I get?"                   |
+| **Discount**            | **One type** of Deal: a price reduction, by percentage or fixed amount. Not a synonym for Deal.                                                              | "…and it's money off."             |
+| **Coupon / promo code** | Only the **redemption mechanism** — the code or voucher tied to a Deal. Never the incentive itself.                                                          | "What do I hand over at checkout?" |
 
 Other Deal types the definitions anticipate but the schema does not yet model:
 BOGO, bonus point multipliers, free add-ons, early access, donations. `Deal`
@@ -51,10 +51,10 @@ incentive fields to `Campaign`.
 
 Both still serve campaign documents. The mobile app no longer calls either.
 
-| Route | Actually does |
-|---|---|
+| Route                                   | Actually does                                                                          |
+| --------------------------------------- | -------------------------------------------------------------------------------------- |
 | `GET/PATCH/PUT /api/users/my-discounts` | Reads the **campaigns** collection. Response key `discounts`, body field `discountId`. |
-| `PATCH /api/coupons/[couponId]/redeem` | `couponId` is a **campaign** `_id`. |
+| `PATCH /api/coupons/[couponId]/redeem`  | `couponId` is a **campaign** `_id`.                                                    |
 
 `GET /api/users/active-campaigns` is likewise campaign-backed, and correctly
 named for what it returns.
@@ -76,7 +76,7 @@ deals payload (every deal embeds its brand), not fetched separately.
 
 There was a `DiscountModel` on the `discounts` collection, imported by zero
 routes, scripts and tests. Its shape (`user`, `code`, `isDownloaded`,
-`redeemEndTime`) was a per-user *coupon issuance* record, not a Deal store. It
+`redeemEndTime`) was a per-user _coupon issuance_ record, not a Deal store. It
 was deleted rather than renamed. Note this contradicts the definitions PDF,
 which describes "Discount" as the model storing Deal records of every type —
 that was never true in this repo.

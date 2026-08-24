@@ -105,7 +105,8 @@ export async function POST(req: Request) {
       return Response.json(
         {
           success: false,
-          message: "A brand with this email or registration number already exists",
+          message:
+            "A brand with this email or registration number already exists",
         },
         { status: 409 },
       );

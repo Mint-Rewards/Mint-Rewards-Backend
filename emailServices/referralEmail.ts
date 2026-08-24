@@ -90,10 +90,6 @@ export default async function sendReferralEmail({
       ? `Sign up with this email address (${recipientEmail}) so ${referrer} gets their reward too.`
       : `Sign up with this email address (${recipientEmail}) so the person who invited you gets their reward too.`;
 
-    const reward = referrer 
-      ? "Do that and you'll both score a 100 point bonus, instantly. That's it. Recycle, earn, repeat." 
-      : "Do that and you'll both score a 100 point bonus, instantly. That's it. Recycle, earn, repeat.";
-
     const preheader =
       "Download the app and start earning rewards for recycling.";
 

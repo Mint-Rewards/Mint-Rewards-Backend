@@ -273,6 +273,63 @@ const qrCodeWithWeightSchema = new Schema(
   { _id: false },
 );
 
+// P0.4a — the user's address frozen at pickup creation. Optional so that
+// entries written before this shipped stay valid; new entries must carry it
+// (the writer builds it with buildPickupAddressSnapshot in lib/pickupSnapshot.ts).
+// Field shapes deliberately mirror the User schema's legacy strings plus the
+// P0.3 `structuredAddress`/`location` blocks, minus indexes.
+const pickupAddressSnapshotSchema = new Schema(
+  {
+    address: stringDefaultEmpty,
+    province: stringDefaultEmpty,
+    city: stringDefaultEmpty,
+    town: stringDefaultEmpty,
+    townOther: stringDefaultEmpty,
+    subArea: stringDefaultEmpty,
+    subAreaOther: stringDefaultEmpty,
+    structuredAddress: {
+      cityId: String,
+      areaId: String,
+      blockId: String,
+      areaOther: String,
+      blockOther: String,
+      houseNo: String,
+      streetOrBlock: String,
+    },
+    location: {
+      type: { type: String, enum: ["Point"] },
+      // [lng, lat] — GeoJSON order.
+      coordinates: { type: [Number], default: undefined },
+      source: {
+        type: String,
+        enum: [
+          "map_pin",
+          "area_centroid",
+          "city_centroid",
+          "legacy_string",
+          "collector_verified",
+        ],
+      },
+      precision: {
+        type: String,
+        enum: ["building", "block", "area", "city", "unknown"],
+      },
+      accuracyMeters: Number,
+      capturedAt: Date,
+    },
+    // "creation" = written when the pickup was created (the honest snapshot).
+    // "migrated" = backfilled by P0.4b from the address as it stood at
+    // migration time — NOT necessarily the address at pickup time.
+    snapshotSource: {
+      type: String,
+      enum: ["creation", "migrated"],
+      required: true,
+    },
+    snapshotAt: { type: Date, required: true },
+  },
+  { _id: false },
+);
+
 const pickupHistorySchema = new Schema(
   {
     collectionId: {
@@ -293,6 +350,8 @@ const pickupHistorySchema = new Schema(
     },
     status: stringRequired,
     comment: stringDefaultEmpty,
+    // Optional: absent on entries created before P0.4a.
+    addressSnapshot: { type: pickupAddressSnapshotSchema, required: false },
   },
   { _id: false },
 );

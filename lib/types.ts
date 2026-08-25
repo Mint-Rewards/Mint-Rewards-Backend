@@ -186,6 +186,28 @@ export interface QrCodeWeight {
   weight: number;
 }
 
+/**
+ * P0.4a — the user's address as it stood when the pickup was created. Written
+ * once by buildPickupAddressSnapshot (lib/pickupSnapshot.ts) and never
+ * re-derived from the live User document; a later profile edit must not
+ * re-point historical pickups. `snapshotSource: "migrated"` marks entries
+ * backfilled by P0.4b, which inherit whatever the address was at migration
+ * time rather than at pickup time.
+ */
+export interface PickupAddressSnapshot {
+  address: string;
+  province: string;
+  city: string;
+  town: string;
+  townOther: string;
+  subArea: string;
+  subAreaOther: string;
+  structuredAddress?: User["structuredAddress"];
+  location?: User["location"];
+  snapshotSource: "creation" | "migrated";
+  snapshotAt: Date;
+}
+
 export interface PickupHistoryEntry {
   collectionId: Types.ObjectId;
   collectionName: string;
@@ -194,6 +216,8 @@ export interface PickupHistoryEntry {
   qrCodesWithWeights: QrCodeWeight[];
   status: string;
   comment: string;
+  /** Absent on entries created before P0.4a shipped. */
+  addressSnapshot?: PickupAddressSnapshot;
 }
 
 export type LocationSource =

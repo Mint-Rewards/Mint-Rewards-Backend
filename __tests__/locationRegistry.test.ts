@@ -134,3 +134,64 @@ describe("resolveGeocodedName", () => {
     expect(resolveGeocodedName("...")).toBeNull();
   });
 });
+
+// COARSE_ADMIN_UNITS guard (fix round): the app never resolves an
+// administrative parent to a single area, since one parent spans many
+// registered children and any single answer would be wrong for most of its
+// residents. Cases below are verified directly against the app repo's own
+// resolveGeocodedName (utils/pakistan_areas.ts) to confirm parity, not just
+// self-consistency of this port. See __tests__/pakistan_areas_meta.test.ts:
+// 710-721 in the app repo for the app's own "Bin Qasim Town" / picker-overlap
+// assertions this mirrors.
+describe("resolveGeocodedName — coarse administrative units", () => {
+  it("refuses to resolve a coarse admin unit when a city scopes the search", () => {
+    // Exact-string coarse-unit names.
+    expect(resolveGeocodedName("Bin Qasim Town", "Karachi")).toBeNull();
+    expect(resolveGeocodedName("Jamshed Town", "Karachi")).toBeNull();
+    expect(resolveGeocodedName("S.I.T.E. Town", "Karachi")).toBeNull();
+    // "SITE Town" reaches the guard via plain fold equality with
+    // "S.I.T.E. Town" (foldName collapses both to "sitetown") — no
+    // affix-tolerant stripping involved, so this is within this port's scope.
+    expect(resolveGeocodedName("SITE Town", "Karachi")).toBeNull();
+  });
+
+  it("does not leak one city's administrative parent onto another city", () => {
+    // "Cantonment" is a coarse admin unit ONLY in Karachi (COARSE_ADMIN_UNITS
+    // is keyed per city); Quetta has "Cantonment" as its own genuine,
+    // resolvable canonical town, so the same string must resolve there.
+    expect(resolveGeocodedName("Cantonment", "Karachi")).toBeNull();
+    expect(resolveGeocodedName("Cantonment", "Quetta")).toEqual({
+      city: "Quetta",
+      town: "Cantonment",
+    });
+  });
+
+  it("does not apply the guard when the search is unscoped", () => {
+    // Unscoped, these three strings are themselves valid, unambiguous
+    // canonical town names (each also happens to be Karachi's own coarse
+    // admin unit for that string) — the app's resolver only calls
+    // isCoarseAdminUnit when a city narrows the search, so an unscoped hit
+    // resolves normally here too.
+    expect(resolveGeocodedName("Bin Qasim Town")).toEqual({
+      city: "Karachi",
+      town: "Bin Qasim Town",
+    });
+    expect(resolveGeocodedName("Jamshed Town")).toEqual({
+      city: "Karachi",
+      town: "Jamshed Town",
+    });
+    expect(resolveGeocodedName("S.I.T.E. Town")).toEqual({
+      city: "Karachi",
+      town: "S.I.T.E. Town",
+    });
+  });
+
+  it("still resolves a live area that merely sounds administrative", () => {
+    // "Orangi Town" is a genuine registered town, not a coarse admin unit —
+    // the guard must not overreach onto names that just contain "Town".
+    expect(resolveGeocodedName("Orangi Town", "Karachi")).toEqual({
+      city: "Karachi",
+      town: "Orangi Town",
+    });
+  });
+});

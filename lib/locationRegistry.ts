@@ -11,13 +11,15 @@
  * to re-run and re-commit the export — rather than a live cross-repo fetch
  * that could fail silently in production.
  *
- * `foldName` and `resolveGeocodedName`'s resolution order (exact, then
- * folded, then alias, with deprecated-town handling) mirror the app's own
- * `utils/pakistan_areas.ts`. See each function's doc comment for exactly what
- * is, and is not, reproduced here — notably, the app's affix-tolerant pass
- * ("Town" suffix / Islamabad "Sector" prefix stripping) and its
- * COARSE_ADMIN_UNITS guard are NOT reproduced, because neither is present in
- * the committed artifact.
+ * `foldName` and `resolveGeocodedName`'s resolution order (coarse-admin-unit
+ * guard, then exact, then folded, then alias, with deprecated-town handling)
+ * mirror the app's own `utils/pakistan_areas.ts`. See each function's doc
+ * comment for exactly what is, and is not, reproduced here — notably, the
+ * app's affix-tolerant pass ("Town" suffix / Islamabad "Sector" prefix
+ * stripping) is NOT reproduced, because that data is not present in the
+ * committed artifact. (The `COARSE_ADMIN_UNITS` guard WAS missing in the
+ * first cut of this module and was added in a fix round — see
+ * `coarseAdminUnits` on `CityEntry` below.)
  */
 
 import registryData from "@/lib/data/locationRegistry.json";
@@ -33,6 +35,13 @@ interface CityEntry {
   deprecatedTowns: string[];
   /** Alias string -> canonical town, inverted from the app's `AREA_META`. */
   aliases: Record<string, string>;
+  /**
+   * Already-folded strings (the artifact stores these pre-folded, mirroring
+   * the app's own `COARSE_ADMIN_UNITS`) naming administrative parents in this
+   * city — e.g. "Gulberg Town" in Karachi, which spans many registered
+   * areas. See `resolveGeocodedName` for how this is used.
+   */
+  coarseAdminUnits: string[];
 }
 
 interface RegistryData {
@@ -88,6 +97,7 @@ interface CityIndex {
   townByFold: Map<string, string>; // foldedTownName -> canonical town
   aliasByFold: Map<string, string>; // foldedAlias -> canonical town
   deprecated: Set<string>; // canonical town names hidden from new selections
+  coarseAdminUnits: Set<string>; // already-folded administrative-parent strings
 }
 
 const cityIndexCache = new Map<string, CityIndex | null>();
@@ -115,6 +125,10 @@ function getCityIndex(city: string): CityIndex | null {
     townByFold,
     aliasByFold,
     deprecated: new Set(entry.deprecatedTowns),
+    // Members are already folded (see the CityEntry doc comment), so a
+    // lookup here compares directly against `foldName(raw)` with no extra
+    // folding step.
+    coarseAdminUnits: new Set(entry.coarseAdminUnits),
   };
   cityIndexCache.set(key, index);
   return index;
@@ -128,10 +142,25 @@ export interface ResolvedLocation {
 /**
  * Resolves a raw geocoder locality to a canonical `{ city, town }`, or null
  * on a miss. Mirrors the app's `resolveGeocodedName`
- * (utils/pakistan_areas.ts): resolution order is exact match, then folded
- * match, then alias match — all compared via `foldName`, since an exact
- * string match is always also a folded match. A folded query that matches
- * nothing (or matches ambiguously) is a miss, never a guess.
+ * (utils/pakistan_areas.ts): a coarse-admin-unit guard runs first, then
+ * resolution order is exact match, then folded match, then alias match — all
+ * compared via `foldName`, since an exact string match is always also a
+ * folded match. A folded query that matches nothing (or matches ambiguously)
+ * is a miss, never a guess.
+ *
+ * COARSE-ADMIN-UNIT GUARD (runs before any matching, only when `city` is
+ * given): an administrative parent — e.g. "Gulberg Town" in Karachi, which
+ * spans many registered areas, or "Bin Qasim Town", "Jamshed Town",
+ * "S.I.T.E. Town" — has no single right answer, so every available answer is
+ * wrong for most of its residents. A raw string whose `foldName(...)` is in
+ * that city's `coarseAdminUnits` refuses before matching even starts,
+ * mirroring the app's `isCoarseAdminUnit` check and its position (before
+ * exact/fold/alias) exactly. This guard is intentionally SKIPPED when `city`
+ * is not given — same as the app: with no city, an ambiguous cross-city hit
+ * is already refused by the ambiguity check below, and some of these strings
+ * (e.g. "Bin Qasim Town") are themselves valid, unambiguous canonical town
+ * names when not scoped to the one city where they are also an
+ * administrative parent.
  *
  * With `city` given, only that city is searched. Without it, every city in
  * the registry is searched, and a name matching towns in more than one city
@@ -148,14 +177,14 @@ export interface ResolvedLocation {
  * fix is ported here. A tie between two LIVE towns is left untouched and
  * returns null.
  *
- * NOT reproduced: the app's affix-tolerant pass (stripping an administrative
+ * NOT reproduced: the app's affix-tolerant pass — stripping an administrative
  * "Town" suffix or Islamabad's "Sector" prefix so e.g. "Landhi Town" matches
- * "Landhi") and its COARSE_ADMIN_UNITS guard (refusing administrative parents
- * like "Gulberg Town" in Karachi before they can fold-match a real area).
- * Neither is exported into the committed artifact, so there is no data here
- * to drive them — a raw string only the app's affix pass would catch is a
- * miss here rather than a resolution, which fails in the same safe direction
- * as every other miss.
+ * "Landhi", or bare "SITE" matches "S.I.T.E. Town". That data is not exported
+ * into the committed artifact, so there is nothing here to drive it — a raw
+ * string only the app's affix pass would catch is a miss here rather than a
+ * resolution, which fails in the same safe direction as every other miss.
+ * (Plain fold equality, e.g. "SITE Town" == "S.I.T.E. Town", IS reproduced —
+ * that needs no affix stripping, just `foldName` on both sides.)
  */
 export function resolveGeocodedName(
   raw: string,
@@ -164,11 +193,16 @@ export function resolveGeocodedName(
   const value = normalizeKey(raw);
   if (!value) return null;
 
-  const scopedCity = normalizeKey(city);
-  const candidateCities = scopedCity ? [scopedCity] : Object.keys(registry.cities);
-
   const needle = foldName(value);
   if (!needle) return null;
+
+  const scopedCity = normalizeKey(city);
+
+  if (scopedCity && getCityIndex(scopedCity)?.coarseAdminUnits.has(needle)) {
+    return null;
+  }
+
+  const candidateCities = scopedCity ? [scopedCity] : Object.keys(registry.cities);
 
   // Keyed by "City::Town" so a town name repeated across cities ("Cantt",
   // "Model Town") produces one candidate per city rather than collapsing

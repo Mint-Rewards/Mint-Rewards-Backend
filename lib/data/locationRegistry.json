@@ -8,7 +8,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Bagh": {
       "province": "Azad Jammu & Kashmir",
@@ -17,7 +18,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Bahawalpur": {
       "province": "Punjab",
@@ -26,7 +28,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Bhimber": {
       "province": "Azad Jammu & Kashmir",
@@ -35,7 +38,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Chaman": {
       "province": "Balochistan",
@@ -44,7 +48,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Charsadda": {
       "province": "Khyber Pakhtunkhwa",
@@ -53,7 +58,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Chilas": {
       "province": "Gilgit-Baltistan",
@@ -62,7 +68,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Dera Ghazi Khan": {
       "province": "Punjab",
@@ -71,7 +78,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Dera Ismail Khan": {
       "province": "Khyber Pakhtunkhwa",
@@ -80,7 +88,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Dera Murad Jamali": {
       "province": "Balochistan",
@@ -89,7 +98,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Faisalabad": {
       "province": "Punjab",
@@ -130,7 +140,8 @@
         "Civil Lines"
       ],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Ghanche": {
       "province": "Gilgit-Baltistan",
@@ -139,7 +150,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Ghizer": {
       "province": "Gilgit-Baltistan",
@@ -148,7 +160,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Gilgit": {
       "province": "Gilgit-Baltistan",
@@ -157,7 +170,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Gujranwala": {
       "province": "Punjab",
@@ -182,7 +196,8 @@
         "Civil Lines"
       ],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Gujrat": {
       "province": "Punjab",
@@ -191,7 +206,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Gwadar": {
       "province": "Balochistan",
@@ -200,7 +216,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Hub": {
       "province": "Balochistan",
@@ -209,7 +226,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Hunza": {
       "province": "Gilgit-Baltistan",
@@ -218,7 +236,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Hyderabad": {
       "province": "Sindh",
@@ -247,7 +266,8 @@
         "New Hyderabad"
       ],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Islamabad": {
       "province": "Islamabad Capital Territory",
@@ -376,7 +396,8 @@
         "Margalla Town"
       ],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Jacobabad": {
       "province": "Sindh",
@@ -385,7 +406,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Jhang": {
       "province": "Punjab",
@@ -394,7 +416,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Karachi": {
       "province": "Sindh",
@@ -631,7 +654,29 @@
         "Shershah": "Sher Shah Colony",
         "Gulshan-e-Sikandarabad": "Sikandarabad",
         "Gulshan e Sikandarabad": "Sikandarabad"
-      }
+      },
+      "coarseAdminUnits": [
+        "binqasim",
+        "binqasimtown",
+        "cantonment",
+        "centraldistrict",
+        "eastdistrict",
+        "faisalcantonment",
+        "gulbergtown",
+        "gulshandistrict",
+        "jamshedtown",
+        "karachicantonment",
+        "karachidistrict",
+        "karachidivision",
+        "keamaridistrict",
+        "korangidistrict",
+        "malircantonment",
+        "malirdistrict",
+        "site",
+        "sitetown",
+        "southdistrict",
+        "westdistrict"
+      ]
     },
     "Kasur": {
       "province": "Punjab",
@@ -640,7 +685,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Khairpur": {
       "province": "Sindh",
@@ -649,7 +695,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Khuzdar": {
       "province": "Balochistan",
@@ -658,7 +705,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Kohat": {
       "province": "Khyber Pakhtunkhwa",
@@ -667,7 +715,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Kotli": {
       "province": "Azad Jammu & Kashmir",
@@ -676,7 +725,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Lahore": {
       "province": "Punjab",
@@ -741,7 +791,8 @@
         "Raiwind"
       ],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Larkana": {
       "province": "Sindh",
@@ -750,7 +801,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Loralai": {
       "province": "Balochistan",
@@ -759,7 +811,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Mansehra": {
       "province": "Khyber Pakhtunkhwa",
@@ -768,7 +821,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Mardan": {
       "province": "Khyber Pakhtunkhwa",
@@ -777,7 +831,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Mingora": {
       "province": "Khyber Pakhtunkhwa",
@@ -786,7 +841,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Mirpur": {
       "province": "Azad Jammu & Kashmir",
@@ -795,7 +851,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Mirpur Khas": {
       "province": "Sindh",
@@ -804,7 +861,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Multan": {
       "province": "Punjab",
@@ -841,7 +899,8 @@
         "Shujabad Road"
       ],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Muzaffarabad": {
       "province": "Azad Jammu & Kashmir",
@@ -850,7 +909,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Nawabshah": {
       "province": "Sindh",
@@ -859,7 +919,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Nowshera": {
       "province": "Khyber Pakhtunkhwa",
@@ -868,7 +929,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Peshawar": {
       "province": "Khyber Pakhtunkhwa",
@@ -903,7 +965,8 @@
         "Ring Road"
       ],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Quetta": {
       "province": "Balochistan",
@@ -934,7 +997,8 @@
         "Adalat Road"
       ],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Rahim Yar Khan": {
       "province": "Punjab",
@@ -943,7 +1007,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Rawalakot": {
       "province": "Azad Jammu & Kashmir",
@@ -952,7 +1017,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Rawalpindi": {
       "province": "Punjab",
@@ -993,7 +1059,8 @@
         "Pirwadhai"
       ],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Sahiwal": {
       "province": "Punjab",
@@ -1002,7 +1069,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Sargodha": {
       "province": "Punjab",
@@ -1011,7 +1079,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Sheikhupura": {
       "province": "Punjab",
@@ -1020,7 +1089,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Shikarpur": {
       "province": "Sindh",
@@ -1029,7 +1099,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Sialkot": {
       "province": "Punjab",
@@ -1038,7 +1109,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Sibi": {
       "province": "Balochistan",
@@ -1047,7 +1119,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Skardu": {
       "province": "Gilgit-Baltistan",
@@ -1056,7 +1129,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Sukkur": {
       "province": "Sindh",
@@ -1065,7 +1139,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Swabi": {
       "province": "Khyber Pakhtunkhwa",
@@ -1074,7 +1149,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Thatta": {
       "province": "Sindh",
@@ -1083,7 +1159,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Turbat": {
       "province": "Balochistan",
@@ -1092,7 +1169,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     },
     "Zhob": {
       "province": "Balochistan",
@@ -1101,7 +1179,8 @@
       "towns": [],
       "selectableTowns": [],
       "deprecatedTowns": [],
-      "aliases": {}
+      "aliases": {},
+      "coarseAdminUnits": []
     }
   }
 }

@@ -242,6 +242,19 @@ function optionalPositiveInt(key: string, fallback: number): number {
 }
 
 /**
+ * Optional opaque string secret. Unset returns null; no format validation —
+ * used for third-party API keys whose shape is not ours to police. Unlike
+ * `required`, a missing value here is not a boot failure: LOCATIONIQ_API_KEY
+ * is the first user, and POST /api/location/reverse-geocode is written to
+ * treat an unset key as "resolve nothing" rather than refuse to boot the
+ * whole deployment over one unprovisioned third-party credential.
+ */
+function optionalString(key: string): string | null {
+  const value = process.env[key]?.trim();
+  return value || null;
+}
+
+/**
  * Optional non-negative integer build number, defaulting to null rather than
  * 0. Unlike optionalBuildNumber (used by the force-update gate, where 0 means
  * "gate nothing"), null here is the more honest "no minimum configured" —
@@ -412,6 +425,14 @@ const parsed = {
       },
     },
   },
+
+  // Reverse-geocoding (P1.1: POST /api/location/reverse-geocode). Deliberately
+  // NOT inside appConfig above — that object is served verbatim by
+  // /api/app-config to every mobile client, and this is a server-side secret
+  // that must never appear in a response body. Optional: an unset key makes
+  // the route answer `{ resolved: false }` for every request without ever
+  // fetching or caching, rather than failing the whole deployment to boot.
+  locationIqApiKey: optionalString("LOCATIONIQ_API_KEY"),
 
   // Deployment metadata — genuinely optional, absent outside Vercel.
   commitSha: process.env.VERCEL_GIT_COMMIT_SHA?.trim() || null,

@@ -20,8 +20,8 @@ export const dynamic = "force-dynamic";
  * only applies CORS over /api/:path*, so there is no auth to opt out of; this
  * comment exists so nobody later "fixes" the missing auth check.
  *
- * Nothing here is a secret: it is five deployment-tuning values that ship in
- * every app binary's request path anyway.
+ * Nothing here is a secret: it is deployment-tuning values that ship in every
+ * app binary's request path anyway.
  */
 export async function GET() {
   const {
@@ -30,6 +30,7 @@ export async function GET() {
     iosStoreUrl,
     androidStoreUrl,
     forceOTA,
+    locationGate,
   } = serverEnv.appConfig;
 
   return NextResponse.json({
@@ -41,5 +42,10 @@ export async function GET() {
     iosStoreUrl,
     androidStoreUrl,
     forceOTA,
+    // Config for the mobile location-capture gate. The resolution order
+    // (mode vs. build-forced escalation vs. dismissal count, etc.) is CLIENT
+    // logic — see the comment on serverEnv.appConfig.locationGate in
+    // lib/env.ts. This route only serves the values.
+    locationGate,
   });
 }

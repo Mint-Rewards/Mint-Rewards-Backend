@@ -17,7 +17,8 @@ describe(".env.example", () => {
   const READER = new RegExp(
     "(?:required|requiredSecret|requiredMatching|requiredAppEnv|" +
       "requiredOriginList|requiredUnlessProduction|optionalHttpsUrl|" +
-      'optionalSemver|optionalBuildNumber|optionalBoolean)\\(\\s*"([A-Z0-9_]+)"',
+      "optionalSemver|optionalBuildNumber|optionalBoolean|optionalEnum|" +
+      'optionalPositiveInt|optionalBuildNumberOrNull)\\(\\s*"([A-Z0-9_]+)"',
     "g",
   );
 

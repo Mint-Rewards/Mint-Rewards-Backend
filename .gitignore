@@ -16,3 +16,8 @@ graphify-out/
 
 # docs/ is deliberately NOT ignored: docs/VOCABULARY.md is the canonical naming
 # reference for this repo, BrandHub and the app, so it has to stay in git.
+
+# scripts/out/ holds run artifacts from location-backfill-audit.js (the audit
+# report, and transient .partial.ndjson / checkpoint files for a resumed
+# run) — real (hashed, but per-run) data, never committed.
+scripts/out/

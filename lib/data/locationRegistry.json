@@ -1182,5 +1182,79 @@
       "aliases": {},
       "coarseAdminUnits": []
     }
+  },
+  "deprecatedSubAreas": {
+    "Hyderabad::Qasimabad": [
+      "Alamdar Chowk"
+    ],
+    "Karachi::DHA": [
+      "Phase 9 (Creek Vista)"
+    ],
+    "Karachi::Clifton": [
+      "Zamzama"
+    ],
+    "Karachi::PECHS": [
+      "Khalid Bin Walid Road",
+      "Tariq Road"
+    ],
+    "Karachi::Gulshan-e-Iqbal": [
+      "University Road"
+    ],
+    "Karachi::Federal B. Area": [
+      "B Area"
+    ],
+    "Karachi::Korangi": [
+      "Korangi Industrial Area"
+    ],
+    "Karachi::Malir": [
+      "Model Colony"
+    ],
+    "Karachi::Gulshan-e-Hadeed": [
+      "Data Nagar",
+      "Gulshan-e-Mauzzam",
+      "Gulshan-e-Rehman",
+      "Mehran Road",
+      "Shah Latif Town",
+      "Steel Town"
+    ],
+    "Karachi::Orangi Town": [
+      "Banaras Town",
+      "Bangla Bazaar",
+      "Bilal Colony",
+      "Katti Pahari",
+      "Moria Goth",
+      "Orangi"
+    ],
+    "Karachi::Saddar": [
+      "Aram Bagh",
+      "Bohri Bazaar",
+      "Bombay Bazar",
+      "Kagzi Bazar",
+      "Kakri Ground",
+      "Kharadar",
+      "Lee Market",
+      "Mithadar",
+      "Nanakwara",
+      "Napier Quarter",
+      "Nishtar Road",
+      "Pan Mandi",
+      "Saddar"
+    ],
+    "Lahore::Gulberg": [
+      "Hussain Chowk",
+      "Liberty Market",
+      "MM Alam Road",
+      "Main Boulevard Gulberg"
+    ],
+    "Lahore::Model Town": [
+      "Model Town Link Road"
+    ],
+    "Lahore::Lake City": [
+      "Raiwind Road"
+    ]
+  },
+  "areaCentroids": {
+    "areas": {},
+    "cities": {}
   }
 }

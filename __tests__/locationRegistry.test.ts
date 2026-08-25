@@ -32,6 +32,14 @@ describe("getProvinceForCity", () => {
   it("returns null for an unknown city", () => {
     expect(getProvinceForCity("Nonexistent City")).toBeNull();
   });
+
+  // IMPORTANT-2: registry accessors must be fold-tolerant — LocationIQ's
+  // city string is third-party and its casing is not guaranteed to match.
+  it("is fold-tolerant: resolves regardless of case", () => {
+    expect(getProvinceForCity("karachi")).toBe("Sindh");
+    expect(getProvinceForCity("KARACHI")).toBe("Sindh");
+    expect(getProvinceForCity("KaRaChI")).toBe("Sindh");
+  });
 });
 
 describe("getCoverageTier", () => {
@@ -45,6 +53,10 @@ describe("getCoverageTier", () => {
     expect(getCoverageTier("Gujranwala")).toBe("C");
     expect(getCoverageTier("Nonexistent City")).toBe("C");
   });
+
+  it("is fold-tolerant", () => {
+    expect(getCoverageTier("karachi")).toBe("A");
+  });
 });
 
 describe("cityHasTowns", () => {
@@ -55,6 +67,10 @@ describe("cityHasTowns", () => {
   it("defaults to false for cities without one, and unknown cities", () => {
     expect(cityHasTowns("Abbottabad")).toBe(false);
     expect(cityHasTowns("Nonexistent City")).toBe(false);
+  });
+
+  it("is fold-tolerant", () => {
+    expect(cityHasTowns("karachi")).toBe(true);
   });
 });
 
@@ -193,5 +209,63 @@ describe("resolveGeocodedName — coarse administrative units", () => {
       city: "Karachi",
       town: "Orangi Town",
     });
+  });
+});
+
+// IMPORTANT-1: the app's affix-tolerant pass, ported verbatim (nameVariants,
+// utils/pakistan_areas.ts:1129-1144). Every expectation below was verified
+// directly against the app repo's own `resolveGeocodedName` (a throwaway
+// probe importing utils/pakistan_areas.ts) to confirm parity, not just this
+// port's self-consistency — same standard as the coarse-admin-unit suite
+// above.
+describe("resolveGeocodedName — affix-tolerant pass", () => {
+  it("strips an administrative 'Town' suffix the geocoder adds but the registry doesn't carry", () => {
+    expect(resolveGeocodedName("Landhi Town", "Karachi")).toEqual({
+      city: "Karachi",
+      town: "Landhi",
+    });
+    expect(resolveGeocodedName("Korangi Town", "Karachi")).toEqual({
+      city: "Karachi",
+      town: "Korangi",
+    });
+    expect(resolveGeocodedName("New Karachi Town", "Karachi")).toEqual({
+      city: "Karachi",
+      town: "New Karachi",
+    });
+  });
+
+  it("strips Islamabad's 'Sector' prefix the registry carries but the geocoder doesn't", () => {
+    expect(resolveGeocodedName("E-7", "Islamabad")).toEqual({
+      city: "Islamabad",
+      town: "Sector E-7",
+    });
+    expect(resolveGeocodedName("G-11", "Islamabad")).toEqual({
+      city: "Islamabad",
+      town: "Sector G-11",
+    });
+  });
+
+  it("still refuses a coarse admin unit even though its fold is now variant-reachable", () => {
+    // The coarse-admin-unit guard must run BEFORE the affix pass gets a
+    // chance to fold "Gulberg Town" down to "gulberg" and hand back a
+    // confident, wrong single area — see the guard's own doc comment.
+    expect(resolveGeocodedName("Gulberg Town", "Karachi")).toBeNull();
+  });
+});
+
+// IMPORTANT-2: city lookup itself must be fold-tolerant, since LocationIQ's
+// city string is third-party and its casing is not guaranteed to match the
+// registry's.
+describe("resolveGeocodedName — fold-tolerant city scoping", () => {
+  it("scopes identically whether the city arrives lowercase, uppercase, or canonical", () => {
+    const expected = { city: "Karachi", town: "Gulshan-e-Iqbal" };
+    expect(resolveGeocodedName("Gulshan-e-Iqbal", "karachi")).toEqual(expected);
+    expect(resolveGeocodedName("Gulshan-e-Iqbal", "KARACHI")).toEqual(expected);
+    expect(resolveGeocodedName("Gulshan-e-Iqbal", "Karachi")).toEqual(expected);
+  });
+
+  it("returns the canonical city casing even when scoped by a folded variant", () => {
+    const resolved = resolveGeocodedName("DHA", "karachi");
+    expect(resolved?.city).toBe("Karachi");
   });
 });

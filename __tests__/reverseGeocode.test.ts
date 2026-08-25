@@ -237,6 +237,8 @@ describe("POST /api/location/reverse-geocode", () => {
   });
 
   it("resolves via city_district when suburb is unmatched, listing the suburb as unmatched", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -256,6 +258,71 @@ describe("POST /api/location/reverse-geocode", () => {
     expect(json.resolved).toBe(true);
     expect(json.areaName).toBe("Gulshan-e-Iqbal");
     expect(json.unmatched).toEqual(["Not A Real Suburb XYZ"]);
+    // MINOR-5: the interpolated third-party string is JSON.stringify'd, so an
+    // embedded quote or control character in a LocationIQ suburb string can
+    // never break the log line's own structure.
+    expect(warnSpy).toHaveBeenCalledWith(
+      `[geocode-unmatched] ${JSON.stringify("Not A Real Suburb XYZ")}`,
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("resolves via a lowercase city string (IMPORTANT-2 fold tolerance)", async () => {
+    const LOWERCASE_CITY_LAT = 24.865;
+    const LOWERCASE_CITY_LNG = 67.015;
+    cacheKeysToClean.push(geocodeCacheKey(LOWERCASE_CITY_LAT, LOWERCASE_CITY_LNG));
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        address: {
+          city: "karachi",
+          suburb: "Gulshan-e-Iqbal",
+        },
+      }),
+    } as Response);
+
+    const res = await post({ lat: LOWERCASE_CITY_LAT, lng: LOWERCASE_CITY_LNG });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+
+    expect(json.resolved).toBe(true);
+    expect(json.cityName).toBe("karachi");
+    expect(json.areaName).toBe("Gulshan-e-Iqbal");
+  });
+
+  it("logs [geocode-unmatched-city] and still continues when cityName resolves to no known city", async () => {
+    const UNKNOWN_CITY_LAT = 24.866;
+    const UNKNOWN_CITY_LNG = 67.016;
+    cacheKeysToClean.push(geocodeCacheKey(UNKNOWN_CITY_LAT, UNKNOWN_CITY_LNG));
+
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        address: {
+          city: "Not A Real City XYZ",
+          suburb: "Gulshan-e-Iqbal",
+        },
+      }),
+    } as Response);
+
+    const res = await post({ lat: UNKNOWN_CITY_LAT, lng: UNKNOWN_CITY_LNG });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+
+    // The route still runs to completion — an unknown city does not abort
+    // the request, it just means the area lookup is effectively unscoped.
+    expect(json.cityName).toBe("Not A Real City XYZ");
+    expect(warnSpy).toHaveBeenCalledWith(
+      `[geocode-unmatched-city] ${JSON.stringify("Not A Real City XYZ")}`,
+    );
+
+    warnSpy.mockRestore();
   });
 
   it("429s when the rate limit is exceeded", async () => {

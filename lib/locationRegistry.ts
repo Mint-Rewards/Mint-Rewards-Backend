@@ -12,13 +12,15 @@
  * that could fail silently in production.
  *
  * `foldName` and `resolveGeocodedName`'s resolution order (coarse-admin-unit
- * guard, then exact, then folded, then alias, with deprecated-town handling)
- * mirror the app's own `utils/pakistan_areas.ts`. See each function's doc
- * comment for exactly what is, and is not, reproduced here — notably, the
- * app's affix-tolerant pass ("Town" suffix / Islamabad "Sector" prefix
- * stripping) is NOT reproduced, because that data is not present in the
- * committed artifact. (The `COARSE_ADMIN_UNITS` guard WAS missing in the
- * first cut of this module and was added in a fix round — see
+ * guard, then exact, then folded, then alias, then the app's affix-tolerant
+ * pass, with deprecated-town handling) mirror the app's own
+ * `utils/pakistan_areas.ts`. See each function's doc comment for exactly what
+ * is, and is not, reproduced here. City lookups (`getProvinceForCity`,
+ * `getCoverageTier`, `cityHasTowns`, and the city-scoping in
+ * `resolveGeocodedName`) are fold-tolerant, since a third-party geocoder's
+ * city string ("karachi", "KARACHI") is never guaranteed to match the
+ * registry's exact casing. (The `COARSE_ADMIN_UNITS` guard WAS missing in
+ * the first cut of this module and was added in a fix round — see
  * `coarseAdminUnits` on `CityEntry` below.)
  */
 
@@ -51,12 +53,62 @@ interface RegistryData {
 
 const registry = registryData as RegistryData;
 
+// MINOR-7: this module hard-codes assumptions about the artifact's shape
+// (e.g. every accessor below reads `entry.towns`/`entry.aliases` directly,
+// with no defensive check). A version bump the reader forgot to account for
+// should fail loudly at import time, not quietly misbehave the first time a
+// request touches a shape that changed underneath it.
+if (registry.version !== 1) {
+  throw new Error(
+    `lib/data/locationRegistry.json declares version ${registry.version}, ` +
+      "but lib/locationRegistry.ts only understands version 1. Regenerate " +
+      "the artifact and update this guard (and the accessors below) if the " +
+      "schema changed intentionally.",
+  );
+}
+
 function normalizeKey(value: string | undefined | null): string {
   return (value || "").trim();
 }
 
+// ---------------------------------------------------------------------------
+// Fold-tolerant city resolution (IMPORTANT-2)
+// ---------------------------------------------------------------------------
+
+/**
+ * foldedCityName -> canonical registry key ("Karachi", not "karachi").
+ * Built once, lazily, on first use — the city list is small (< 60 entries)
+ * and never changes at runtime.
+ */
+let cityFoldIndex: Map<string, string> | null = null;
+
+function getCityFoldIndex(): Map<string, string> {
+  if (cityFoldIndex) return cityFoldIndex;
+  cityFoldIndex = new Map();
+  for (const cityKey of Object.keys(registry.cities)) {
+    cityFoldIndex.set(foldName(cityKey), cityKey);
+  }
+  return cityFoldIndex;
+}
+
+/**
+ * Resolves a raw city string to its canonical registry key, exact match
+ * first and folded match second — so a third-party geocoder's "karachi" or
+ * "KARACHI" resolves the same city entry as the registry's own "Karachi".
+ * Returns undefined when neither an exact nor a folded key exists.
+ */
+function resolveCityKey(city: string | undefined | null): string | undefined {
+  const key = normalizeKey(city);
+  if (!key) return undefined;
+  if (registry.cities[key]) return key;
+  const folded = foldName(key);
+  if (!folded) return undefined;
+  return getCityFoldIndex().get(folded);
+}
+
 function getCityEntry(city: string): CityEntry | undefined {
-  return registry.cities[normalizeKey(city)];
+  const key = resolveCityKey(city);
+  return key ? registry.cities[key] : undefined;
 }
 
 /** The province a city belongs to, or null when the city is not in the registry. */
@@ -89,36 +141,105 @@ export function foldName(value: string): string {
 }
 
 /**
+ * Folded spellings a name may legitimately arrive under. Ported VERBATIM
+ * from the app repo's `nameVariants` (utils/pakistan_areas.ts:1129-1142).
+ *
+ * Geocoders and this registry disagree on two suffix/prefix conventions, and
+ * the disagreement is systematic rather than per-place:
+ *
+ *   - Administrative "Town" suffix. Geocoders return "Landhi Town" and
+ *     "North Nazimabad Town" for areas this registry calls "Landhi" and
+ *     "North Nazimabad".
+ *   - Islamabad "Sector" prefix. Geocoders return "E-7"; the registry says
+ *     "Sector E-7".
+ *
+ * Variants are generated for BOTH sides of the comparison (the query string
+ * AND every registered town/alias — see `getCityIndex` below), so the rule
+ * works whichever side carries the affix. Both strips are floored on the
+ * remainder so a bare "Town" or "Sector" cannot fold to the empty string and
+ * then match everything.
+ */
+function nameVariants(value: string): Set<string> {
+  const out = new Set<string>();
+  const folded = foldName(value);
+  if (!folded) return out;
+  out.add(folded);
+
+  const withoutTown = folded.replace(/town$/, "");
+  if (withoutTown.length >= 3) out.add(withoutTown);
+
+  const withoutSector = folded.replace(/^sector/, "");
+  if (withoutSector.length >= 2) out.add(withoutSector);
+
+  return out;
+}
+
+/**
  * Per-city lookup used by `resolveGeocodedName`, built once per city on
- * first use and cached: canonical towns keyed by their folded form, alias
- * strings keyed by their folded form, and the set of deprecated town names.
+ * first use and cached.
+ *
+ * `townByFold` and `aliasByFold` are keyed by every FOLDED VARIANT
+ * (`nameVariants`, not just the plain fold) of each town/alias, mapped to a
+ * SET of canonical towns — not a single town — for two reasons that both
+ * trace back to the same fact (a fold key is not guaranteed unique):
+ *
+ *  1. Affix-tolerant matching (IMPORTANT-1): "Sector E-7"'s variants include
+ *     "e7" (the "Sector" prefix stripped) alongside its plain fold
+ *     "sectore7", so a query of "E-7" — which has no affix of its own to
+ *     strip — still lands in the same bucket via the town side's stripped
+ *     variant. Folding both the query and every registered name into the
+ *     same variant space, rather than stripping only one side, is what lets
+ *     the rule fire regardless of which side carries the affix.
+ *  2. Ambiguity on collision (MINOR-3): if two DIFFERENT towns in one city
+ *     happen to fold (or affix-fold) to the same variant, a single-valued
+ *     map would silently pick whichever was written last. Storing a set
+ *     preserves both candidates, so `resolveGeocodedName`'s existing
+ *     ambiguity path (see below) returns null instead of guessing.
  */
 interface CityIndex {
-  townByFold: Map<string, string>; // foldedTownName -> canonical town
-  aliasByFold: Map<string, string>; // foldedAlias -> canonical town
+  townByFold: Map<string, Set<string>>; // folded variant -> canonical town(s)
+  aliasByFold: Map<string, Set<string>>; // folded variant -> canonical town(s) the alias(es) point to
   deprecated: Set<string>; // canonical town names hidden from new selections
   coarseAdminUnits: Set<string>; // already-folded administrative-parent strings
+}
+
+function addVariants(
+  map: Map<string, Set<string>>,
+  variants: Set<string>,
+  town: string,
+): void {
+  for (const variant of variants) {
+    let bucket = map.get(variant);
+    if (!bucket) {
+      bucket = new Set();
+      map.set(variant, bucket);
+    }
+    bucket.add(town);
+  }
 }
 
 const cityIndexCache = new Map<string, CityIndex | null>();
 
 function getCityIndex(city: string): CityIndex | null {
-  const key = normalizeKey(city);
-  const cached = cityIndexCache.get(key);
+  const cacheKey = normalizeKey(city);
+  const cached = cityIndexCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
-  const entry = registry.cities[key];
+  const resolvedKey = resolveCityKey(cacheKey);
+  const entry = resolvedKey ? registry.cities[resolvedKey] : undefined;
   if (!entry) {
-    cityIndexCache.set(key, null);
+    cityIndexCache.set(cacheKey, null);
     return null;
   }
 
-  const townByFold = new Map<string, string>();
-  for (const town of entry.towns) townByFold.set(foldName(town), town);
+  const townByFold = new Map<string, Set<string>>();
+  for (const town of entry.towns) {
+    addVariants(townByFold, nameVariants(town), town);
+  }
 
-  const aliasByFold = new Map<string, string>();
+  const aliasByFold = new Map<string, Set<string>>();
   for (const [alias, town] of Object.entries(entry.aliases)) {
-    aliasByFold.set(foldName(alias), town);
+    addVariants(aliasByFold, nameVariants(alias), town);
   }
 
   const index: CityIndex = {
@@ -130,7 +251,7 @@ function getCityIndex(city: string): CityIndex | null {
     // folding step.
     coarseAdminUnits: new Set(entry.coarseAdminUnits),
   };
-  cityIndexCache.set(key, index);
+  cityIndexCache.set(cacheKey, index);
   return index;
 }
 
@@ -143,10 +264,12 @@ export interface ResolvedLocation {
  * Resolves a raw geocoder locality to a canonical `{ city, town }`, or null
  * on a miss. Mirrors the app's `resolveGeocodedName`
  * (utils/pakistan_areas.ts): a coarse-admin-unit guard runs first, then
- * resolution order is exact match, then folded match, then alias match — all
- * compared via `foldName`, since an exact string match is always also a
- * folded match. A folded query that matches nothing (or matches ambiguously)
- * is a miss, never a guess.
+ * resolution order is exact match, then folded match, then alias match, then
+ * the affix-tolerant ("Town" suffix / Islamabad "Sector" prefix) pass — all
+ * compared via `foldName`/`nameVariants`, since an exact string match is
+ * always also a folded match, which is always also a variant match. A folded
+ * query that matches nothing (or matches ambiguously) is a miss, never a
+ * guess.
  *
  * COARSE-ADMIN-UNIT GUARD (runs before any matching, only when `city` is
  * given): an administrative parent — e.g. "Gulberg Town" in Karachi, which
@@ -155,17 +278,39 @@ export interface ResolvedLocation {
  * wrong for most of its residents. A raw string whose `foldName(...)` is in
  * that city's `coarseAdminUnits` refuses before matching even starts,
  * mirroring the app's `isCoarseAdminUnit` check and its position (before
- * exact/fold/alias) exactly. This guard is intentionally SKIPPED when `city`
- * is not given — same as the app: with no city, an ambiguous cross-city hit
- * is already refused by the ambiguity check below, and some of these strings
+ * exact/fold/alias/affix) exactly — the affix-tolerant pass below would
+ * otherwise happily fold "Gulberg Town" to "gulberg" and hand back a
+ * confident, wrong area. This guard is intentionally SKIPPED when `city` is
+ * not given — same as the app: with no city, an ambiguous cross-city hit is
+ * already refused by the ambiguity check below, and some of these strings
  * (e.g. "Bin Qasim Town") are themselves valid, unambiguous canonical town
  * names when not scoped to the one city where they are also an
  * administrative parent.
+ *
+ * `city` (and the coarse-admin-unit guard's own city scoping) is resolved
+ * fold-tolerantly — see `resolveCityKey` — so "karachi" scopes identically
+ * to "Karachi" before any town/alias matching runs.
  *
  * With `city` given, only that city is searched. Without it, every city in
  * the registry is searched, and a name matching towns in more than one city
  * is ambiguous (returns null) — town names such as "Cantt" and "Model Town"
  * repeat across cities, so an unscoped hit does not identify a single place.
+ *
+ * AFFIX-TOLERANT PASS (IMPORTANT-1, ported from the app's `nameVariants` /
+ * `resolveGeocodedName`, utils/pakistan_areas.ts:1129-1224): `townByFold` and
+ * `aliasByFold` (see `getCityIndex`) are keyed by every folded VARIANT of
+ * each town/alias, not just its plain fold, so a query variant intersecting
+ * any registered variant is a hit. This runs logically after exact/fold/alias
+ * matching and after the coarse-admin-unit guard, mirroring the app's
+ * ordering exactly: the guard refuses before ANY matching (including the
+ * affix pass) starts, and the app's own per-town loop always checks
+ * exact-self-match and alias-exact-match before falling through to the
+ * variant checks. Here, all of those checks are folded into one lookup per
+ * needle variant — which is equivalent to the app's ordering rather than a
+ * departure from it, because every check ultimately just answers "is this
+ * town a candidate," and a town keyed by a shared `Map<..., Set<town>>` is a
+ * candidate exactly once no matter which check (or which order of checks)
+ * puts it there.
  *
  * Deprecated candidates are dropped BEFORE ambiguity is judged. A deprecated
  * town's own name can tie with a live neighbour's alias for the same string —
@@ -175,16 +320,12 @@ export interface ResolvedLocation {
  * parent, not go ambiguous or silently prefer whichever was found first. This
  * exact bug existed in the app's resolver before being fixed there; the same
  * fix is ported here. A tie between two LIVE towns is left untouched and
- * returns null.
- *
- * NOT reproduced: the app's affix-tolerant pass — stripping an administrative
- * "Town" suffix or Islamabad's "Sector" prefix so e.g. "Landhi Town" matches
- * "Landhi", or bare "SITE" matches "S.I.T.E. Town". That data is not exported
- * into the committed artifact, so there is nothing here to drive it — a raw
- * string only the app's affix pass would catch is a miss here rather than a
- * resolution, which fails in the same safe direction as every other miss.
- * (Plain fold equality, e.g. "SITE Town" == "S.I.T.E. Town", IS reproduced —
- * that needs no affix stripping, just `foldName` on both sides.)
+ * returns null. The same mechanism now also catches a plain fold/variant
+ * COLLISION between two live towns (MINOR-3) — `townByFold`/`aliasByFold`
+ * map each folded variant to a SET of towns, so two distinct towns sharing a
+ * variant both surface as candidates instead of one silently overwriting the
+ * other, and (absent a deprecated tie-break) an unresolved tie between two
+ * live towns falls through to this same "ambiguous, return null" path.
  */
 export function resolveGeocodedName(
   raw: string,
@@ -196,34 +337,50 @@ export function resolveGeocodedName(
   const needle = foldName(value);
   if (!needle) return null;
 
-  const scopedCity = normalizeKey(city);
+  const needleVariants = nameVariants(value);
+
+  const scopedCityInput = normalizeKey(city);
+  // Resolved to the registry's canonical casing up front (fold-tolerant, per
+  // IMPORTANT-2) so every match recorded below — and the final returned
+  // `city` — uses that canonical form, never whatever casing the geocoder
+  // happened to send. Falls back to the raw input when it does not resolve
+  // to any known city, which preserves the pre-fix behavior of "scope to a
+  // city that turns out not to exist" -> no candidates, same as a miss.
+  const scopedCity = scopedCityInput
+    ? (resolveCityKey(scopedCityInput) ?? scopedCityInput)
+    : undefined;
 
   if (scopedCity && getCityIndex(scopedCity)?.coarseAdminUnits.has(needle)) {
     return null;
   }
 
-  const candidateCities = scopedCity ? [scopedCity] : Object.keys(registry.cities);
+  const candidateCities = scopedCity
+    ? [scopedCity]
+    : Object.keys(registry.cities);
 
   // Keyed by "City::Town" so a town name repeated across cities ("Cantt",
   // "Model Town") produces one candidate per city rather than collapsing
-  // into a single, possibly wrong, answer. Within one city, a canonical-town
-  // self-match and an alias match pointing at a DIFFERENT town can both fire
-  // for the same needle (the Shanti Nagar case above) — both are recorded so
-  // the deprecated-filter below can pick between them.
+  // into a single, possibly wrong, answer.
   const matches = new Map<string, ResolvedLocation>();
 
   for (const candidateCity of candidateCities) {
     const index = getCityIndex(candidateCity);
     if (!index) continue;
 
-    const townMatch = index.townByFold.get(needle);
-    if (townMatch) {
-      matches.set(`${candidateCity}::${townMatch}`, { city: candidateCity, town: townMatch });
-    }
+    for (const variant of needleVariants) {
+      const townMatches = index.townByFold.get(variant);
+      if (townMatches) {
+        for (const town of townMatches) {
+          matches.set(`${candidateCity}::${town}`, { city: candidateCity, town });
+        }
+      }
 
-    const aliasMatch = index.aliasByFold.get(needle);
-    if (aliasMatch) {
-      matches.set(`${candidateCity}::${aliasMatch}`, { city: candidateCity, town: aliasMatch });
+      const aliasMatches = index.aliasByFold.get(variant);
+      if (aliasMatches) {
+        for (const town of aliasMatches) {
+          matches.set(`${candidateCity}::${town}`, { city: candidateCity, town });
+        }
+      }
     }
   }
 

@@ -2,7 +2,7 @@ import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { serverEnv } from "@/lib/env";
-import { resolveGeocodedName } from "@/lib/locationRegistry";
+import { getProvinceForCity, resolveGeocodedName } from "@/lib/locationRegistry";
 import GeocodeCacheModel, { geocodeCacheKey } from "@/lib/geocodeCache";
 
 // LocationIQ's `address` object shape is loosely documented and inconsistent
@@ -56,6 +56,17 @@ function deriveGeocodeFields(
     asNonEmptyString(address.town) ??
     asNonEmptyString(address.municipality);
 
+  // IMPORTANT-2: the registry's city lookup is fold-tolerant (a third-party
+  // geocoder's casing is never guaranteed to match ours), so a miss here is a
+  // genuinely unrecognized city string, not a casing mismatch — worth logging
+  // as its own signal, separate from the per-candidate `unmatched` log below,
+  // since an unknown city means EVERY subsequent candidate is scoped to
+  // nothing and city-scoped resolution cannot help even a correctly-spelled
+  // area name.
+  if (cityName !== null && getProvinceForCity(cityName) === null) {
+    console.warn(`[geocode-unmatched-city] ${JSON.stringify(cityName)}`);
+  }
+
   // Tried IN ORDER; the response is inconsistent about which key carries the
   // locality, so each candidate is tried in turn until one resolves through
   // the registry. Every candidate tried before a hit (or all of them, on a
@@ -81,7 +92,7 @@ function deriveGeocodeFields(
     }
 
     unmatched.push(candidate);
-    console.warn(`[geocode-unmatched] ${candidate}`);
+    console.warn(`[geocode-unmatched] ${JSON.stringify(candidate)}`);
   }
 
   // Nullish-coalescing per the brief: neighbourhood first, then residential.

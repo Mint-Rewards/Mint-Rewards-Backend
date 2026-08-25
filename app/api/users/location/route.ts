@@ -118,10 +118,11 @@ export async function PATCH(req: Request) {
     // newly satisfied AND the user has not already been marked complete at
     // this (or a later) version. A repeat PATCH after completion leaves
     // locationCompletedAt untouched.
-    if (
+    const bumpsCompletionVersion =
       evaluation.complete &&
-      (user.locationVersion ?? 0) < LOCATION_COMPLETION_VERSION
-    ) {
+      (user.locationVersion ?? 0) < LOCATION_COMPLETION_VERSION;
+
+    if (bumpsCompletionVersion) {
       await UserModel.updateOne(
         { _id: userId },
         {
@@ -133,7 +134,17 @@ export async function PATCH(req: Request) {
       );
     }
 
-    return Response.json({ Status: "Success", evaluation });
+    // `evaluation` was computed from the pre-bump `user` document, so its
+    // `currentVersion` still reflects the OLD locationVersion when the bump
+    // above fires in this same request — the write above never re-reads the
+    // document. Synthesize the post-bump value here rather than re-fetching,
+    // so the response a completing PATCH gets back already shows
+    // currentVersion === version.
+    const responseEvaluation = bumpsCompletionVersion
+      ? { ...evaluation, currentVersion: LOCATION_COMPLETION_VERSION }
+      : evaluation;
+
+    return Response.json({ Status: "Success", evaluation: responseEvaluation });
   } catch {
     return Response.json(
       { error: "Your request could not be processed. Please try again." },
@@ -213,21 +224,25 @@ function dualWriteLegacyAddressField(
     case "areaId": {
       setFields.town = value;
       setFields.townOther = "";
+      setFields["structuredAddress.areaOther"] = "";
       break;
     }
     case "areaOther": {
       setFields.townOther = value;
       setFields.town = "";
+      setFields["structuredAddress.areaId"] = "";
       break;
     }
     case "blockId": {
       setFields.subArea = value;
       setFields.subAreaOther = "";
+      setFields["structuredAddress.blockOther"] = "";
       break;
     }
     case "blockOther": {
       setFields.subAreaOther = value;
       setFields.subArea = "";
+      setFields["structuredAddress.blockId"] = "";
       break;
     }
     default:

@@ -121,6 +121,69 @@ describe("PATCH /api/users/location", () => {
     expect(raw!.structuredAddress.areaId).toBe("DHA");
   });
 
+  // IMPORTANT-4: structuredAddress.areaId and structuredAddress.areaOther are
+  // mutually exclusive (models.ts's doc comment on `structuredAddress`),
+  // mirroring the legacy town/townOther pair's semantics exactly — writing
+  // one must clear the other, not just the legacy dual-write.
+  it("writing areaOther clears structuredAddress.areaId, and satisfies the areaId requirement (previously untested path)", async () => {
+    // Entering this test, the prior test left structuredAddress.areaId="DHA".
+    const res = await patch({
+      structuredAddress: { areaOther: "My Custom Colony" },
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+
+    const raw = await readRaw();
+    expect(raw!.structuredAddress.areaOther).toBe("My Custom Colony");
+    expect(raw!.structuredAddress.areaId).toBe("");
+    // Legacy dual-write pair, unaffected by this fix — asserted for parity.
+    expect(raw!.townOther).toBe("My Custom Colony");
+    expect(raw!.town).toBe("");
+    // cityId is still Karachi from the very first PATCH in this suite, so
+    // the only thing evaluateLocation should still be missing is houseNo —
+    // never areaId, since structuredAddress.areaOther alone satisfies it.
+    expect(json.evaluation.missing).not.toContain("areaId");
+    expect(json.evaluation.missing).toEqual(["houseNo"]);
+  });
+
+  it("writing areaId back clears structuredAddress.areaOther", async () => {
+    const res = await patch({ structuredAddress: { areaId: "Clifton" } });
+    expect(res.status).toBe(200);
+
+    const raw = await readRaw();
+    expect(raw!.structuredAddress.areaId).toBe("Clifton");
+    expect(raw!.structuredAddress.areaOther).toBe("");
+    expect(raw!.town).toBe("Clifton");
+    expect(raw!.townOther).toBe("");
+  });
+
+  it("writing blockOther clears structuredAddress.blockId", async () => {
+    // Entering this test, an earlier test left structuredAddress.blockId="Phase 6".
+    const res = await patch({
+      structuredAddress: { blockOther: "Custom Block 9" },
+    });
+    expect(res.status).toBe(200);
+
+    const raw = await readRaw();
+    expect(raw!.structuredAddress.blockOther).toBe("Custom Block 9");
+    expect(raw!.structuredAddress.blockId).toBe("");
+    expect(raw!.subAreaOther).toBe("Custom Block 9");
+    expect(raw!.subArea).toBe("");
+  });
+
+  it("writing blockId back clears structuredAddress.blockOther", async () => {
+    const res = await patch({ structuredAddress: { blockId: "Phase 8" } });
+    expect(res.status).toBe(200);
+
+    const raw = await readRaw();
+    expect(raw!.structuredAddress.blockId).toBe("Phase 8");
+    expect(raw!.structuredAddress.blockOther).toBe("");
+    expect(raw!.subArea).toBe("Phase 8");
+    expect(raw!.subAreaOther).toBe("");
+    // Sibling from the areaId/areaOther pair above must survive untouched.
+    expect(raw!.structuredAddress.areaId).toBe("Clifton");
+  });
+
   it("saves a coordinate pair, dual-writes latitude/longitude, and sets type/capturedAt", async () => {
     const res = await patch({
       location: {
@@ -227,6 +290,12 @@ describe("PATCH /api/users/location", () => {
       expect(res.status).toBe(200);
       const json = await res.json();
       expect(json.evaluation.complete).toBe(true);
+      // IMPORTANT-5: the completion bump fires in this same request, so the
+      // RESPONSE's evaluation must already reflect the post-bump version —
+      // not the pre-bump `user.locationVersion` the evaluation was computed
+      // from before the bump ran.
+      expect(json.evaluation.currentVersion).toBe(json.evaluation.version);
+      expect(json.evaluation.currentVersion).toBe(1);
 
       const raw = await readRaw();
       expect(raw!.locationVersion).toBe(1);

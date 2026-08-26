@@ -121,7 +121,9 @@ describe("profile-completion bonus", () => {
 
     it("is open inside the window and closed past it", () => {
       expect(isWindowOpen(new Date(now.getTime() - 23 * HOUR), now)).toBe(true);
-      expect(isWindowOpen(new Date(now.getTime() - 25 * HOUR), now)).toBe(false);
+      expect(isWindowOpen(new Date(now.getTime() - 25 * HOUR), now)).toBe(
+        false,
+      );
     });
 
     it("treats a never-stamped window as CLOSED, not open", () => {

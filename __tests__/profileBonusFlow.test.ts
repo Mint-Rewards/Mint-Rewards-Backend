@@ -46,7 +46,9 @@ import { UserModel } from "../lib/models";
 // Required after the mocks so the routes pick them up.
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { GET: getMyProfile } = require("../app/api/users/my-profile/route");
-const { PUT: putUpdateProfile } = require("../app/api/users/update-profile/route");
+const {
+  PUT: putUpdateProfile,
+} = require("../app/api/users/update-profile/route");
 const { PATCH: patchLocation } = require("../app/api/users/location/route");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -63,7 +65,10 @@ const updateProfile = (body: unknown) =>
   putUpdateProfile(
     new Request("http://localhost/api/users/update-profile", {
       method: "PUT",
-      headers: { authorization: "test-token", "content-type": "application/json" },
+      headers: {
+        authorization: "test-token",
+        "content-type": "application/json",
+      },
       body: JSON.stringify(body),
     }),
   );
@@ -72,7 +77,10 @@ const patchUserLocation = (body: unknown) =>
   patchLocation(
     new Request("http://localhost/api/users/location", {
       method: "PATCH",
-      headers: { authorization: "test-token", "content-type": "application/json" },
+      headers: {
+        authorization: "test-token",
+        "content-type": "application/json",
+      },
       body: JSON.stringify(body),
     }),
   );
@@ -132,9 +140,9 @@ describe("profile-completion bonus — end to end", () => {
       // the app twice before seeing the badge would have burned part of a
       // window nobody told them about.
       expect(body.user.profileBonusWindowStartedAt).toBeTruthy();
-      expect((await readRaw(user._id))?.profileBonusWindowStartedAt).toBeInstanceOf(
-        Date,
-      );
+      expect(
+        (await readRaw(user._id))?.profileBonusWindowStartedAt,
+      ).toBeInstanceOf(Date);
     });
 
     it("does not re-stamp on later opens", async () => {
@@ -193,7 +201,11 @@ describe("profile-completion bonus — end to end", () => {
         address: "Some street",
       });
       await patchUserLocation({
-        structuredAddress: { cityId: "Karachi", areaId: "DHA", houseNo: "12-C" },
+        structuredAddress: {
+          cityId: "Karachi",
+          areaId: "DHA",
+          houseNo: "12-C",
+        },
       });
     };
 

@@ -47,7 +47,8 @@ export interface ProfileBonusWindow {
  * deal and wrong for anything measured in hours.
  */
 export function isCampaignLive(now: Date = new Date()): boolean {
-  const { enabled, campaignStart, campaignEnd } = serverEnv.appConfig.profileBonus;
+  const { enabled, campaignStart, campaignEnd } =
+    serverEnv.appConfig.profileBonus;
   if (!enabled) return false;
 
   const at = now.getTime();

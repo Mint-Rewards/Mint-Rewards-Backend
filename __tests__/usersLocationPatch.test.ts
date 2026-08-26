@@ -27,6 +27,7 @@ jest.mock("@/lib/auth", () => ({
 }));
 
 // Imported after the mock so the route picks up the mocked auth.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { PATCH } = require("@/app/api/users/location/route");
 
 const patch = (body: unknown) =>

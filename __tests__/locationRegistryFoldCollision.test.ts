@@ -49,6 +49,7 @@ jest.mock(
 
 // Imported after the mock so the module builds its per-city index off the
 // synthetic registry above, not the real committed artifact.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { resolveGeocodedName } = require("@/lib/locationRegistry");
 
 describe("resolveGeocodedName — fold-collision ambiguity (MINOR-3)", () => {

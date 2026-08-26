@@ -42,7 +42,7 @@ function restore(snapshot: EnvSnapshot): void {
 function freshServerEnv(): typeof import("../lib/env").serverEnv {
   let result: typeof import("../lib/env").serverEnv | undefined;
   jest.isolateModules(() => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     result = require("../lib/env").serverEnv;
   });
   if (!result) throw new Error("isolateModules callback did not run");
@@ -53,7 +53,7 @@ function freshServerEnv(): typeof import("../lib/env").serverEnv {
 function freshGetAppConfig(): typeof import("../app/api/app-config/route").GET {
   let result: typeof import("../app/api/app-config/route").GET | undefined;
   jest.isolateModules(() => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     result = require("../app/api/app-config/route").GET;
   });
   if (!result) throw new Error("isolateModules callback did not run");

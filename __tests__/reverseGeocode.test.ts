@@ -54,6 +54,7 @@ import { geocodeCacheKey } from "../lib/geocodeCache";
 import registryArtifact from "../lib/data/locationRegistry.json";
 
 // Imported after the mocks so the route picks up the mocked env/auth/rateLimit.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { POST } = require("../app/api/location/reverse-geocode/route");
 
 const post = (body: unknown) =>

@@ -26,6 +26,7 @@ describe("lib/locationRegistry — version guard", () => {
     }));
 
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       expect(() => require("@/lib/locationRegistry")).toThrow(
         /version 2[\s\S]*only understands version 1/,
       );
@@ -36,6 +37,7 @@ describe("lib/locationRegistry — version guard", () => {
   });
 
   it("loads without error for the real committed artifact (version 1)", () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     expect(() => require("@/lib/locationRegistry")).not.toThrow();
   });
 });

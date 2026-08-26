@@ -142,7 +142,7 @@ export function foldName(value: string): string {
 
 /**
  * Folded spellings a name may legitimately arrive under. Ported VERBATIM
- * from the app repo's `nameVariants` (utils/pakistan_areas.ts:1129-1142).
+ * from the app repo's `nameVariants` (utils/pakistan_areas.ts:1590-1603).
  *
  * Geocoders and this registry disagree on two suffix/prefix conventions, and
  * the disagreement is systematic rather than per-place:
@@ -297,7 +297,7 @@ export interface ResolvedLocation {
  * repeat across cities, so an unscoped hit does not identify a single place.
  *
  * AFFIX-TOLERANT PASS (IMPORTANT-1, ported from the app's `nameVariants` /
- * `resolveGeocodedName`, utils/pakistan_areas.ts:1129-1224): `townByFold` and
+ * `resolveGeocodedName`, utils/pakistan_areas.ts:1590-2023): `townByFold` and
  * `aliasByFold` (see `getCityIndex`) are keyed by every folded VARIANT of
  * each town/alias, not just its plain fold, so a query variant intersecting
  * any registered variant is a hit. This runs logically after exact/fold/alias

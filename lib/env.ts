@@ -408,12 +408,12 @@ const parsed = {
     // a client release, not a server deploy, and the server never needs to
     // know the client's own version/build to decide anything.
     locationGate: {
-      // "soft" MUST remain the deployed default until 2.1.10 store adoption
+      // "soft" MUST remain the deployed default until 2.1.11 store adoption
       // is high enough to justify "hard" — see .env.example.
       mode: optionalEnum(
         "LOCATION_GATE_MODE",
         ["hard", "soft", "off"] as const,
-        "hard",
+        "soft",
       ),
       activatedCitiesOnly: optionalBoolean(
         "LOCATION_GATE_ACTIVATED_CITIES_ONLY",

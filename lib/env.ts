@@ -472,7 +472,7 @@ const parsed = {
      * setting dates, not by deploying.
      */
     profileBonus: {
-      enabled: optionalBoolean("PROFILE_BONUS_ENABLED=true"),
+      enabled: optionalBoolean("PROFILE_BONUS_ENABLED"),
       points: optionalPositiveInt("PROFILE_BONUS_POINTS", 100),
       windowHours: optionalPositiveInt("PROFILE_BONUS_WINDOW_HOURS", 24),
       // Null means "unbounded on this end". Both null with enabled=true is a

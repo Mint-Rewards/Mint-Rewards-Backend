@@ -48,13 +48,47 @@ function asNonEmptyString(value: unknown): string | null {
  * response for a fresh fetch. A cache HIT does NOT call this again; see the
  * comment in POST below for why.
  */
+/**
+ * Administrative suffixes OSM hangs off a city's name at the city rung.
+ *
+ * Karachi is the one that matters and it is not an edge case: LocationIQ
+ * answers `city: "Karachi Division"` for every point in the city, including
+ * DHA. `"Karachi Division"` is not a registry city, so `getProvinceForCity`
+ * missed, the area lookup was scoped to nothing, and `"Defence"` — which is a
+ * curated DHA alias and resolves perfectly under `"Karachi"` — resolved to
+ * null. Every area in Karachi failed the same way, which is exactly the
+ * failure the IMPORTANT-2 comment below predicted in the abstract.
+ *
+ * Stripping is safe rather than lucky: no city in the registry ends in one of
+ * these words (asserted in this route's tests), so a strip can only ever turn a
+ * non-city into a city, never one city into a different one.
+ */
+const CITY_ADMIN_SUFFIXES = /\s+(Division|District|Tehsil)$/i;
+
+/**
+ * Maps a geocoder's city string onto a registry city where it plainly names
+ * one, and otherwise leaves it exactly as it came.
+ *
+ * Deliberately conservative: the stripped form is only adopted when it IS a
+ * registry city. A geocoder naming somewhere genuinely outside the registry
+ * still comes through untouched, so it is still logged as unmatched and still
+ * scopes nothing — the signal is preserved rather than papered over.
+ */
+function normalizeGeocodedCity(raw: string | null): string | null {
+  if (raw === null) return null;
+  if (getProvinceForCity(raw) !== null) return raw;
+  const stripped = raw.replace(CITY_ADMIN_SUFFIXES, "").trim();
+  return stripped && getProvinceForCity(stripped) !== null ? stripped : raw;
+}
+
 function deriveGeocodeFields(
   address: LocationIqAddress,
 ): Omit<ReverseGeocodeResult, "resolved" | "raw"> {
-  const cityName =
+  const cityName = normalizeGeocodedCity(
     asNonEmptyString(address.city) ??
-    asNonEmptyString(address.town) ??
-    asNonEmptyString(address.municipality);
+      asNonEmptyString(address.town) ??
+      asNonEmptyString(address.municipality),
+  );
 
   // IMPORTANT-2: the registry's city lookup is fold-tolerant (a third-party
   // geocoder's casing is never guaranteed to match ours), so a miss here is a
@@ -197,11 +231,30 @@ export async function POST(req: Request) {
 
     const url =
       `https://us1.locationiq.com/v1/reverse?key=${encodeURIComponent(apiKey)}` +
-      `&lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=16`;
+      `&lat=${lat}&lon=${lng}&format=json&addressdetails=1&zoom=16` +
+      `&accept-language=en`;
 
     let response: Response;
     try {
-      response = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      response = await fetch(url, {
+        signal: AbortSignal.timeout(3000),
+        headers: {
+          // THE LANGUAGE MUST BE PINNED, and the default is actively wrong.
+          // Node's fetch (undici) sends `Accept-Language: *` when nothing is
+          // set, and LocationIQ reads `*` as "return the NATIVE name" — so
+          // every Karachi lookup came back in Urdu ("ضلع کراچی", "کراچی
+          // ڈویژن") and could not possibly match a Latin-script registry.
+          // Every candidate was logged as unmatched and nothing ever resolved,
+          // which looks exactly like a coverage problem and is not one.
+          //
+          // The app repo's geocode spike hit this and pinned it in
+          // `scripts/geocode-spike/fetchWithPolicy.js`; that lesson never
+          // reached this route. The header is what actually fixes it — the
+          // query parameter above is belt and braces, and makes the intent
+          // visible at the URL.
+          "Accept-Language": "en",
+        },
+      });
     } catch {
       // Fetch rejection or timeout. Never a 5xx from this route, and never
       // cached — only a successful LocationIQ response is cached.

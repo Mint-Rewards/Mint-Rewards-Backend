@@ -51,6 +51,7 @@ jest.mock("../lib/rateLimit", () => {
 
 import connectToDatabase from "../lib/mongodb";
 import { geocodeCacheKey } from "../lib/geocodeCache";
+import registryArtifact from "../lib/data/locationRegistry.json";
 
 // Imported after the mocks so the route picks up the mocked env/auth/rateLimit.
 const { POST } = require("../app/api/location/reverse-geocode/route");
@@ -94,11 +95,22 @@ const UNMATCHED_LNG = 67.013;
 const RATE_LIMIT_LAT = 24.864;
 const RATE_LIMIT_LNG = 67.014;
 
+/** Real LocationIQ payloads from DHA Karachi — see the DIVISION_* tests. */
+const DIVISION_LAT = 24.814634;
+const DIVISION_LNG = 67.080003;
+const DIVISION_UNKNOWN_LAT = 24.814;
+const DIVISION_UNKNOWN_LNG = 67.081;
+const LANG_LAT = 24.815;
+const LANG_LNG = 67.082;
+
 const cacheKeysToClean = [
   geocodeCacheKey(HAPPY_LAT, HAPPY_LNG),
   geocodeCacheKey(REJECT_LAT, REJECT_LNG),
   geocodeCacheKey(UNMATCHED_LAT, UNMATCHED_LNG),
   geocodeCacheKey(RATE_LIMIT_LAT, RATE_LIMIT_LNG),
+  geocodeCacheKey(DIVISION_LAT, DIVISION_LNG),
+  geocodeCacheKey(DIVISION_UNKNOWN_LAT, DIVISION_UNKNOWN_LNG),
+  geocodeCacheKey(LANG_LAT, LANG_LNG),
 ];
 
 let fetchMock: jest.SpiedFunction<typeof fetch>;
@@ -137,6 +149,95 @@ afterAll(async () => {
 });
 
 describe("POST /api/location/reverse-geocode", () => {
+  it("asks LocationIQ for English, which undici does not do by default", async () => {
+    // Node's fetch sends `Accept-Language: *` when nothing is set, and
+    // LocationIQ reads `*` as "return the NATIVE name" — so every Karachi
+    // lookup came back in Urdu ("کراچی ڈویژن", "ضلع کراچی") and could not
+    // match a Latin-script registry. Nothing resolved, anywhere, and it looked
+    // exactly like a coverage problem. Pinned in the header AND the query so
+    // neither can be dropped silently.
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        address: { city: "Karachi", suburb: "Gulshan-e-Iqbal" },
+      }),
+    } as Response);
+
+    await post({ lat: LANG_LAT, lng: LANG_LNG });
+
+    const [calledUrl, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(calledUrl).toContain("accept-language=en");
+    expect(
+      (init.headers as Record<string, string>)["Accept-Language"],
+    ).toBe("en");
+  });
+
+  it("resolves DHA when LocationIQ names the city 'Karachi Division'", async () => {
+    // NOT a synthetic payload: this is verbatim what LocationIQ answers at the
+    // DHA centroid. `city` is the DIVISION, and "Defence" is a curated DHA
+    // alias that resolves under "Karachi" and to null under "Karachi Division".
+    // Before the city was normalized, every area in Karachi failed this way and
+    // the town never prefilled anywhere in the city.
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        address: {
+          city: "Karachi Division",
+          suburb: "Defence",
+        },
+      }),
+    } as Response);
+
+    const res = await post({ lat: DIVISION_LAT, lng: DIVISION_LNG });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+
+    expect(json.cityName).toBe("Karachi");
+    expect(json.areaName).toBe("DHA");
+    expect(json.resolved).toBe(true);
+  });
+
+  it("leaves a city it cannot map alone, so the unmatched signal survives", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        address: {
+          // Stripping the suffix does not produce a registry city either, so
+          // the original string must come through untouched and still be
+          // logged — normalization must not paper over a genuine gap.
+          city: "Atlantis Division",
+          suburb: "Gulshan-e-Iqbal",
+        },
+      }),
+    } as Response);
+
+    const res = await post({
+      lat: DIVISION_UNKNOWN_LAT,
+      lng: DIVISION_UNKNOWN_LNG,
+    });
+    const json = await res.json();
+
+    expect(json.cityName).toBe("Atlantis Division");
+    expect(warnSpy).toHaveBeenCalledWith(
+      `[geocode-unmatched-city] ${JSON.stringify("Atlantis Division")}`,
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("no registry city ends in an admin suffix, so stripping cannot collide", () => {
+    // The safety argument for CITY_ADMIN_SUFFIXES, asserted rather than
+    // assumed: a strip can only turn a non-city into a city, never one city
+    // into a different one.
+    const cities = Object.keys(registryArtifact.cities);
+    expect(
+      cities.filter((c) => /\s+(Division|District|Tehsil)$/i.test(c)),
+    ).toEqual([]);
+  });
+
   it("resolves a suburb to its registry town and writes the cache document", async () => {
     fetchMock.mockResolvedValue({
       ok: true,

@@ -413,7 +413,7 @@ const parsed = {
       mode: optionalEnum(
         "LOCATION_GATE_MODE",
         ["hard", "soft", "off"] as const,
-        "soft",
+        "hard",
       ),
       activatedCitiesOnly: optionalBoolean(
         "LOCATION_GATE_ACTIVATED_CITIES_ONLY",

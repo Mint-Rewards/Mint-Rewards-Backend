@@ -164,7 +164,9 @@ describe("pickupHistory.addressSnapshot persistence", () => {
     expect(snapped.addressSnapshot.address).toBe("House 12, Street 4");
     expect(snapped.addressSnapshot.structuredAddress.areaId).toBe("Korangi");
     expect(snapped.addressSnapshot.structuredAddress.houseNo).toBe("12");
-    expect(snapped.addressSnapshot.location.coordinates).toEqual([67.12, 24.83]);
+    expect(snapped.addressSnapshot.location.coordinates).toEqual([
+      67.12, 24.83,
+    ]);
     expect(snapped.addressSnapshot.location.source).toBe("map_pin");
     expect(snapped.addressSnapshot.location.precision).toBe("building");
     expect(snapped.addressSnapshot.snapshotSource).toBe("creation");

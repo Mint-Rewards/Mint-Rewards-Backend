@@ -22,6 +22,7 @@ Repo: `Mint-Rewards-Backend`, branch `feature/location-capture-p0`. One task.
 
 **1a. Artifact extension (app repo).** The audit needs two datasets the committed
 registry artifact lacks:
+
 - `deprecatedSubAreas`: export the app's `DEPRECATED_SUB_AREAS` per city (keyed
   `"City::Town"` → sorted string array).
 - `areaCentroids`: export `AREA_CENTROIDS` and `CITY_CENTROIDS`. **These are currently
@@ -30,15 +31,16 @@ registry artifact lacks:
   If found: ingest into `AREA_CENTROIDS`-shaped data WITHIN THE GENERATOR ONLY (do not
   edit pakistan_areas.ts — read the JSON from its found location, or copy it into
   `scripts/data/`). If not found anywhere: export the empty maps, add a `--centroids
-  <path>` override flag to the audit script, and report the gap prominently.
-Regenerate BOTH artifacts (app fixture + backend `lib/data/locationRegistry.json`),
-keep byte-stable, keep the sync test green.
+<path>` override flag to the audit script, and report the gap prominently.
+  Regenerate BOTH artifacts (app fixture + backend `lib/data/locationRegistry.json`),
+  keep byte-stable, keep the sync test green.
 
 **1b. Script `scripts/location-backfill-audit.ts`** (backend; runnable via npx tsx or
 compiled — match however existing backend scripts run; if all existing scripts are .js,
 write .js with JSDoc types):
 
 Per user (all users with any of: coordinates, town, subArea):
+
 - Parse legacy `latitude`/`longitude` (skip GeoJSON-vs-string mismatch traps; prefer
   `location.coordinates` when present).
 - Bucket, in priority order:
@@ -58,6 +60,7 @@ Per user (all users with any of: coordinates, town, subArea):
   city, town) + a printed summary table (bucket × city counts).
 
 **1c. Fold in the two owed counts** (same connection, same run):
+
 - P0.5: aggregate count of users per deprecated sub-area entry (the sign-off evidence).
 - P0.4b gate: `countDocuments({ "pickupHistory.0": { $exists: true } })` — prints the
   number that decides whether the migration exists.

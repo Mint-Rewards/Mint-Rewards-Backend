@@ -41,14 +41,14 @@ It imports from `utils/pakistan_areas.ts` and writes JSON to stdout or a `--out`
   "cities": {
     "Karachi": {
       "province": "Sindh",
-      "tier": "A",                      // from getCoverageTier(city)
-      "hasTowns": true,                 // cityHasTowns(city)
-      "towns": ["..."],                // getTownsForCity — ALL stored towns
-      "selectableTowns": ["..."],      // getSelectableTownsForCity
-      "deprecatedTowns": ["..."],      // DEPRECATED_TOWNS[city] ?? []
-      "aliases": { "Shanti Nagar": "Gulshan-e-Iqbal" }  // from AREA_META[`${city}::${town}`].aliases, inverted alias→town
-    }
-  }
+      "tier": "A", // from getCoverageTier(city)
+      "hasTowns": true, // cityHasTowns(city)
+      "towns": ["..."], // getTownsForCity — ALL stored towns
+      "selectableTowns": ["..."], // getSelectableTownsForCity
+      "deprecatedTowns": ["..."], // DEPRECATED_TOWNS[city] ?? []
+      "aliases": { "Shanti Nagar": "Gulshan-e-Iqbal" }, // from AREA_META[`${city}::${town}`].aliases, inverted alias→town
+    },
+  },
 }
 ```
 
@@ -87,13 +87,13 @@ ambiguity → null when unscoped. Read the real committed artifact, no fixtures.
 Extend `lib/env.ts` `serverEnv.appConfig` (additive) and the `/api/app-config` response
 with a `locationGate` object. Use the existing optional-helper patterns in `lib/env.ts`.
 
-| Env var | Type | Default |
-|---|---|---|
-| `LOCATION_GATE_MODE` | enum `hard\|soft\|off` | `"soft"` |
-| `LOCATION_GATE_ACTIVATED_CITIES_ONLY` | boolean | `false` |
-| `LOCATION_GATE_MAX_DISMISSALS` | positive int | `3` |
-| `LOCATION_GATE_MIN_BUILD_IOS` | optional build number | unset → null |
-| `LOCATION_GATE_MIN_BUILD_ANDROID` | optional build number | unset → null |
+| Env var                               | Type                   | Default      |
+| ------------------------------------- | ---------------------- | ------------ |
+| `LOCATION_GATE_MODE`                  | enum `hard\|soft\|off` | `"soft"`     |
+| `LOCATION_GATE_ACTIVATED_CITIES_ONLY` | boolean                | `false`      |
+| `LOCATION_GATE_MAX_DISMISSALS`        | positive int           | `3`          |
+| `LOCATION_GATE_MIN_BUILD_IOS`         | optional build number  | unset → null |
+| `LOCATION_GATE_MIN_BUILD_ANDROID`     | optional build number  | unset → null |
 
 Response addition (existing fields UNCHANGED):
 
@@ -128,13 +128,13 @@ export const LOCATION_COMPLETION_VERSION = 1;
 
 export interface LocationEvaluation {
   complete: boolean;
-  missing: string[];          // subset of ["cityId","areaId","houseNo","pin"]
-  version: number;            // LOCATION_COMPLETION_VERSION
-  currentVersion: number;     // user.locationVersion ?? 0
+  missing: string[]; // subset of ["cityId","areaId","houseNo","pin"]
+  version: number; // LOCATION_COMPLETION_VERSION
+  currentVersion: number; // user.locationVersion ?? 0
   bucket: "complete" | "has_pin_partial" | "no_pin";
 }
 
-export function evaluateLocation(user): LocationEvaluation
+export function evaluateLocation(user): LocationEvaluation;
 ```
 
 Field satisfaction (escape hatches count — a hard gate must never demand a value the

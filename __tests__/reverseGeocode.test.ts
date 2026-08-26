@@ -169,9 +169,9 @@ describe("POST /api/location/reverse-geocode", () => {
 
     const [calledUrl, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(calledUrl).toContain("accept-language=en");
-    expect(
-      (init.headers as Record<string, string>)["Accept-Language"],
-    ).toBe("en");
+    expect((init.headers as Record<string, string>)["Accept-Language"]).toBe(
+      "en",
+    );
   });
 
   it("resolves DHA when LocationIQ names the city 'Karachi Division'", async () => {
@@ -373,7 +373,9 @@ describe("POST /api/location/reverse-geocode", () => {
   it("resolves via a lowercase city string (IMPORTANT-2 fold tolerance)", async () => {
     const LOWERCASE_CITY_LAT = 24.865;
     const LOWERCASE_CITY_LNG = 67.015;
-    cacheKeysToClean.push(geocodeCacheKey(LOWERCASE_CITY_LAT, LOWERCASE_CITY_LNG));
+    cacheKeysToClean.push(
+      geocodeCacheKey(LOWERCASE_CITY_LAT, LOWERCASE_CITY_LNG),
+    );
 
     fetchMock.mockResolvedValue({
       ok: true,
@@ -386,7 +388,10 @@ describe("POST /api/location/reverse-geocode", () => {
       }),
     } as Response);
 
-    const res = await post({ lat: LOWERCASE_CITY_LAT, lng: LOWERCASE_CITY_LNG });
+    const res = await post({
+      lat: LOWERCASE_CITY_LAT,
+      lng: LOWERCASE_CITY_LNG,
+    });
     expect(res.status).toBe(200);
     const json = await res.json();
 

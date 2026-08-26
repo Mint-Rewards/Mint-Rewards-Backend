@@ -13,9 +13,11 @@ import {
 
 describe("locationRegistry artifact", () => {
   it("parses and contains Karachi with tier A and >70 towns", () => {
-    const karachi = (registryData as typeof registryData & {
-      cities: Record<string, { tier: string; towns: string[] }>;
-    }).cities["Karachi"];
+    const karachi = (
+      registryData as typeof registryData & {
+        cities: Record<string, { tier: string; towns: string[] }>;
+      }
+    ).cities["Karachi"];
 
     expect(karachi).toBeDefined();
     expect(karachi.tier).toBe("A");
@@ -84,7 +86,9 @@ describe("foldName", () => {
     expect(foldName("Gulshan-e-Iqbal")).toBe(foldName("gulshan e iqbal"));
     expect(foldName("Federal B. Area")).toBe("federalbarea");
     expect(foldName("DHA")).toBe("dha");
-    expect(foldName("Defence Housing Authority")).toBe("defencehousingauthority");
+    expect(foldName("Defence Housing Authority")).toBe(
+      "defencehousingauthority",
+    );
     expect(foldName("Sadder")).toBe("sadder");
     expect(foldName("Shanti Nagar")).toBe("shantinagar");
     expect(foldName("P.E.C.H.S.")).toBe(foldName("PECHS"));

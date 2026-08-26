@@ -29,7 +29,10 @@ const put = (body: unknown) =>
   PUT(
     new Request("http://localhost/api/users/update-profile", {
       method: "PUT",
-      headers: { authorization: "test-token", "content-type": "application/json" },
+      headers: {
+        authorization: "test-token",
+        "content-type": "application/json",
+      },
       body: JSON.stringify(body),
     }),
   );
@@ -145,7 +148,12 @@ describe("PUT /api/users/update-profile — structured location", () => {
     await put({
       latitude: "11.1111",
       longitude: "22.2222",
-      location: { lat: 24.9, lng: 67.1, source: "map_pin", precision: "building" },
+      location: {
+        lat: 24.9,
+        lng: 67.1,
+        source: "map_pin",
+        precision: "building",
+      },
     });
     const doc = await readRaw();
     expect(doc!.latitude).toBe("11.1111");

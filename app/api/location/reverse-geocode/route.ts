@@ -2,7 +2,10 @@ import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 import { serverEnv } from "@/lib/env";
-import { getProvinceForCity, resolveGeocodedName } from "@/lib/locationRegistry";
+import {
+  getProvinceForCity,
+  resolveGeocodedName,
+} from "@/lib/locationRegistry";
 import GeocodeCacheModel, { geocodeCacheKey } from "@/lib/geocodeCache";
 
 // LocationIQ's `address` object shape is loosely documented and inconsistent
@@ -277,8 +280,7 @@ export async function POST(req: Request) {
       payload !== null &&
       typeof (payload as Record<string, unknown>).address === "object" &&
       (payload as Record<string, unknown>).address !== null
-        ? ((payload as Record<string, unknown>)
-            .address as LocationIqAddress)
+        ? ((payload as Record<string, unknown>).address as LocationIqAddress)
         : null;
 
     if (!address) {

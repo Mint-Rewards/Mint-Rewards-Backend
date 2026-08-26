@@ -232,18 +232,10 @@ export type LocationSource =
  * users all share one coordinate.
  */
 export type LocationPrecision =
-  | "building"
-  | "block"
-  | "area"
-  | "city"
-  | "unknown";
+  "building" | "block" | "area" | "city" | "unknown";
 
 export type LocationVerificationStatus =
-  | "unverified"
-  | "auto_verified"
-  | "user_corrected"
-  | "mismatch"
-  | "unresolved";
+  "unverified" | "auto_verified" | "user_corrected" | "mismatch" | "unresolved";
 
 export interface User {
   userName: string;

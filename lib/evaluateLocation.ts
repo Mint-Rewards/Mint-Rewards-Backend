@@ -37,7 +37,12 @@ export interface LocationEvaluation {
 export type EvaluableUser = Partial<
   Pick<
     User,
-    "city" | "town" | "townOther" | "structuredAddress" | "location" | "locationVersion"
+    | "city"
+    | "town"
+    | "townOther"
+    | "structuredAddress"
+    | "location"
+    | "locationVersion"
   >
 >;
 
@@ -52,7 +57,8 @@ function nonEmpty(value: string | undefined | null): boolean {
  * `city` string if non-empty, else undefined.
  */
 function resolveCity(user: EvaluableUser): string | undefined {
-  if (nonEmpty(user.structuredAddress?.cityId)) return user.structuredAddress!.cityId;
+  if (nonEmpty(user.structuredAddress?.cityId))
+    return user.structuredAddress!.cityId;
   if (nonEmpty(user.city)) return user.city;
   return undefined;
 }
@@ -78,7 +84,11 @@ function hasHouseNo(user: EvaluableUser): boolean {
 function hasPin(user: EvaluableUser): boolean {
   const coordinates = user.location?.coordinates;
   if (!Array.isArray(coordinates) || coordinates.length !== 2) return false;
-  if (!coordinates.every((value) => typeof value === "number" && Number.isFinite(value))) {
+  if (
+    !coordinates.every(
+      (value) => typeof value === "number" && Number.isFinite(value),
+    )
+  ) {
     return false;
   }
   const source = user.location?.source;
@@ -103,7 +113,9 @@ function requiredFields(city: string | undefined): LocationRequirementField[] {
   const hasTowns = cityHasTowns(lookupCity);
   const areaSelectable = (tier === "A" || tier === "B") && hasTowns;
 
-  return areaSelectable ? ["cityId", "areaId", "houseNo"] : ["cityId", "houseNo", "pin"];
+  return areaSelectable
+    ? ["cityId", "areaId", "houseNo"]
+    : ["cityId", "houseNo", "pin"];
 }
 
 export function evaluateLocation(user: EvaluableUser): LocationEvaluation {

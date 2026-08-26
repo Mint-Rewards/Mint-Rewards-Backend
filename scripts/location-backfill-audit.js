@@ -244,7 +244,8 @@ function buildRegistryContext(artifact, overrideCentroids) {
  */
 function loadCentroidsOverride(filePath) {
   const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
-  const map = raw && typeof raw === "object" && raw.centroids ? raw.centroids : raw;
+  const map =
+    raw && typeof raw === "object" && raw.centroids ? raw.centroids : raw;
 
   /** @type {Record<string, { centroid: LngLat; maxSampleRadiusMeters: number }>} */
   const out = {};
@@ -299,7 +300,12 @@ function bucketUser(user, ctx, options = {}) {
   if (key && subArea) {
     const deprecatedSet = ctx.deprecatedSubAreas[key];
     if (deprecatedSet && deprecatedSet.has(subArea)) {
-      return { bucket: "deprecated_sub_area", distanceMeters: null, city, town };
+      return {
+        bucket: "deprecated_sub_area",
+        distanceMeters: null,
+        city,
+        town,
+      };
     }
   }
 
@@ -486,22 +492,34 @@ function assertDatabaseMatchesTarget(target, dbName) {
 }
 
 function hashUserId(id) {
-  return crypto.createHash("sha256").update(String(id)).digest("hex").slice(0, 16);
+  return crypto
+    .createHash("sha256")
+    .update(String(id))
+    .digest("hex")
+    .slice(0, 16);
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const target = parseTarget(args);
 
-  const mongoUriKey = target === "production" ? "MONGODB_URI" : "MONGODB_URI_TEST";
+  const mongoUriKey =
+    target === "production" ? "MONGODB_URI" : "MONGODB_URI_TEST";
   const mongoUri = process.env[mongoUriKey];
   if (!mongoUri) {
-    throw new Error(`${mongoUriKey} is not set — required by --target=${target}.`);
+    throw new Error(
+      `${mongoUriKey} is not set — required by --target=${target}.`,
+    );
   }
 
-  const thresholdKm = args["threshold-km"] !== undefined ? Number(args["threshold-km"]) : undefined;
+  const thresholdKm =
+    args["threshold-km"] !== undefined
+      ? Number(args["threshold-km"])
+      : undefined;
   if (thresholdKm !== undefined && !Number.isFinite(thresholdKm)) {
-    throw new Error(`--threshold-km must be a number, got "${args["threshold-km"]}".`);
+    throw new Error(
+      `--threshold-km must be a number, got "${args["threshold-km"]}".`,
+    );
   }
 
   const overrideCentroids = args.centroids
@@ -528,7 +546,9 @@ async function main() {
     throw err;
   }
 
-  console.log(`Target: ${target} (${mongoUriKey}) — database "${dbName}" [READ-ONLY]`);
+  console.log(
+    `Target: ${target} (${mongoUriKey}) — database "${dbName}" [READ-ONLY]`,
+  );
 
   const ctx = buildRegistryContext(registryArtifact, overrideCentroids);
   const totalCentroids = Object.keys(ctx.centroids).length;
@@ -536,15 +556,20 @@ async function main() {
   // ---- resume support ----------------------------------------------------
   let lastId = null;
   let ndjsonMode = "w";
-  if (fs.existsSync(checkpointPath)) {
+  try {
     const checkpoint = JSON.parse(fs.readFileSync(checkpointPath, "utf8"));
-    if (checkpoint.target === target && checkpoint.mongoUriKey === mongoUriKey) {
+    if (
+      checkpoint.target === target &&
+      checkpoint.mongoUriKey === mongoUriKey
+    ) {
       lastId = checkpoint.lastId;
       ndjsonMode = "a";
       console.log(`Resuming from checkpoint after _id ${lastId}.`);
     } else {
       console.log("Checkpoint belongs to a different target — starting fresh.");
     }
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
   }
 
   const users = mongoose.connection.collection("users");
@@ -608,9 +633,16 @@ async function main() {
     if (processed % CHECKPOINT_EVERY === 0) {
       fs.writeFileSync(
         checkpointPath,
-        JSON.stringify({ target, mongoUriKey, lastId: cursorLastId, processed }),
+        JSON.stringify({
+          target,
+          mongoUriKey,
+          lastId: cursorLastId,
+          processed,
+        }),
       );
-      console.log(`  ...checkpoint at ${processed} users (last _id ${cursorLastId})`);
+      console.log(
+        `  ...checkpoint at ${processed} users (last _id ${cursorLastId})`,
+      );
     }
   }
   ndjsonStream.end();
@@ -633,7 +665,8 @@ async function main() {
   for (const row of rows) {
     byBucket[row.bucket] = (byBucket[row.bucket] || 0) + 1;
     byBucketAndCity[row.bucket] = byBucketAndCity[row.bucket] || {};
-    byBucketAndCity[row.bucket][row.city] = (byBucketAndCity[row.bucket][row.city] || 0) + 1;
+    byBucketAndCity[row.bucket][row.city] =
+      (byBucketAndCity[row.bucket][row.city] || 0) + 1;
 
     if (row.bucket === "deprecated_sub_area") {
       const key = cityTownKey(row.city, row.town);
@@ -646,7 +679,9 @@ async function main() {
       target,
       dbName,
       thresholdKm,
-      centroidsSource: overrideCentroids ? args.centroids : "registry artifact (lib/data/locationRegistry.json)",
+      centroidsSource: overrideCentroids
+        ? args.centroids
+        : "registry artifact (lib/data/locationRegistry.json)",
       totalCentroids,
     }),
     counts: {
@@ -678,7 +713,9 @@ async function main() {
     if (cities.length === 0) continue;
     console.log(`  ${bucket}:`);
     for (const city of cities) {
-      console.log(`    ${(city || "(no city)").padEnd(24)} ${cityCounts[city]}`);
+      console.log(
+        `    ${(city || "(no city)").padEnd(24)} ${cityCounts[city]}`,
+      );
     }
   }
 
@@ -692,7 +729,9 @@ async function main() {
     }
   }
 
-  console.log(`\nP0.4b — users with pickupHistory (migration-exists gate): ${pickupHistoryGate}`);
+  console.log(
+    `\nP0.4b — users with pickupHistory (migration-exists gate): ${pickupHistoryGate}`,
+  );
 
   if (report.header.centroidCoverage.gapWarning) {
     console.log(`\nWARNING: ${report.header.centroidCoverage.gapWarning}`);

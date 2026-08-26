@@ -67,7 +67,11 @@ function point(lat: number, lng: number) {
 
 describe("bucketUser — every bucket", () => {
   it("buckets deprecated_sub_area when city/town/subArea matches a deprecated entry", () => {
-    const user = { city: "Testville", town: "Uptown", subArea: "Old Market Road" };
+    const user = {
+      city: "Testville",
+      town: "Uptown",
+      subArea: "Old Market Road",
+    };
     expect(bucketUser(user, ctx).bucket).toBe("deprecated_sub_area");
   });
 
@@ -130,7 +134,11 @@ describe("bucketUser — every bucket", () => {
 
 describe("bucketUser — priority order", () => {
   it("deprecated_sub_area outranks unresolvable when both would otherwise fire", () => {
-    const user = { city: "Testville", town: "Ghost Town2", subArea: "Weird Road" };
+    const user = {
+      city: "Testville",
+      town: "Ghost Town2",
+      subArea: "Weird Road",
+    };
     expect(bucketUser(user, ctx).bucket).toBe("deprecated_sub_area");
   });
 
@@ -201,7 +209,10 @@ describe("bucketUser — threshold boundary is inclusive (<=)", () => {
     let hi = 1; // degrees latitude
     for (let i = 0; i < 60; i++) {
       const mid = (lo + hi) / 2;
-      const d = haversineMeters(CENTROID, { lat: CENTROID.lat + mid, lng: CENTROID.lng });
+      const d = haversineMeters(CENTROID, {
+        lat: CENTROID.lat + mid,
+        lng: CENTROID.lng,
+      });
       if (d < targetMeters) lo = mid;
       else hi = mid;
     }
@@ -249,7 +260,11 @@ describe("parseUserCoordinates", () => {
   });
 
   it("falls back when location.coordinates is malformed (wrong length / non-numeric)", () => {
-    const user1 = { latitude: "24.86", longitude: "67.00", location: { coordinates: [1] } };
+    const user1 = {
+      latitude: "24.86",
+      longitude: "67.00",
+      location: { coordinates: [1] },
+    };
     expect(parseUserCoordinates(user1)).toEqual({ lat: 24.86, lng: 67.0 });
 
     const user2 = {
@@ -303,8 +318,12 @@ describe("buildReportHeader — language discipline", () => {
     });
 
     expect(header.languageDiscipline).toBe(DISAGREE_LANGUAGE_DISCIPLINE);
-    expect(header.languageDiscipline.toLowerCase()).toContain("not a determination that the user's address is wrong");
-    expect(header.languageDiscipline.toLowerCase()).toContain("geocoder error rate");
+    expect(header.languageDiscipline.toLowerCase()).toContain(
+      "not a determination that the user's address is wrong",
+    );
+    expect(header.languageDiscipline.toLowerCase()).toContain(
+      "geocoder error rate",
+    );
   });
 
   it("marks the threshold policy as provisional and reports the centroid coverage gap prominently", () => {
@@ -316,7 +335,9 @@ describe("buildReportHeader — language discipline", () => {
       totalCentroids: 0,
     });
 
-    expect(header.thresholdPolicy.description.toLowerCase()).toContain("provisional");
+    expect(header.thresholdPolicy.description.toLowerCase()).toContain(
+      "provisional",
+    );
     expect(header.centroidCoverage.gapWarning).toBeTruthy();
     expect(header.centroidCoverage.totalTownsWithCentroid).toBe(0);
   });

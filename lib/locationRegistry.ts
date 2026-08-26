@@ -371,14 +371,20 @@ export function resolveGeocodedName(
       const townMatches = index.townByFold.get(variant);
       if (townMatches) {
         for (const town of townMatches) {
-          matches.set(`${candidateCity}::${town}`, { city: candidateCity, town });
+          matches.set(`${candidateCity}::${town}`, {
+            city: candidateCity,
+            town,
+          });
         }
       }
 
       const aliasMatches = index.aliasByFold.get(variant);
       if (aliasMatches) {
         for (const town of aliasMatches) {
-          matches.set(`${candidateCity}::${town}`, { city: candidateCity, town });
+          matches.set(`${candidateCity}::${town}`, {
+            city: candidateCity,
+            town,
+          });
         }
       }
     }
@@ -387,7 +393,8 @@ export function resolveGeocodedName(
   let candidates = [...matches.values()];
   if (candidates.length > 1) {
     const live = candidates.filter(
-      (candidate) => !getCityIndex(candidate.city)?.deprecated.has(candidate.town),
+      (candidate) =>
+        !getCityIndex(candidate.city)?.deprecated.has(candidate.town),
     );
     if (live.length > 0) candidates = live;
   }

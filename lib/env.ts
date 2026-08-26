@@ -206,6 +206,74 @@ function optionalBoolean(key: string): boolean {
   return value === "true";
 }
 
+/**
+ * Optional enum string. Unset returns `fallback`; a value outside `allowed`
+ * fails fast (pushed to `problems`) rather than silently coercing to the
+ * fallback — for LOCATION_GATE_MODE in particular, a typo must never resolve
+ * to whichever state the fallback happens to be.
+ */
+function optionalEnum<T extends string>(
+  key: string,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  const value = process.env[key]?.trim();
+  if (!value) return fallback;
+  if (!allowed.includes(value as T)) {
+    problems.push(
+      `${key} must be one of ${allowed.join(", ")}, got "${value}"`,
+    );
+    return fallback;
+  }
+  return value as T;
+}
+
+/** Optional positive integer (>= 1), defaulting to `fallback` when unset. */
+function optionalPositiveInt(key: string, fallback: number): number {
+  const value = process.env[key]?.trim();
+  if (!value) return fallback;
+  if (!/^\d+$/.test(value) || Number(value) < 1) {
+    problems.push(
+      `${key} is malformed — expected a positive integer, got "${value}"`,
+    );
+    return fallback;
+  }
+  return Number(value);
+}
+
+/**
+ * Optional opaque string secret. Unset returns null; no format validation —
+ * used for third-party API keys whose shape is not ours to police. Unlike
+ * `required`, a missing value here is not a boot failure: LOCATIONIQ_API_KEY
+ * is the first user, and POST /api/location/reverse-geocode is written to
+ * treat an unset key as "resolve nothing" rather than refuse to boot the
+ * whole deployment over one unprovisioned third-party credential.
+ */
+function optionalString(key: string): string | null {
+  const value = process.env[key]?.trim();
+  return value || null;
+}
+
+/**
+ * Optional non-negative integer build number, defaulting to null rather than
+ * 0. Unlike optionalBuildNumber (used by the force-update gate, where 0 means
+ * "gate nothing"), null here is the more honest "no minimum configured" —
+ * the location gate's client-side resolution treats a null minClientBuild
+ * entry as "do not build-gate this platform" rather than "block build < 0",
+ * which 0 would ambiguously suggest.
+ */
+function optionalBuildNumberOrNull(key: string): number | null {
+  const value = process.env[key]?.trim();
+  if (!value) return null;
+  if (!/^\d+$/.test(value)) {
+    problems.push(
+      `${key} is malformed — expected a non-negative integer, got "${value}"`,
+    );
+    return null;
+  }
+  return Number(value);
+}
+
 // --- Parse ------------------------------------------------------------------
 
 const APP_ENV = requiredAppEnv("APP_ENV");
@@ -331,7 +399,40 @@ const parsed = {
     iosStoreUrl: optionalHttpsUrl("IOS_STORE_URL"),
     androidStoreUrl: optionalHttpsUrl("ANDROID_STORE_URL"),
     forceOTA: optionalBoolean("FORCE_OTA_UPDATE"),
+
+    // Location-capture gate config, also served by /api/app-config. The
+    // server only serves these values — the resolution order (e.g. "a build
+    // below minClientBuild forces the gate to at least soft regardless of
+    // mode") is CLIENT logic, applied by the mobile app against whatever it
+    // reads here. Keeping that logic out of the backend means tuning it is
+    // a client release, not a server deploy, and the server never needs to
+    // know the client's own version/build to decide anything.
+    locationGate: {
+      // "soft" MUST remain the deployed default until 2.1.11 store adoption
+      // is high enough to justify "hard" — see .env.example.
+      mode: optionalEnum(
+        "LOCATION_GATE_MODE",
+        ["hard", "soft", "off"] as const,
+        "soft",
+      ),
+      activatedCitiesOnly: optionalBoolean(
+        "LOCATION_GATE_ACTIVATED_CITIES_ONLY",
+      ),
+      maxDismissals: optionalPositiveInt("LOCATION_GATE_MAX_DISMISSALS", 3),
+      minClientBuild: {
+        ios: optionalBuildNumberOrNull("LOCATION_GATE_MIN_BUILD_IOS"),
+        android: optionalBuildNumberOrNull("LOCATION_GATE_MIN_BUILD_ANDROID"),
+      },
+    },
   },
+
+  // Reverse-geocoding (P1.1: POST /api/location/reverse-geocode). Deliberately
+  // NOT inside appConfig above — that object is served verbatim by
+  // /api/app-config to every mobile client, and this is a server-side secret
+  // that must never appear in a response body. Optional: an unset key makes
+  // the route answer `{ resolved: false }` for every request without ever
+  // fetching or caching, rather than failing the whole deployment to boot.
+  locationIqApiKey: optionalString("LOCATIONIQ_API_KEY"),
 
   // Deployment metadata — genuinely optional, absent outside Vercel.
   commitSha: process.env.VERCEL_GIT_COMMIT_SHA?.trim() || null,

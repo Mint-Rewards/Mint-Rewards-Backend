@@ -190,10 +190,11 @@ function computeContainmentThresholdMeters(
  * optional centroid override (the `--centroids` flag, or a test fixture).
  *
  * `overrideCentroids`, when given, REPLACES the artifact's `areaCentroids`
- * entirely (it does not merge) — the flag exists for the case where the
- * artifact ships empty (true today) and a separately-produced
- * `centroids.json` (P0.1a sweep by-product) needs to be exercised without a
- * registry re-export.
+ * entirely (it does not merge). The flag was written for an artifact that
+ * shipped empty; since 2026-08-26 the artifact carries 214 area and 54 city
+ * centroids (the app repo's P2-6 sweep), and the flag is STILL the only way
+ * this script gets usable coverage — see the note in `buildRegistryContext`
+ * for why that data cannot be wired in directly.
  *
  * @param {RegistryArtifact} artifact
  * @param {Record<string, { centroid: LngLat; maxSampleRadiusMeters: number }>} [overrideCentroids]
@@ -222,6 +223,14 @@ function buildRegistryContext(artifact, overrideCentroids) {
   // (centroid + maxSampleRadiusMeters per town), every town falls through to
   // `no_centroid` rather than a distance computed against an unbounded
   // guess. `overrideCentroids` REPLACES this entirely, it does not merge.
+  //
+  // STILL TRUE after the artifact was populated on 2026-08-26. The app's P2-6
+  // sweep answers "where is this town", which is enough to aim a map camera;
+  // it does not answer "how far out does it extend", which is what deciding
+  // whether a USER'S PIN disagrees with their stated town requires. Pairing a
+  // real centroid with a guessed radius would turn `disagree` — the bucket
+  // that gets people's saved addresses re-examined — into a number nobody
+  // sourced. Populated artifact, same `no_centroid` result, on purpose.
   const centroids = overrideCentroids || {};
 
   return { citiesTowns, deprecatedSubAreas, centroids };

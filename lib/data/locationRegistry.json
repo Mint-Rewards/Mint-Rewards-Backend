@@ -1254,7 +1254,1081 @@
     ]
   },
   "areaCentroids": {
-    "areas": {},
-    "cities": {}
+    "areas": {
+      "Faisalabad::Batala Colony": [
+        73.096658,
+        31.394204
+      ],
+      "Faisalabad::Civil Lines": [
+        73.088135,
+        31.43041
+      ],
+      "Faisalabad::Eden Valley": [
+        73.156594,
+        31.434792
+      ],
+      "Faisalabad::Ghulam Muhammad Abad": [
+        73.047399,
+        31.445419
+      ],
+      "Faisalabad::Gulberg": [
+        73.061279,
+        31.424179
+      ],
+      "Faisalabad::Jinnah Colony": [
+        73.066547,
+        31.420366
+      ],
+      "Faisalabad::Millat Town": [
+        73.104215,
+        31.471563
+      ],
+      "Faisalabad::Peoples Colony": [
+        73.09572,
+        31.398556
+      ],
+      "Faisalabad::Samanabad": [
+        73.065104,
+        31.391573
+      ],
+      "Faisalabad::Susan Road": [
+        73.117571,
+        31.421815
+      ],
+      "Faisalabad::Tariq Abad": [
+        73.103212,
+        31.426874
+      ],
+      "Gujranwala::Cantt": [
+        74.163656,
+        32.245096
+      ],
+      "Gujranwala::Civil Lines": [
+        74.191706,
+        32.174204
+      ],
+      "Gujranwala::Model Town": [
+        74.178837,
+        32.174269
+      ],
+      "Gujranwala::Peoples Colony": [
+        74.208996,
+        32.137611
+      ],
+      "Gujranwala::Satellite Town": [
+        74.191182,
+        32.157126
+      ],
+      "Gujranwala::Shabbir Colony": [
+        74.18949,
+        32.159008
+      ],
+      "Gujranwala::Trust Colony": [
+        74.191357,
+        32.162395
+      ],
+      "Hyderabad::Cantonment": [
+        68.361144,
+        25.379608
+      ],
+      "Hyderabad::Gulshan-e-Shahbaz": [
+        68.26782,
+        25.38605
+      ],
+      "Hyderabad::Hirabad": [
+        68.369411,
+        25.405079
+      ],
+      "Hyderabad::Hussainabad": [
+        68.322396,
+        25.377126
+      ],
+      "Hyderabad::Kotri": [
+        68.298259,
+        25.366818
+      ],
+      "Hyderabad::Latifabad": [
+        68.362903,
+        25.361738
+      ],
+      "Hyderabad::Qasimabad": [
+        68.334309,
+        25.393064
+      ],
+      "Hyderabad::Saddar": [
+        68.364583,
+        25.393228
+      ],
+      "Islamabad::Bahria Town Islamabad": [
+        73.132755,
+        33.566825
+      ],
+      "Islamabad::Bani Gala": [
+        73.153595,
+        33.710059
+      ],
+      "Islamabad::Blue Area": [
+        73.078794,
+        33.722053
+      ],
+      "Islamabad::CBR Town": [
+        73.140936,
+        33.55735
+      ],
+      "Islamabad::DHA Islamabad": [
+        73.131408,
+        33.531288
+      ],
+      "Islamabad::Gulberg Residencia": [
+        73.167706,
+        33.607951
+      ],
+      "Islamabad::PWD Housing Scheme": [
+        73.144914,
+        33.570744
+      ],
+      "Islamabad::Sector B-17": [
+        72.828639,
+        33.690398
+      ],
+      "Islamabad::Sector D-17": [
+        72.854619,
+        33.657148
+      ],
+      "Islamabad::Sector E-11": [
+        72.976575,
+        33.697181
+      ],
+      "Islamabad::Sector E-7": [
+        73.045442,
+        33.725313
+      ],
+      "Islamabad::Sector E-8": [
+        73.034923,
+        33.721893
+      ],
+      "Islamabad::Sector E-9": [
+        73.020068,
+        33.715527
+      ],
+      "Islamabad::Sector F-10": [
+        73.006684,
+        33.691821
+      ],
+      "Islamabad::Sector F-11": [
+        72.989544,
+        33.684393
+      ],
+      "Islamabad::Sector F-6": [
+        73.073524,
+        33.728621
+      ],
+      "Islamabad::Sector F-7": [
+        73.056117,
+        33.720433
+      ],
+      "Islamabad::Sector F-8": [
+        73.0396,
+        33.711504
+      ],
+      "Islamabad::Sector F-9 (Fatima Jinnah Park)": [
+        73.02852,
+        33.708138
+      ],
+      "Islamabad::Sector G-10": [
+        73.018701,
+        33.677722
+      ],
+      "Islamabad::Sector G-11": [
+        72.995986,
+        33.665108
+      ],
+      "Islamabad::Sector G-13": [
+        72.962072,
+        33.651452
+      ],
+      "Islamabad::Sector G-14": [
+        72.947512,
+        33.64185
+      ],
+      "Islamabad::Sector G-15": [
+        72.923024,
+        33.632628
+      ],
+      "Islamabad::Sector G-16": [
+        72.914669,
+        33.626346
+      ],
+      "Islamabad::Sector G-5": [
+        73.098264,
+        33.720807
+      ],
+      "Islamabad::Sector G-6": [
+        73.085641,
+        33.715428
+      ],
+      "Islamabad::Sector G-7": [
+        73.069018,
+        33.706603
+      ],
+      "Islamabad::Sector G-8": [
+        73.050897,
+        33.696678
+      ],
+      "Islamabad::Sector G-9": [
+        73.03072,
+        33.691436
+      ],
+      "Islamabad::Sector H-10": [
+        73.025491,
+        33.662528
+      ],
+      "Islamabad::Sector H-11": [
+        73.009154,
+        33.654391
+      ],
+      "Islamabad::Sector H-12": [
+        72.991979,
+        33.643728
+      ],
+      "Islamabad::Sector H-8": [
+        73.062048,
+        33.680307
+      ],
+      "Islamabad::Sector H-9": [
+        73.044367,
+        33.672762
+      ],
+      "Islamabad::Sector I-10": [
+        73.036919,
+        33.648206
+      ],
+      "Islamabad::Sector I-11": [
+        73.02069,
+        33.640672
+      ],
+      "Islamabad::Sector I-12": [
+        73.004736,
+        33.626956
+      ],
+      "Islamabad::Sector I-14": [
+        72.967448,
+        33.61161
+      ],
+      "Islamabad::Sector I-15": [
+        72.952056,
+        33.601521
+      ],
+      "Islamabad::Sector I-16": [
+        72.932944,
+        33.593578
+      ],
+      "Islamabad::Sector I-8": [
+        73.077186,
+        33.668289
+      ],
+      "Islamabad::Sector I-9": [
+        73.05439,
+        33.659667
+      ],
+      "Karachi::Agra Taj Colony": [
+        66.981978,
+        24.871593
+      ],
+      "Karachi::Alamgir Society": [
+        67.181921,
+        24.896377
+      ],
+      "Karachi::Askari 2": [
+        67.042414,
+        24.847257
+      ],
+      "Karachi::Askari 3": [
+        67.041561,
+        24.850015
+      ],
+      "Karachi::Askari 5": [
+        67.183153,
+        24.942931
+      ],
+      "Karachi::Azam Basti": [
+        67.074683,
+        24.848104
+      ],
+      "Karachi::Bahadurabad": [
+        67.067401,
+        24.88234
+      ],
+      "Karachi::Bath Island": [
+        67.028183,
+        24.835255
+      ],
+      "Karachi::Buffer Zone": [
+        67.067015,
+        24.955255
+      ],
+      "Karachi::Clifton": [
+        67.02624,
+        24.819055
+      ],
+      "Karachi::DHA": [
+        67.080003,
+        24.814634
+      ],
+      "Karachi::Darussalam Society": [
+        67.113181,
+        24.821405
+      ],
+      "Karachi::Daryabad": [
+        66.991198,
+        24.862248
+      ],
+      "Karachi::Dawood Cooperative Housing Society": [
+        67.069538,
+        24.88867
+      ],
+      "Karachi::Defence View": [
+        67.079402,
+        24.836673
+      ],
+      "Karachi::Drigh Colony": [
+        67.128388,
+        24.884372
+      ],
+      "Karachi::Essa Nagri": [
+        67.060843,
+        24.890809
+      ],
+      "Karachi::FC Area": [
+        67.045674,
+        24.914845
+      ],
+      "Karachi::Federal B. Area": [
+        67.068957,
+        24.925649
+      ],
+      "Karachi::Garden": [
+        67.030918,
+        24.881994
+      ],
+      "Karachi::Garden East": [
+        67.030566,
+        24.883437
+      ],
+      "Karachi::Garden West": [
+        67.029727,
+        24.881275
+      ],
+      "Karachi::Golimar": [
+        67.027426,
+        24.892661
+      ],
+      "Karachi::Goth Dad Muhammad": [
+        67.050068,
+        24.88821
+      ],
+      "Karachi::Gulistan-e-Jauhar": [
+        67.138213,
+        24.924016
+      ],
+      "Karachi::Gulshan-e-Ghazi": [
+        66.968698,
+        24.933744
+      ],
+      "Karachi::Gulshan-e-Hadeed": [
+        67.360052,
+        24.869999
+      ],
+      "Karachi::Gulshan-e-Iqbal": [
+        67.098657,
+        24.906729
+      ],
+      "Karachi::Gulshan-e-Maymar": [
+        67.132281,
+        25.020894
+      ],
+      "Karachi::Gulshan-e-Shamim": [
+        67.075607,
+        24.917355
+      ],
+      "Karachi::Gulzar-e-Hijri": [
+        67.118223,
+        24.995593
+      ],
+      "Karachi::Ibrahim Hyderi": [
+        67.135893,
+        24.797538
+      ],
+      "Karachi::Jacob Lines": [
+        67.035794,
+        24.868189
+      ],
+      "Karachi::Jamshed Quarters": [
+        67.042236,
+        24.883518
+      ],
+      "Karachi::Jamshed Town": [
+        67.046186,
+        24.876828
+      ],
+      "Karachi::Jutland Lines": [
+        67.039394,
+        24.865462
+      ],
+      "Karachi::KAECHS": [
+        67.081227,
+        24.862268
+      ],
+      "Karachi::Kalakot": [
+        67.005619,
+        24.871542
+      ],
+      "Karachi::Karli": [
+        66.991302,
+        24.868685
+      ],
+      "Karachi::Karsaz": [
+        67.098971,
+        24.87782
+      ],
+      "Karachi::Korangi": [
+        67.140373,
+        24.820693
+      ],
+      "Karachi::Korangi Industrial Area": [
+        67.135501,
+        24.845816
+      ],
+      "Karachi::Lalazar": [
+        67.00293,
+        24.842943
+      ],
+      "Karachi::Landhi": [
+        67.211895,
+        24.850847
+      ],
+      "Karachi::Liaquatabad": [
+        67.038628,
+        24.902977
+      ],
+      "Karachi::Machar Colony": [
+        66.979858,
+        24.862943
+      ],
+      "Karachi::Mahmudabad": [
+        67.077995,
+        24.854376
+      ],
+      "Karachi::Malir": [
+        67.190242,
+        24.877305
+      ],
+      "Karachi::Manora": [
+        66.975174,
+        24.796572
+      ],
+      "Karachi::Memon Nagar": [
+        67.103644,
+        24.953158
+      ],
+      "Karachi::Metroville": [
+        66.997907,
+        24.930754
+      ],
+      "Karachi::Miran Naka": [
+        66.995648,
+        24.879484
+      ],
+      "Karachi::Model Colony": [
+        67.189418,
+        24.906833
+      ],
+      "Karachi::Muslimabad": [
+        67.049781,
+        24.87772
+      ],
+      "Karachi::Naya Nazimabad": [
+        67.024195,
+        24.97596
+      ],
+      "Karachi::Nazimabad": [
+        67.030718,
+        24.905865
+      ],
+      "Karachi::New Karachi": [
+        67.066952,
+        24.972536
+      ],
+      "Karachi::New Rizvia Society": [
+        67.147538,
+        24.950745
+      ],
+      "Karachi::North Karachi": [
+        67.084631,
+        24.943909
+      ],
+      "Karachi::North Nazimabad": [
+        67.047719,
+        24.942462
+      ],
+      "Karachi::Old Golimar": [
+        67.019513,
+        24.888763
+      ],
+      "Karachi::Orangi Town": [
+        67.012881,
+        24.946106
+      ],
+      "Karachi::P&T Society": [
+        67.119448,
+        24.829635
+      ],
+      "Karachi::PECHS": [
+        67.058724,
+        24.86848
+      ],
+      "Karachi::Patel Para": [
+        67.038289,
+        24.881008
+      ],
+      "Karachi::Pathan Colony": [
+        67.004073,
+        24.924595
+      ],
+      "Karachi::Pioneer Park City": [
+        67.156309,
+        24.925284
+      ],
+      "Karachi::Qayyumabad": [
+        67.080768,
+        24.829419
+      ],
+      "Karachi::Ramswami": [
+        67.015119,
+        24.868658
+      ],
+      "Karachi::Rexber Colony": [
+        67.021608,
+        24.886107
+      ],
+      "Karachi::Sachal Goth": [
+        67.12886,
+        24.950657
+      ],
+      "Karachi::Saddar": [
+        67.031741,
+        24.860571
+      ],
+      "Karachi::Saeedabad": [
+        66.999896,
+        24.879299
+      ],
+      "Karachi::Shah Faisal Colony": [
+        67.145214,
+        24.881096
+      ],
+      "Karachi::Shah Latif Town": [
+        67.268094,
+        24.846268
+      ],
+      "Karachi::Shanti Nagar": [
+        67.098796,
+        24.903623
+      ],
+      "Karachi::Sher Shah Colony": [
+        66.987179,
+        24.884204
+      ],
+      "Karachi::Sindh Industrial Trading Estate": [
+        66.989361,
+        24.90366
+      ],
+      "Karachi::Soldier Bazaar": [
+        67.031312,
+        24.875529
+      ],
+      "Karachi::Steel Town": [
+        67.363657,
+        24.863465
+      ],
+      "Karachi::Sultanabad": [
+        67.018511,
+        24.841822
+      ],
+      "Karachi::Surjani Town": [
+        67.061068,
+        25.033289
+      ],
+      "Karachi::Tariq Bin Ziyad Colony": [
+        67.175544,
+        24.893348
+      ],
+      "Karachi::West Wharf": [
+        66.983817,
+        24.846711
+      ],
+      "Lahore::Bahria Town Lahore": [
+        74.182413,
+        31.358067
+      ],
+      "Lahore::Cantt": [
+        74.416432,
+        31.484175
+      ],
+      "Lahore::Cavalry Ground": [
+        74.362158,
+        31.501978
+      ],
+      "Lahore::DHA Lahore": [
+        74.393866,
+        31.480015
+      ],
+      "Lahore::Garden Town": [
+        74.331392,
+        31.502705
+      ],
+      "Lahore::Gulberg": [
+        74.343018,
+        31.511996
+      ],
+      "Lahore::Johar Town": [
+        74.272456,
+        31.471041
+      ],
+      "Lahore::LDA Avenue": [
+        74.204855,
+        31.415968
+      ],
+      "Lahore::Lake City": [
+        74.233771,
+        31.362593
+      ],
+      "Lahore::Model Town": [
+        74.322794,
+        31.482102
+      ],
+      "Lahore::Punjab Cooperative Housing Society (PCHS)": [
+        74.408525,
+        31.483604
+      ],
+      "Lahore::Raiwind": [
+        74.213813,
+        31.244358
+      ],
+      "Lahore::Sabzazar": [
+        74.270126,
+        31.521793
+      ],
+      "Lahore::Samanabad": [
+        74.302295,
+        31.54032
+      ],
+      "Lahore::Shadman": [
+        74.32933,
+        31.543656
+      ],
+      "Lahore::Shahdara": [
+        74.29998,
+        31.651515
+      ],
+      "Lahore::State Life Housing Society": [
+        74.401078,
+        31.441765
+      ],
+      "Lahore::Sui Gas Society": [
+        74.399351,
+        31.453794
+      ],
+      "Lahore::Township": [
+        74.32008,
+        31.456506
+      ],
+      "Lahore::Valencia Town": [
+        74.258269,
+        31.406673
+      ],
+      "Multan::Bosan Road": [
+        71.478378,
+        30.227141
+      ],
+      "Multan::Citi Housing Multan": [
+        71.422849,
+        30.172254
+      ],
+      "Multan::DHA Multan": [
+        71.561516,
+        30.299549
+      ],
+      "Multan::Gulgasht Colony": [
+        71.474112,
+        30.230254
+      ],
+      "Multan::Model Town": [
+        71.460072,
+        30.217198
+      ],
+      "Multan::Officers Colony": [
+        71.474877,
+        30.211095
+      ],
+      "Multan::Old Multan": [
+        71.444979,
+        30.159949
+      ],
+      "Multan::Qasim Bela": [
+        71.399159,
+        30.191932
+      ],
+      "Multan::Shah Rukn-e-Alam Colony": [
+        71.471654,
+        30.199134
+      ],
+      "Multan::Wapda Town": [
+        71.505647,
+        30.245504
+      ],
+      "Peshawar::Chamkani": [
+        71.649159,
+        34.005406
+      ],
+      "Peshawar::Gulbahar": [
+        71.596938,
+        34.010692
+      ],
+      "Peshawar::Hayatabad": [
+        71.437258,
+        33.976717
+      ],
+      "Peshawar::Khyber Bazaar": [
+        71.567047,
+        34.008969
+      ],
+      "Peshawar::Pabbi": [
+        71.780929,
+        34.013374
+      ],
+      "Peshawar::Peshawar Cantt": [
+        71.550409,
+        34.002248
+      ],
+      "Peshawar::Regi Model Town": [
+        71.423233,
+        34.028442
+      ],
+      "Peshawar::Saddar": [
+        71.540023,
+        33.997475
+      ],
+      "Peshawar::University Town": [
+        71.503799,
+        34.00462
+      ],
+      "Peshawar::Warsak Road": [
+        71.533756,
+        34.028417
+      ],
+      "Quetta::Adalat Road": [
+        67.011802,
+        30.198084
+      ],
+      "Quetta::Airport Road": [
+        66.987268,
+        30.241043
+      ],
+      "Quetta::Brewery Road": [
+        66.987015,
+        30.189796
+      ],
+      "Quetta::Cantonment": [
+        67.045621,
+        30.226697
+      ],
+      "Quetta::Jinnah Town": [
+        67.006023,
+        30.222349
+      ],
+      "Quetta::Samungli": [
+        67.009887,
+        30.207282
+      ],
+      "Quetta::Satellite Town": [
+        67.001519,
+        30.166236
+      ],
+      "Quetta::Spinny Road": [
+        66.994415,
+        30.191142
+      ],
+      "Quetta::Zarghoon Road": [
+        66.998821,
+        30.180279
+      ],
+      "Rawalpindi::Adiala Road": [
+        73.061297,
+        33.557412
+      ],
+      "Rawalpindi::Askari": [
+        73.060432,
+        33.53949
+      ],
+      "Rawalpindi::Bahria Town": [
+        73.118366,
+        33.530822
+      ],
+      "Rawalpindi::Bahria Town Phase 8": [
+        73.095761,
+        33.491671
+      ],
+      "Rawalpindi::Chaklala": [
+        73.096446,
+        33.600917
+      ],
+      "Rawalpindi::Chaklala Scheme 3": [
+        73.088704,
+        33.585757
+      ],
+      "Rawalpindi::Gulzar-e-Quaid": [
+        73.130041,
+        33.598912
+      ],
+      "Rawalpindi::Pirwadhai": [
+        73.039381,
+        33.632193
+      ],
+      "Rawalpindi::Raja Bazaar": [
+        73.05634,
+        33.612309
+      ],
+      "Rawalpindi::Rawalpindi Cantt": [
+        73.053747,
+        33.591418
+      ],
+      "Rawalpindi::Saddar": [
+        73.050101,
+        33.597885
+      ],
+      "Rawalpindi::Westridge": [
+        73.021947,
+        33.61013
+      ]
+    },
+    "cities": {
+      "Abbottabad": [
+        73.213275,
+        34.143614
+      ],
+      "Bagh": [
+        73.773788,
+        33.980008
+      ],
+      "Bahawalpur": [
+        71.652345,
+        29.40295
+      ],
+      "Bhimber": [
+        74.073853,
+        32.974059
+      ],
+      "Chaman": [
+        66.44053,
+        30.924945
+      ],
+      "Charsadda": [
+        71.759294,
+        34.150946
+      ],
+      "Chilas": [
+        74.096314,
+        35.419503
+      ],
+      "Dera Ghazi Khan": [
+        70.640111,
+        30.032137
+      ],
+      "Dera Ismail Khan": [
+        70.909092,
+        31.827527
+      ],
+      "Dera Murad Jamali": [
+        68.220304,
+        28.548453
+      ],
+      "Faisalabad": [
+        73.092325,
+        31.422056
+      ],
+      "Gilgit": [
+        74.314044,
+        35.92081
+      ],
+      "Gujranwala": [
+        74.193375,
+        32.152531
+      ],
+      "Gujrat": [
+        74.064535,
+        32.562785
+      ],
+      "Gwadar": [
+        62.325455,
+        25.147982
+      ],
+      "Hunza": [
+        74.613428,
+        36.299319
+      ],
+      "Hyderabad": [
+        68.361346,
+        25.407536
+      ],
+      "Islamabad": [
+        73.065151,
+        33.693812
+      ],
+      "Jacobabad": [
+        68.436436,
+        28.281309
+      ],
+      "Jhang": [
+        72.310307,
+        31.27288
+      ],
+      "Karachi": [
+        67.020706,
+        24.854684
+      ],
+      "Kasur": [
+        74.447831,
+        31.117514
+      ],
+      "Khairpur": [
+        68.738315,
+        27.520487
+      ],
+      "Khuzdar": [
+        66.616654,
+        27.800013
+      ],
+      "Kohat": [
+        71.439994,
+        33.596714
+      ],
+      "Lahore": [
+        74.314183,
+        31.565682
+      ],
+      "Larkana": [
+        68.210151,
+        27.55648
+      ],
+      "Loralai": [
+        68.600065,
+        30.366865
+      ],
+      "Mansehra": [
+        73.199313,
+        34.328685
+      ],
+      "Mardan": [
+        72.045147,
+        34.193797
+      ],
+      "Mingora": [
+        72.360771,
+        34.772537
+      ],
+      "Mirpur": [
+        73.74821,
+        33.148635
+      ],
+      "Mirpur Khas": [
+        69.011239,
+        25.526388
+      ],
+      "Multan": [
+        71.471968,
+        30.197838
+      ],
+      "Muzaffarabad": [
+        73.470241,
+        34.373475
+      ],
+      "Nawabshah": [
+        68.404023,
+        26.245292
+      ],
+      "Nowshera": [
+        71.981283,
+        34.015561
+      ],
+      "Peshawar": [
+        71.578746,
+        34.012385
+      ],
+      "Quetta": [
+        67.000756,
+        30.191627
+      ],
+      "Rahim Yar Khan": [
+        70.303424,
+        28.422541
+      ],
+      "Rawalakot": [
+        73.760575,
+        33.857228
+      ],
+      "Rawalpindi": [
+        73.048313,
+        33.603705
+      ],
+      "Sahiwal": [
+        73.111057,
+        30.67151
+      ],
+      "Sargodha": [
+        72.676461,
+        32.083651
+      ],
+      "Sheikhupura": [
+        73.986401,
+        31.708528
+      ],
+      "Shikarpur": [
+        68.646748,
+        27.957908
+      ],
+      "Sialkot": [
+        74.541157,
+        32.493538
+      ],
+      "Sibi": [
+        67.88334,
+        29.55001
+      ],
+      "Skardu": [
+        75.640075,
+        35.286372
+      ],
+      "Sukkur": [
+        68.866308,
+        27.700752
+      ],
+      "Swabi": [
+        72.474316,
+        34.126214
+      ],
+      "Thatta": [
+        67.924028,
+        24.7469
+      ],
+      "Turbat": [
+        63.050561,
+        26.002789
+      ],
+      "Zhob": [
+        69.4477,
+        31.339706
+      ]
+    }
   }
 }

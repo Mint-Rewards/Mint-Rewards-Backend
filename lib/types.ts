@@ -186,6 +186,28 @@ export interface QrCodeWeight {
   weight: number;
 }
 
+/**
+ * P0.4a — the user's address as it stood when the pickup was created. Written
+ * once by buildPickupAddressSnapshot (lib/pickupSnapshot.ts) and never
+ * re-derived from the live User document; a later profile edit must not
+ * re-point historical pickups. `snapshotSource: "migrated"` marks entries
+ * backfilled by P0.4b, which inherit whatever the address was at migration
+ * time rather than at pickup time.
+ */
+export interface PickupAddressSnapshot {
+  address: string;
+  province: string;
+  city: string;
+  town: string;
+  townOther: string;
+  subArea: string;
+  subAreaOther: string;
+  structuredAddress?: User["structuredAddress"];
+  location?: User["location"];
+  snapshotSource: "creation" | "migrated";
+  snapshotAt: Date;
+}
+
 export interface PickupHistoryEntry {
   collectionId: Types.ObjectId;
   collectionName: string;
@@ -194,7 +216,26 @@ export interface PickupHistoryEntry {
   qrCodesWithWeights: QrCodeWeight[];
   status: string;
   comment: string;
+  /** Absent on entries created before P0.4a shipped. */
+  addressSnapshot?: PickupAddressSnapshot;
 }
+
+export type LocationSource =
+  | "map_pin"
+  | "area_centroid"
+  | "city_centroid"
+  | "legacy_string"
+  | "collector_verified";
+
+/**
+ * Anything other than "building" must be excluded from routing — centroid-path
+ * users all share one coordinate.
+ */
+export type LocationPrecision =
+  "building" | "block" | "area" | "city" | "unknown";
+
+export type LocationVerificationStatus =
+  "unverified" | "auto_verified" | "user_corrected" | "mismatch" | "unresolved";
 
 export interface User {
   userName: string;
@@ -219,6 +260,45 @@ export interface User {
   totalWasteCollected: string;
   referrals: string[];
   referralRewardGranted: boolean;
+
+  // ---- Structured location (P0.3) --------------------------------------
+  // Additive; the legacy latitude/longitude/address/town fields above stay
+  // and are dual-written until every reader migrates.
+  location?: {
+    type?: "Point";
+    /** [lng, lat] — GeoJSON order. */
+    coordinates?: number[];
+    source?: LocationSource;
+    precision?: LocationPrecision;
+    accuracyMeters?: number;
+    capturedAt?: Date;
+  };
+  structuredAddress?: {
+    cityId?: string;
+    areaId?: string;
+    blockId?: string;
+    areaOther?: string;
+    blockOther?: string;
+    houseNo?: string;
+    streetOrBlock?: string;
+  };
+  locationVerification?: {
+    status?: LocationVerificationStatus;
+    method?: string;
+    geocodedAreaRaw?: string;
+    geocodedAreaId?: string;
+    selectedAreaId?: string;
+    distanceMeters?: number;
+    checkedAt?: Date;
+    resolvedBy?: string;
+  };
+  locationVersion?: number;
+  locationCompletedAt?: Date;
+  // Profile-completion bonus. Server-stamped only — see the note in
+  // lib/models.ts on why none of these is defaulted and none is user-writable.
+  profileBonusWindowStartedAt?: Date;
+  profileBonusGrantedAt?: Date;
+  profileBonusPoints?: number;
   pickupHistory: PickupHistoryEntry[];
   created: Date;
   firstTimeLogin: boolean;

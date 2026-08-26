@@ -18,7 +18,8 @@ describe(".env.example", () => {
     "(?:required|requiredSecret|requiredMatching|requiredAppEnv|" +
       "requiredOriginList|requiredUnlessProduction|optionalHttpsUrl|" +
       "optionalSemver|optionalBuildNumber|optionalBoolean|optionalEnum|" +
-      'optionalPositiveInt|optionalBuildNumberOrNull|optionalString)\\(\\s*"([A-Z0-9_]+)"',
+      "optionalPositiveInt|optionalBuildNumberOrNull|optionalString|" +
+      'optionalIsoDateOrNull)\\(\\s*"([A-Z0-9_]+)"',
     "g",
   );
 

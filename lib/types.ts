@@ -294,6 +294,11 @@ export interface User {
   };
   locationVersion?: number;
   locationCompletedAt?: Date;
+  // Profile-completion bonus. Server-stamped only — see the note in
+  // lib/models.ts on why none of these is defaulted and none is user-writable.
+  profileBonusWindowStartedAt?: Date;
+  profileBonusGrantedAt?: Date;
+  profileBonusPoints?: number;
   pickupHistory: PickupHistoryEntry[];
   created: Date;
   firstTimeLogin: boolean;

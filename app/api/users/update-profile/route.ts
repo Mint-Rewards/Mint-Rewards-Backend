@@ -1,6 +1,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
 import { UserModel } from "@/lib/models";
+import { awardProfileBonusIfEligible } from "@/lib/profileBonus";
 import { awardReferralIfApplicable } from "@/lib/referrals";
 
 export async function PUT(req: Request) {
@@ -125,6 +126,15 @@ export async function PUT(req: Request) {
     if (updatedUser.phone && updatedUser.address) {
       await awardReferralIfApplicable(updatedUser._id, updatedUser.email);
     }
+
+    // Unconditional, unlike the referral payout above: this helper re-reads the
+    // user and judges completeness itself (against evaluateLocation, which is
+    // strictly stricter than `phone && address`), so gating it on a looser
+    // predicate here could only ever produce false negatives. It is also called
+    // from PATCH /api/users/location, because the client fires both requests in
+    // sequence and either can be the one that closes the last gap — the grant
+    // is idempotent by construction, so calling it twice pays once.
+    await awardProfileBonusIfEligible(updatedUser._id);
 
     return Response.json(updatedUser);
   } catch {

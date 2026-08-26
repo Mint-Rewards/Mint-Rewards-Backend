@@ -6,6 +6,7 @@ import {
   LOCATION_COMPLETION_VERSION,
 } from "@/lib/evaluateLocation";
 import { getProvinceForCity } from "@/lib/locationRegistry";
+import { awardProfileBonusIfEligible } from "@/lib/profileBonus";
 import type { LocationPrecision, LocationSource } from "@/lib/types";
 
 const MAX_STRING_LENGTH = 200;
@@ -143,6 +144,15 @@ export async function PATCH(req: Request) {
     const responseEvaluation = bumpsCompletionVersion
       ? { ...evaluation, currentVersion: LOCATION_COMPLETION_VERSION }
       : evaluation;
+
+    // Profile-completion bonus. Called AFTER the version bump above so the two
+    // agree about what just happened, and called unconditionally rather than
+    // only when `bumpsCompletionVersion` fires: the bonus also needs `userName`
+    // and `phone`, which may have arrived on the separate update-profile
+    // request, so a PATCH that does not itself bump the version can still be
+    // the moment the profile becomes complete. The helper re-reads the user and
+    // judges for itself; a repeat call pays nothing.
+    await awardProfileBonusIfEligible(userId);
 
     return Response.json({ Status: "Success", evaluation: responseEvaluation });
   } catch {

@@ -274,6 +274,33 @@ function optionalBuildNumberOrNull(key: string): number | null {
   return Number(value);
 }
 
+/**
+ * Optional ISO-8601 datetime, serialised back out as an ISO string (or null
+ * when unset).
+ *
+ * Datetimes, not the `"YYYY-MM-DD"` strings the rest of this codebase uses for
+ * campaign windows: `lib/campaignDates.ts` deliberately treats a date-only
+ * `endDate` as inclusive through 23:59:59.999 *local*, which is the right call
+ * for a multi-week deal and the wrong one for a window measured in hours. The
+ * profile bonus needs an unambiguous instant on both ends, so it takes a full
+ * timestamp and never routes through `isCampaignActive`.
+ *
+ * Normalised through `toISOString()` so the wire value is always UTC and always
+ * the same shape, whatever the operator typed into the dashboard.
+ */
+function optionalIsoDateOrNull(key: string): string | null {
+  const value = process.env[key]?.trim();
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    problems.push(
+      `${key} is malformed — expected an ISO-8601 datetime, got "${value}"`,
+    );
+    return null;
+  }
+  return parsed.toISOString();
+}
+
 // --- Parse ------------------------------------------------------------------
 
 const APP_ENV = requiredAppEnv("APP_ENV");
@@ -423,6 +450,36 @@ const parsed = {
         ios: optionalBuildNumberOrNull("LOCATION_GATE_MIN_BUILD_IOS"),
         android: optionalBuildNumberOrNull("LOCATION_GATE_MIN_BUILD_ANDROID"),
       },
+    },
+
+    /**
+     * The profile-completion bonus: N points for finishing your profile,
+     * claimable for `windowHours` from the user's first app open, inside a
+     * fixed campaign period.
+     *
+     * Like `locationGate` above, this object is served VERBATIM by
+     * GET /api/app-config and the client re-validates every field of it as
+     * untrusted input. Unlike `locationGate`, the client fails CLOSED on it:
+     * a config the client cannot trust means "show no bonus copy", because the
+     * failure mode here is promising points rather than blocking access.
+     *
+     * Note that the server does NOT delegate to that client-side reading. The
+     * same values are re-read here at payout time (lib/profileBonus.ts), so a
+     * client displaying a stale or forged config still cannot cause a payment.
+     * What ships to the client is display copy; what pays is this.
+     *
+     * `enabled` defaults to false so the feature ships dark and is turned on by
+     * setting dates, not by deploying.
+     */
+    profileBonus: {
+      enabled: optionalBoolean("PROFILE_BONUS_ENABLED"),
+      points: optionalPositiveInt("PROFILE_BONUS_POINTS", 100),
+      windowHours: optionalPositiveInt("PROFILE_BONUS_WINDOW_HOURS", 24),
+      // Null means "unbounded on this end". Both null with enabled=true is a
+      // campaign with no start and no end, which is legitimate (an always-on
+      // bonus with a per-user 24h window) and deliberately not rejected here.
+      campaignStart: optionalIsoDateOrNull("PROFILE_BONUS_CAMPAIGN_START"),
+      campaignEnd: optionalIsoDateOrNull("PROFILE_BONUS_CAMPAIGN_END"),
     },
   },
 

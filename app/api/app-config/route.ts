@@ -31,6 +31,7 @@ export async function GET() {
     androidStoreUrl,
     forceOTA,
     locationGate,
+    profileBonus,
   } = serverEnv.appConfig;
 
   return NextResponse.json({
@@ -47,5 +48,11 @@ export async function GET() {
     // logic — see the comment on serverEnv.appConfig.locationGate in
     // lib/env.ts. This route only serves the values.
     locationGate,
+    // Display config for the profile-completion bonus. This tells the client
+    // what copy to show; it does NOT authorise a payment. The same values are
+    // re-read server-side at payout time (lib/profileBonus.ts), so a client
+    // holding a stale or tampered copy of this block can misrender the badge
+    // but cannot cause anyone to be paid.
+    profileBonus,
   });
 }

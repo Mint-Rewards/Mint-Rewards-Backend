@@ -470,6 +470,30 @@ const UserSchema = new Schema<UserDocument>(
     locationVersion: { type: Number, default: 0 },
     locationCompletedAt: Date,
 
+    // ---- Profile-completion bonus --------------------------------------
+    // All three are SERVER-STAMPED. None appears in update-profile's two
+    // allowlists, and none may be added there: a user who can write
+    // `profileBonusGrantedAt` can decide whether they have been paid, and a
+    // user who can write `profileBonusWindowStartedAt` can restart their own
+    // 24-hour window indefinitely.
+    //
+    // Deliberately NOT defaulted. `profileBonusGrantedAt` is the idempotency
+    // key for the payout — the claim in lib/profileBonus.ts filters on
+    // `{ $exists: false }`, which is what makes a concurrent second call match
+    // nothing. A default would make the field exist on every document from
+    // creation and the filter would never match anyone. Same reasoning for the
+    // window stamp, where "unset" is what distinguishes a user whose clock has
+    // not started from one whose clock started at the epoch.
+    /** When this user's bonus window opened — stamped on their first app open. */
+    profileBonusWindowStartedAt: Date,
+    /** When the bonus was paid. Presence is the idempotency key; never unset. */
+    profileBonusGrantedAt: Date,
+    // How much was actually paid. There is no points ledger in this system, so
+    // absent this field there would be no record of the amount at all — and the
+    // amount is config-driven (PROFILE_BONUS_POINTS), so it can differ between
+    // two users paid on different days of the same campaign.
+    profileBonusPoints: Number,
+
     pickupHistory: { type: [pickupHistorySchema], default: [] },
     created: { type: Date, default: Date.now },
     firstTimeLogin: { type: Boolean, default: true },

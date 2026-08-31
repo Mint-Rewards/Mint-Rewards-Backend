@@ -2,12 +2,6 @@ import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
 import { UserModel } from "@/lib/models";
 import sendReferralEmail from "@/emailServices/referralEmail";
-import {
-  checkRateLimit,
-  clientIp,
-  hashKey,
-  rateLimitResponse,
-} from "@/lib/rateLimit";
 import { isValidEmail } from "@/lib/emailFormat";
 
 export async function POST(req: Request) {
@@ -23,36 +17,6 @@ export async function POST(req: Request) {
     if (!userId) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    // Mirrors the two-check shape used by every other rate-limited route
-    // (signup, login, resend-verification-otp): IP first, then the identity
-    // the endpoint actually acts on.
-    //
-    // The per-user check is the one that matters here. This route is
-    // authenticated and each request fans out to as many as 10 addresses that
-    // never opted in, so the abuse unit is the account, not the connection —
-    // and behind carrier NAT an IP-only cap punishes bystanders. 3 requests
-    // per hour puts the ceiling at 30 invitations an hour per account, which
-    // is generous for someone inviting their household and useless to anyone
-    // mining the endpoint for outbound mail off the auth sending domain.
-    //
-    // The IP check stays as the outer bound on a single host cycling accounts.
-    const ipLimit = await checkRateLimit(
-      "referrals:ip",
-      clientIp(req),
-      10,
-      60 * 60 * 1000,
-    );
-    if (ipLimit.limited) return rateLimitResponse(ipLimit.retryAfterSeconds);
-
-    const userLimit = await checkRateLimit(
-      "referrals:user",
-      hashKey(String(userId)),
-      3,
-      60 * 60 * 1000,
-    );
-    if (userLimit.limited)
-      return rateLimitResponse(userLimit.retryAfterSeconds);
 
     const body = await req.json();
     const { emails } = body as { emails?: string[] };

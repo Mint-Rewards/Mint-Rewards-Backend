@@ -107,7 +107,7 @@ Enum otp_purpose {
 }
 
 Table organizations {
-  id integer [pk, increment]
+  id text [pk, note: 'Mongo ObjectId, carried across verbatim. NOT a surrogate: it is the id every JWT, every already-issued API response and every persisted client key already contains, so the cutover changes no identifier a client has ever seen. New rows mint one with mongoose Types.ObjectId() — generation is client-side, so this keeps working with Mongo decommissioned.']
   name text [not null]
   plan org_plan [not null, default: 'starter']
   created_at timestamptz
@@ -118,7 +118,7 @@ Table organizations {
 
 Table organization_module_subscriptions {
   id integer [pk, increment]
-  org_id integer [not null]
+  org_id text [not null]
   module text [not null]
   status module_subscription_status [not null]
   activated_at timestamptz [not null]
@@ -132,7 +132,7 @@ Table organization_module_subscriptions {
 }
 
 Table brandthemes {
-  id integer [pk, increment]
+  id text [pk, note: 'Mongo ObjectId, carried across verbatim. NOT a surrogate: it is the id every JWT, every already-issued API response and every persisted client key already contains, so the cutover changes no identifier a client has ever seen. New rows mint one with mongoose Types.ObjectId() — generation is client-side, so this keeps working with Mongo decommissioned.']
   name text [not null]
   logo text [not null]
   background_color text [not null]
@@ -143,7 +143,7 @@ Table brandthemes {
 }
 
 Table locations {
-  id integer [pk, increment]
+  id text [pk, note: 'Mongo ObjectId, carried across verbatim. NOT a surrogate: it is the id every JWT, every already-issued API response and every persisted client key already contains, so the cutover changes no identifier a client has ever seen. New rows mint one with mongoose Types.ObjectId() — generation is client-side, so this keeps working with Mongo decommissioned.']
   province text [not null, unique]
 
   Note: '''
@@ -154,7 +154,7 @@ Table locations {
 
 Table cities {
   id integer [pk, increment]
-  location_id integer [not null]
+  location_id text [not null]
   name text [not null]
 
   Note: 'Was locations.cities[].name'
@@ -177,7 +177,7 @@ Table towns {
 }
 
 Table users {
-  id integer [pk, increment]
+  id text [pk, note: 'Mongo ObjectId, carried across verbatim. NOT a surrogate: it is the id every JWT, every already-issued API response and every persisted client key already contains, so the cutover changes no identifier a client has ever seen. New rows mint one with mongoose Types.ObjectId() — generation is client-side, so this keeps working with Mongo decommissioned.']
   user_name text [not null]
   email text [not null, unique]
   password text [not null]
@@ -224,7 +224,7 @@ Table users {
 }
 
 Table user_locations {
-  user_id integer [pk, note: 'FK to users.id, doubles as PK — enforces strict 1:1, no surrogate id needed']
+  user_id text [pk, note: 'FK to users.id, doubles as PK — enforces strict 1:1, no surrogate id needed']
 
   // ---- GPS point, from users.location ---------------------------------
   lng numeric [note: 'GeoJSON coordinates[0]']
@@ -275,7 +275,7 @@ Table user_locations {
 }
 
 Table user_otp_flows {
-  user_id integer [not null, note: 'FK to users.id']
+  user_id text [not null, note: 'FK to users.id']
   purpose otp_purpose [not null]
   otp_hash text
   expires_at timestamptz
@@ -307,7 +307,7 @@ Table user_otp_flows {
 
 Table user_referrals {
   id integer [pk, increment]
-  user_id integer [not null]
+  user_id text [not null]
   address text [not null]
   created_at timestamptz
 
@@ -324,7 +324,7 @@ Table user_referrals {
 }
 
 Table captains {
-  id integer [pk, increment]
+  id text [pk, note: 'Mongo ObjectId, carried across verbatim. NOT a surrogate: it is the id every JWT, every already-issued API response and every persisted client key already contains, so the cutover changes no identifier a client has ever seen. New rows mint one with mongoose Types.ObjectId() — generation is client-side, so this keeps working with Mongo decommissioned.']
   name text [not null]
   phone text [not null]
   email text [not null, unique]
@@ -342,7 +342,7 @@ Table captains {
 }
 
 Table logistics {
-  id integer [pk, increment]
+  id text [pk, note: 'Mongo ObjectId, carried across verbatim. NOT a surrogate: it is the id every JWT, every already-issued API response and every persisted client key already contains, so the cutover changes no identifier a client has ever seen. New rows mint one with mongoose Types.ObjectId() — generation is client-side, so this keeps working with Mongo decommissioned.']
   name text [not null]
   phone text [not null]
   email text [not null, unique]
@@ -359,9 +359,9 @@ Table logistics {
 
 Table pickups {
   id integer [pk, increment]
-  user_id integer [not null]
-  collection_id integer [not null]
-  captain_id integer [not null]
+  user_id text [not null]
+  collection_id text [not null]
+  captain_id text [not null]
   occurred_at timestamptz [not null]
   status text [not null]
   comment text [not null, default: '']
@@ -411,9 +411,9 @@ Table pickup_items {
 }
 
 Table brands {
-  id integer [pk, increment]
-  org_id integer
-  legacy_brand_id integer [note: 'self-reference; ETL must insert NULL first, then UPDATE in a second pass through the id map']
+  id text [pk, note: 'Mongo ObjectId, carried across verbatim. NOT a surrogate: it is the id every JWT, every already-issued API response and every persisted client key already contains, so the cutover changes no identifier a client has ever seen. New rows mint one with mongoose Types.ObjectId() — generation is client-side, so this keeps working with Mongo decommissioned.']
+  org_id text
+  legacy_brand_id text [note: 'self-reference; ETL must insert NULL first, then UPDATE in a second pass through the id map']
   company_name text [not null]
   brand_name text [not null]
   email text [not null, unique]
@@ -441,7 +441,7 @@ Table brands {
 
 Table brand_environmental_stats {
   id integer [pk, increment]
-  brand_id integer [not null]
+  brand_id text [not null]
   is_snapshot boolean [not null, default: false]
   period_start date [note: 'null when is_snapshot']
   period_end date [note: 'null when is_snapshot']
@@ -469,14 +469,14 @@ Table brand_environmental_material_breakdown {
 }
 
 Table campaigns {
-  id integer [pk, increment]
+  id text [pk, note: 'Mongo ObjectId, carried across verbatim. NOT a surrogate: it is the id every JWT, every already-issued API response and every persisted client key already contains, so the cutover changes no identifier a client has ever seen. New rows mint one with mongoose Types.ObjectId() — generation is client-side, so this keeps working with Mongo decommissioned.']
   name text [not null]
   start_date text
   end_date text
   is_single_code boolean [not null, default: false]
   discount_percentage text
   status campaign_status [not null, default: 'PENDING']
-  brand_id integer [not null]
+  brand_id text [not null]
   brand_registration text [not null, default: '']
   description text
   campaign_type text
@@ -498,10 +498,10 @@ Table campaigns {
 
 Table campaign_discount_codes {
   id integer [pk, increment]
-  campaign_id integer [not null]
+  campaign_id text [not null]
   code text [not null]
   is_used boolean [not null, default: false]
-  used_by_user_id integer
+  used_by_user_id text
   used_at timestamptz
 
   Note: 'Was campaigns.discountCodes[] (plain string array, no redemption tracking).'
@@ -513,7 +513,7 @@ Table campaign_discount_codes {
 
 Table campaign_addresses {
   id integer [pk, increment]
-  campaign_id integer [not null]
+  campaign_id text [not null]
   province text [not null]
   city text [not null]
   town text [not null]
@@ -523,14 +523,14 @@ Table campaign_addresses {
 
 Table campaign_users {
   id integer [pk, increment]
-  campaign_id integer [not null]
-  user_id integer [not null]
+  campaign_id text [not null]
+  user_id text [not null]
 
   Note: 'Join table for campaigns.users (unchanged from rehearsal schema).'
 }
 
 Table collections {
-  id integer [pk, increment]
+  id text [pk, note: 'Mongo ObjectId, carried across verbatim. NOT a surrogate: it is the id every JWT, every already-issued API response and every persisted client key already contains, so the cutover changes no identifier a client has ever seen. New rows mint one with mongoose Types.ObjectId() — generation is client-side, so this keeps working with Mongo decommissioned.']
   name text [not null]
   area text [not null]
   city text [not null]
@@ -550,24 +550,24 @@ Table collections {
 
 Table collection_users {
   id integer [pk, increment]
-  collection_id integer [not null]
-  user_id integer [not null]
+  collection_id text [not null]
+  user_id text [not null]
 
   Note: 'Join table for collections.users (unchanged from rehearsal schema).'
 }
 
 Table collection_captains {
   id integer [pk, increment]
-  collection_id integer [not null]
-  captain_id integer [not null]
+  collection_id text [not null]
+  captain_id text [not null]
   date text [not null]
 
   Note: 'Join table for collections.captainsWithDates (unchanged from rehearsal schema).'
 }
 
 Table deals {
-  id integer [pk, increment]
-  brand_id integer [not null]
+  id text [pk, note: 'Mongo ObjectId, carried across verbatim. NOT a surrogate: it is the id every JWT, every already-issued API response and every persisted client key already contains, so the cutover changes no identifier a client has ever seen. New rows mint one with mongoose Types.ObjectId() — generation is client-side, so this keeps working with Mongo decommissioned.']
+  brand_id text [not null]
   title text [not null]
   description text [not null, default: '']
   discount_percentage numeric
@@ -592,7 +592,7 @@ Table deals {
 
 Table deal_codes {
   id integer [pk, increment]
-  deal_id integer [not null]
+  deal_id text [not null]
   code text [not null]
   is_used boolean [not null, default: false]
 
@@ -605,16 +605,16 @@ Table deal_codes {
 
 Table deal_users {
   id integer [pk, increment]
-  deal_id integer [not null]
-  user_id integer [not null]
+  deal_id text [not null]
+  user_id text [not null]
 
   Note: 'Join table for deals.users (unchanged from rehearsal schema).'
 }
 
 Table deal_claims {
   id integer [pk, increment]
-  deal_id integer [not null]
-  user_id integer [not null]
+  deal_id text [not null]
+  user_id text [not null]
   code text [not null]
   claimed_at timestamptz
 
@@ -622,8 +622,8 @@ Table deal_claims {
 }
 
 Table brandusers {
-  id integer [pk, increment]
-  org_id integer [not null]
+  id text [pk, note: 'Mongo ObjectId, carried across verbatim. NOT a surrogate: it is the id every JWT, every already-issued API response and every persisted client key already contains, so the cutover changes no identifier a client has ever seen. New rows mint one with mongoose Types.ObjectId() — generation is client-side, so this keeps working with Mongo decommissioned.']
+  org_id text [not null]
   email text [not null, unique]
   password_hash text [not null]
   org_role text [not null]
@@ -635,7 +635,7 @@ Table brandusers {
 
 Table brand_user_module_access {
   id integer [pk, increment]
-  brand_user_id integer [not null]
+  brand_user_id text [not null]
   module text [not null]
   permission text [not null]
 

@@ -1,21 +1,95 @@
 #!/usr/bin/env node
 /**
  * MintRewards API test runner
- * Usage: node scripts/test-api.mjs [--local]
+ * Usage: node scripts/test-api.mjs [--local] [--record <file>]
  *
- * --local  targets http://localhost:3000/api instead of the deployed branch URL
+ * --local          targets http://localhost:3000/api instead of the deployed branch URL
+ * --record <file>  additionally writes every request/response to <file> as a
+ *                  normalized API baseline (see scripts/lib/api-baseline.js).
  *
  * For --local runs, start the server with `npm run dev:testdb` so writes go
  * to the isolated MONGODB_URI_TEST database instead of production.
+ *
+ * RECORDING A BASELINE
+ * The mobile app only talks to this backend over HTTP, so the acceptance test
+ * for the Mongo -> Postgres migration is a response diff, not a row count.
+ * `--record` captures a golden baseline from the CURRENT (Mongoose) backend so
+ * a future Postgres-backed one can be diffed against it:
+ *
+ *   node scripts/seed-brandhub-personas.js          # freeze the dataset first
+ *   node scripts/test-api.mjs --local --record baseline-mongoose.json
+ *   # ...later, against the rewritten backend...
+ *   node scripts/test-api.mjs --local --record candidate-postgres.json
+ *   node scripts/api-baseline.mjs compare baseline-mongoose.json candidate-postgres.json
+ *
+ * Seed FIRST and always from the same seed: a baseline captured against the
+ * shared test cluster is meaningless, because that cluster churns under other
+ * work (its user count moved 90 -> 42 between two runs on one day).
  */
 
 import { randomUUID } from "crypto";
+import { writeFileSync } from "fs";
+import { createRequire } from "module";
+
+const require_ = createRequire(import.meta.url);
+const { normalizeCapture } = require_("./lib/api-baseline.js");
 
 // Suffix for throwaway account identifiers. Uses randomUUID rather than
 // Math.random so parallel runs can't collide on the same test email.
 const uniqueSuffix = () => `${Date.now()}${randomUUID().slice(0, 8)}`;
 
 const USE_LOCAL = process.argv.includes("--local");
+
+// --record <file>: accumulate every interaction, normalized and written at exit.
+const RECORD_IDX = process.argv.indexOf("--record");
+const RECORD_FILE =
+  RECORD_IDX !== -1 ? process.argv[RECORD_IDX + 1] : undefined;
+if (RECORD_IDX !== -1 && !RECORD_FILE) {
+  console.error("Error: --record requires a file path.");
+  process.exit(1);
+}
+/** Raw interactions, normalized only at the end so ids get stable symbols. */
+const captured = [];
+
+// Written from an exit hook rather than at the bottom of the file: several
+// helpers here call process.exit() when a precondition fails (no admin token,
+// no brand token), and a capture that is silently discarded whenever a run
+// aborts early is worse than useless — you would not know it was incomplete.
+// A partial baseline is still diffable, and it is labelled as partial.
+let baselineWritten = false;
+function writeBaseline() {
+  if (!RECORD_FILE || baselineWritten) return;
+  baselineWritten = true;
+  const capture = normalizeCapture(captured);
+  writeFileSync(
+    RECORD_FILE,
+    JSON.stringify(
+      {
+        recordedAt: new Date().toISOString(),
+        target: BASE,
+        // A run that aborted early records fewer interactions than a full one;
+        // comparing a partial against a complete baseline shows up as
+        // "missing" entries, which is the correct and visible outcome.
+        complete: completedNormally,
+        interactionCount: capture.interactions.length,
+        // The symbol table is kept so a diff can report which concrete id a
+        // "<id:N>" stood for. It is deliberately NOT compared.
+        symbols: capture.symbols,
+        interactions: capture.interactions,
+      },
+      null,
+      2,
+    ),
+  );
+  process.stdout.write(
+    `\nBaseline written: ${RECORD_FILE} ` +
+      `(${capture.interactions.length} interactions, ` +
+      `${Object.keys(capture.symbols).length} distinct ids symbolized` +
+      `${completedNormally ? "" : ", PARTIAL — run aborted early"})\n`,
+  );
+}
+let completedNormally = false;
+if (RECORD_FILE) process.on("exit", writeBaseline);
 
 const BASE = USE_LOCAL
   ? "http://localhost:3000/api"
@@ -111,6 +185,20 @@ async function call(method, path, { body, headers = {}, form } = {}) {
   } catch {
     data = {};
   }
+
+  // Baseline tap. Every request in this file funnels through here, so this is
+  // the whole recording surface. `form` bodies (multipart uploads) are noted
+  // rather than serialized — their content is a binary blob, not API shape.
+  if (RECORD_FILE) {
+    captured.push({
+      method,
+      path,
+      requestBody: form ? "<multipart>" : body,
+      status: res.status,
+      data,
+    });
+  }
+
   return { status: res.status, data };
 }
 
@@ -2091,6 +2179,12 @@ async function testBrandhubBrands() {
 async function testBrandhubModules() {
   section("BrandHub Modules  GET/POST /brandhub/modules/:module");
 
+  // Must be a real id from lib/modules.ts MODULE_CATALOGUE — currently
+  // "consumer-reporting" | "esg" | "minttrace". An id outside the catalogue
+  // 404s on isValidModuleId() before any auth or subscription check runs,
+  // which is what made the previous "b2c"/"analytics" assertions unreachable.
+  const VALID_MODULE = "consumer-reporting";
+
   // Unknown module → 404 (checked before auth, so no token needed)
   {
     const { status } = await call(
@@ -2101,9 +2195,10 @@ async function testBrandhubModules() {
     else log("unknown module → 404", "FAIL", `status=${status}`);
   }
 
-  // Valid module, no auth → 401
+  // Valid module, no auth → 401. Auth is checked before the subscription, so
+  // this holds regardless of what the org is subscribed to.
   {
-    const { status } = await call("GET", "/brandhub/modules/b2c");
+    const { status } = await call(`GET`, `/brandhub/modules/${VALID_MODULE}`);
     if (status === 401) log("valid module no auth → 401", "PASS");
     else log("valid module no auth → 401", "FAIL", `status=${status}`);
   }
@@ -2113,35 +2208,50 @@ async function testBrandhubModules() {
     return;
   }
 
-  // Valid module, authenticated, but org has no active subscription → 402
+  // Valid module, authenticated, subscribed → 200.
+  //
+  // These two previously asserted 402 ("org has no active subscription"), using
+  // module ids "b2c" and "analytics" that are not in MODULE_CATALOGUE — so they
+  // 404'd on the id check and never reached the subscription logic at all.
+  //
+  // The 402 branch is now UNREACHABLE through this runner: POST
+  // /brandhub/auth/register subscribes a new org to MODULE_CATALOGUE.map(...),
+  // i.e. every module in the catalogue (see that route ~line 184). A fresh org
+  // therefore always has an active subscription. Reaching 402 needs an org with
+  // a subscription deliberately removed or expired, which means direct DB
+  // manipulation this HTTP-only runner does not do.
+  //
+  // So these assert the reachable contract (subscribed access succeeds) rather
+  // than a status the runner cannot produce. The 402 path remains untested here
+  // — deliberately visible, not silently dropped.
   {
-    const { status } = await call("GET", "/brandhub/modules/b2c", {
-      headers: brandHeaders(),
-    });
-    if (status === 402)
-      log("valid module, no subscription → 402 (GET)", "PASS");
+    const { status, data } = await call(
+      `GET`,
+      `/brandhub/modules/${VALID_MODULE}`,
+      {
+        headers: brandHeaders(),
+      },
+    );
+    if (status === 200 && /read access confirmed/i.test(data.message || ""))
+      log("valid module, subscribed → 200 (GET)", "PASS", VALID_MODULE);
     else
-      log(
-        "valid module, no subscription → 402 (GET)",
-        "FAIL",
-        `status=${status}`,
-      );
+      log("valid module, subscribed → 200 (GET)", "FAIL", `status=${status}`);
   }
 
-  // POST (write) same story → 402
+  // POST (write) same story → 200
   {
-    const { status } = await call("POST", "/brandhub/modules/analytics", {
-      body: { foo: "bar" },
-      headers: brandHeaders(),
-    });
-    if (status === 402)
-      log("valid module, no subscription → 402 (POST)", "PASS");
+    const { status, data } = await call(
+      `POST`,
+      `/brandhub/modules/${VALID_MODULE}`,
+      {
+        body: { foo: "bar" },
+        headers: brandHeaders(),
+      },
+    );
+    if (status === 200 && /write access confirmed/i.test(data.message || ""))
+      log("valid module, subscribed → 200 (POST)", "PASS", VALID_MODULE);
     else
-      log(
-        "valid module, no subscription → 402 (POST)",
-        "FAIL",
-        `status=${status}`,
-      );
+      log("valid module, subscribed → 200 (POST)", "FAIL", `status=${status}`);
   }
 
   // Unknown module still 404 even with a valid token
@@ -2299,6 +2409,7 @@ try {
   await testBrandhubModules();
   await testCoupons();
   await testLogs();
+  completedNormally = true;
 } catch (err) {
   console.error(`\n${RED}${BOLD}Unexpected error — test run aborted${RESET}`);
   console.error(err);

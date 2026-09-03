@@ -152,16 +152,25 @@ async function main() {
   await pgClient.connect();
   const db = mongo.db();
 
-  const idMaps = {
-    organizations: new Map(),
-    users: new Map(),
-    captains: new Map(),
-    brands: new Map(),
-    campaigns: new Map(),
-    collections: new Map(),
-    deals: new Map(),
-    brandusers: new Map(),
+  // Sets, not Maps. With the Mongo ObjectId as the Postgres primary key there
+  // is nothing left to REMAP — an id is the same value in both databases. What
+  // these still do, and must keep doing, is answer "does this document exist?"
+  // so an orphaned reference is warned about and skipped rather than inserted
+  // as a dangling FK (which the constraint would reject, aborting the run).
+  const known = {
+    organizations: new Set(),
+    users: new Set(),
+    captains: new Set(),
+    brands: new Set(),
+    campaigns: new Set(),
+    collections: new Set(),
+    deals: new Set(),
+    brandusers: new Set(),
   };
+
+  // Resolves a reference to the id to store, or undefined when the target does
+  // not exist. Every caller's `=== undefined` orphan check works unchanged.
+  const ref = (set, oid) => (set.has(oid) ? oid : undefined);
 
   // Collected during the users pass, consumed after collections/captains
   // exist — pickupHistory entries reference both, and collections is
@@ -173,13 +182,15 @@ async function main() {
 
   console.log("Migrating organizations...");
   for (const doc of await db.collection("organizations").find().toArray()) {
-    const id = await insertReturningId(pgClient, "organizations", {
+    const id = oidStr(doc._id);
+    await insertRow(pgClient, "organizations", {
+      id: id,
       name: doc.name,
       plan: doc.plan ?? "starter",
       created_at: doc.createdAt,
       updated_at: doc.updatedAt,
     });
-    idMaps.organizations.set(oidStr(doc._id), id);
+    known.organizations.add(id);
     bump("organizations");
     for (const sub of asArray(doc.moduleSubscriptions, `organizations/${doc._id}.moduleSubscriptions`)) {
       await insertRow(pgClient, "organization_module_subscriptions", {
@@ -196,6 +207,7 @@ async function main() {
   console.log("Migrating brandthemes...");
   for (const doc of await db.collection("brandthemes").find().toArray()) {
     await insertRow(pgClient, "brandthemes", {
+      id: oidStr(doc._id),
       name: doc.name,
       logo: doc.logo,
       background_color: doc.backgroundColor,
@@ -207,7 +219,9 @@ async function main() {
 
   console.log("Migrating locations / cities / towns...");
   for (const doc of await db.collection("locations").find().toArray()) {
-    const locationId = await insertReturningId(pgClient, "locations", {
+    const locationId = oidStr(doc._id);
+    await insertRow(pgClient, "locations", {
+      id: locationId,
       province: doc.province,
     });
     bump("locations");
@@ -226,7 +240,9 @@ async function main() {
 
   console.log("Migrating users...");
   for (const doc of await db.collection("users").find().toArray()) {
-    const id = await insertReturningId(pgClient, "users", {
+    const id = oidStr(doc._id);
+    await insertRow(pgClient, "users", {
+      id: id,
       user_name: doc.userName,
       email: doc.email,
       password: doc.password,
@@ -256,7 +272,7 @@ async function main() {
       email_verified: doc.emailVerified,
       apple_id: doc.appleId,
     });
-    idMaps.users.set(oidStr(doc._id), id);
+    known.users.add(id);
     bump("users");
 
     const loc = asObject(doc.location, `users/${doc._id}.location`);
@@ -338,7 +354,9 @@ async function main() {
 
   console.log("Migrating captains...");
   for (const doc of await db.collection("captains").find().toArray()) {
-    const id = await insertReturningId(pgClient, "captains", {
+    const id = oidStr(doc._id);
+    await insertRow(pgClient, "captains", {
+      id: id,
       name: doc.name,
       phone: doc.phone,
       email: doc.email,
@@ -352,13 +370,14 @@ async function main() {
       email_verified: doc.emailVerified,
       verification_token: doc.verificationToken,
     });
-    idMaps.captains.set(oidStr(doc._id), id);
+    known.captains.add(id);
     bump("captains");
   }
 
   console.log("Migrating logistics...");
   for (const doc of await db.collection("logistics").find().toArray()) {
     await insertRow(pgClient, "logistics", {
+      id: oidStr(doc._id),
       name: doc.name,
       phone: doc.phone,
       email: doc.email,
@@ -376,8 +395,10 @@ async function main() {
   console.log("Migrating brands (pass 1: rows, legacy_brand_id deferred)...");
   const pendingLegacyRefs = []; // { id, legacyBrandId }
   for (const doc of await db.collection("brands").find().toArray()) {
-    const id = await insertReturningId(pgClient, "brands", {
-      org_id: doc.orgId ? idMaps.organizations.get(oidStr(doc.orgId)) : null,
+    const id = oidStr(doc._id);
+    await insertRow(pgClient, "brands", {
+      id: id,
+      org_id: doc.orgId ? ref(known.organizations, oidStr(doc.orgId)) : null,
       legacy_brand_id: null,
       company_name: doc.companyName,
       brand_name: doc.brandName,
@@ -401,7 +422,7 @@ async function main() {
       created_at: doc.createdAt,
       updated_at: doc.updatedAt,
     });
-    idMaps.brands.set(oidStr(doc._id), id);
+    known.brands.add(id);
     bump("brands");
     if (doc.legacyBrandId) {
       pendingLegacyRefs.push({ id, legacyBrandId: oidStr(doc.legacyBrandId) });
@@ -450,7 +471,7 @@ async function main() {
 
   console.log("Migrating brands (pass 2: resolving legacy_brand_id)...");
   for (const { id, legacyBrandId } of pendingLegacyRefs) {
-    const resolved = idMaps.brands.get(legacyBrandId);
+    const resolved = ref(known.brands, legacyBrandId);
     if (resolved === undefined) {
       warn(
         `brands.id=${id}: legacyBrandId ${legacyBrandId} does not resolve to any migrated brand — leaving NULL.`,
@@ -465,12 +486,14 @@ async function main() {
 
   console.log("Migrating campaigns...");
   for (const doc of await db.collection("campaigns").find().toArray()) {
-    const brandId = idMaps.brands.get(oidStr(doc.brand));
+    const brandId = ref(known.brands, oidStr(doc.brand));
     if (brandId === undefined) {
       warn(`campaigns "${doc.name}" (${doc._id}): brand ${doc.brand} not found — skipping campaign.`);
       continue;
     }
-    const id = await insertReturningId(pgClient, "campaigns", {
+    const id = oidStr(doc._id);
+    await insertRow(pgClient, "campaigns", {
+      id: id,
       name: doc.name,
       start_date: doc.startDate,
       end_date: doc.endDate,
@@ -488,7 +511,7 @@ async function main() {
       subtitle: doc.subtitle,
       banner: doc.banner,
     });
-    idMaps.campaigns.set(oidStr(doc._id), id);
+    known.campaigns.add(id);
     bump("campaigns");
 
     for (const code of asArray(doc.discountCodes, `campaigns/${doc._id}.discountCodes`)) {
@@ -510,7 +533,7 @@ async function main() {
       bump("campaign_addresses");
     }
     for (const userRef of asArray(doc.users, `campaigns/${doc._id}.users`)) {
-      const userId = idMaps.users.get(oidStr(userRef));
+      const userId = ref(known.users, oidStr(userRef));
       if (userId === undefined) {
         warn(`campaign ${doc._id}: user ${userRef} not found — skipping campaign_users row.`);
         continue;
@@ -522,7 +545,9 @@ async function main() {
 
   console.log("Migrating collections...");
   for (const doc of await db.collection("collections").find().toArray()) {
-    const id = await insertReturningId(pgClient, "collections", {
+    const id = oidStr(doc._id);
+    await insertRow(pgClient, "collections", {
+      id: id,
       name: doc.name,
       area: doc.area,
       city: doc.city,
@@ -532,11 +557,11 @@ async function main() {
       start_date: doc.startDate,
       status: doc.status,
     });
-    idMaps.collections.set(oidStr(doc._id), id);
+    known.collections.add(id);
     bump("collections");
 
     for (const userRef of asArray(doc.users, `collections/${doc._id}.users`)) {
-      const userId = idMaps.users.get(oidStr(userRef));
+      const userId = ref(known.users, oidStr(userRef));
       if (userId === undefined) {
         warn(`collection ${doc._id}: user ${userRef} not found — skipping collection_users row.`);
         continue;
@@ -545,7 +570,7 @@ async function main() {
       bump("collection_users");
     }
     for (const cwd of asArray(doc.captainsWithDates, `collections/${doc._id}.captainsWithDates`)) {
-      const captainId = idMaps.captains.get(oidStr(cwd.captain));
+      const captainId = ref(known.captains, oidStr(cwd.captain));
       if (captainId === undefined) {
         warn(`collection ${doc._id}: captain ${cwd.captain} not found — skipping collection_captains row.`);
         continue;
@@ -561,12 +586,14 @@ async function main() {
 
   console.log("Migrating deals...");
   for (const doc of await db.collection("deals").find().toArray()) {
-    const brandId = idMaps.brands.get(oidStr(doc.brand));
+    const brandId = ref(known.brands, oidStr(doc.brand));
     if (brandId === undefined) {
       warn(`deal "${doc.title}" (${doc._id}): brand ${doc.brand} not found — skipping deal.`);
       continue;
     }
-    const id = await insertReturningId(pgClient, "deals", {
+    const id = oidStr(doc._id);
+    await insertRow(pgClient, "deals", {
+      id: id,
       brand_id: brandId,
       title: doc.title,
       description: doc.description,
@@ -581,7 +608,7 @@ async function main() {
       created_at: doc.createdAt,
       updated_at: doc.updatedAt,
     });
-    idMaps.deals.set(oidStr(doc._id), id);
+    known.deals.add(id);
     bump("deals");
 
     const issuedCodes = new Set();
@@ -596,7 +623,7 @@ async function main() {
       bump("deal_codes");
     }
     for (const userRef of asArray(doc.users, `deals/${doc._id}.users`)) {
-      const userId = idMaps.users.get(oidStr(userRef));
+      const userId = ref(known.users, oidStr(userRef));
       if (userId === undefined) {
         warn(`deal ${doc._id}: user ${userRef} not found — skipping deal_users row.`);
         continue;
@@ -605,7 +632,7 @@ async function main() {
       bump("deal_users");
     }
     for (const claim of asArray(doc.claims, `deals/${doc._id}.claims`)) {
-      const userId = idMaps.users.get(oidStr(claim.user));
+      const userId = ref(known.users, oidStr(claim.user));
       if (userId === undefined) {
         warn(`deal ${doc._id}: claim user ${claim.user} not found — skipping deal_claims row.`);
         continue;
@@ -629,12 +656,14 @@ async function main() {
 
   console.log("Migrating brandusers...");
   for (const doc of await db.collection("brandusers").find().toArray()) {
-    const orgId = idMaps.organizations.get(oidStr(doc.orgId));
+    const orgId = ref(known.organizations, oidStr(doc.orgId));
     if (orgId === undefined) {
       warn(`branduser "${doc.email}" (${doc._id}): org ${doc.orgId} not found — skipping.`);
       continue;
     }
-    const id = await insertReturningId(pgClient, "brandusers", {
+    const id = oidStr(doc._id);
+    await insertRow(pgClient, "brandusers", {
+      id: id,
       org_id: orgId,
       email: doc.email,
       password_hash: doc.passwordHash,
@@ -642,7 +671,7 @@ async function main() {
       created_at: doc.createdAt,
       updated_at: doc.updatedAt,
     });
-    idMaps.brandusers.set(oidStr(doc._id), id);
+    known.brandusers.add(id);
     bump("brandusers");
 
     for (const ma of asArray(doc.moduleAccess, `brandusers/${doc._id}.moduleAccess`)) {
@@ -662,8 +691,8 @@ async function main() {
   for (const { userId, entries } of pendingPickupHistory) {
     for (const [entryIdx, entry] of entries.entries()) {
       const label = `users/(pg id ${userId}).pickupHistory[${entryIdx}]`;
-      const collectionId = idMaps.collections.get(oidStr(entry.collectionId));
-      const captainId = idMaps.captains.get(oidStr(entry.captain));
+      const collectionId = ref(known.collections, oidStr(entry.collectionId));
+      const captainId = ref(known.captains, oidStr(entry.captain));
       if (collectionId === undefined || captainId === undefined) {
         warn(
           `pickup for user ${userId}: collectionId=${entry.collectionId} captain=${entry.captain} ` +

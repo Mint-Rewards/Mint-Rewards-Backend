@@ -1,5 +1,35 @@
 # Brand Hub repo audit
 
+> ## ⚠️ SUPERSEDED — historical record only (re-verified 2026-09-04)
+>
+> This audit was written on **2026-07-01**. **Every security finding in it has
+> since been closed**, and several of its structural claims are no longer true.
+> It is kept because it records what the codebase looked like before the RBAC
+> and hardening work, and because its reasoning explains why the current design
+> is shaped the way it is. **Do not use it as a description of the code today.**
+>
+> For the current picture, read **`docs/HANDOFF.md`** and **`README.md`**.
+>
+> ### What changed since this was written
+>
+> | Finding below                                                                                                 | Status on 2026-09-04                                                                                                                                                                               |
+> | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | Seven unauthenticated endpoints (`/brands/[id]` and its sub-routes, `/brands/fetch`, `/users/delete-account`) | **Closed.** Every one now carries a guard — verified by grepping all 49 `route.ts` files. Brand-scoped routes run `requireBrandAuth` + `requireBrandScope`; `/brands/fetch` is `requireAdminAuth`. |
+> | `lib/auth.ts` silently accepts an **unverified** token when no secret is set                                  | **Closed.** `checkAuth` now returns `null` when no secret is present, and `lib/env.ts` makes `JWT_SECRET` required at boot. It also rejects any token carrying a `purpose` claim.                  |
+> | "`BrandUser` and `Organization` do not exist … this is a from-scratch build"                                  | **Built.** Both models exist in `lib/models.ts`, with `orgRole` (`owner`/`admin`/`member`) and per-user `moduleAccess`.                                                                            |
+> | "No `subscribedModules` / `moduleAccess` / `orgRole` concept exists"                                          | **Built.** `lib/modules.ts` holds `MODULE_CATALOGUE` (`consumer-reporting`, `esg`, `minttrace`), hierarchical permissions, and `Organization.moduleSubscriptions`.                                 |
+> | "No brand-portal login route exists"                                                                          | **Built.** `/api/brandhub/auth/{register,login}`, signed with a dedicated `BRANDHUB_JWT_SECRET` (`lib/brandJwt.ts`).                                                                               |
+> | Multiple JWT-secret-shaped env keys, fallback chain in `lib/auth.ts`                                          | **Collapsed.** `lib/env.ts` is now the single source of environment truth and validates every key at boot. `NEXTAUTH_SECRET` / `NEXT_JWT_SECRET` are gone from the required set.                   |
+> | `.gitignore` covers `.env` literally, not `.env*`                                                             | **Still true.** `.gitignore` lists `.env` and `.env.local` as exact entries; `.env.production` and friends are not covered. Still worth tightening to `.env*`.                                     |
+> | Nodemailer/SMTP (implied by the deps list)                                                                    | **Replaced by Resend**, with Svix-verified webhooks and a suppression list.                                                                                                                        |
+> | "No `zod`" / "no rate limiting"                                                                               | Still no `zod` (validation is hand-rolled). Rate limiting now exists — `lib/rateLimit.ts`, Mongo-backed, applied to signup/login/OTP/reverse-geocode.                                              |
+>
+> The two items that remain open are tracked as **draft GitHub security
+> advisories** (enumeration on `reset-password` and on the registration
+> endpoints) and are described in `docs/HANDOFF.md` §3 — not here.
+
+---
+
 Generated: 2026-07-01 (re-run; repo HEAD unchanged since the 2026-06-30 audit — `97fa86b`, no new commits, working tree clean apart from this file. All findings below independently re-verified and unchanged from the prior pass.)
 
 **Note on scope:** This audit was run against `Mint-Rewards-Backend`, the standalone Next.js API service that `VITE_API_URL` points to — not the Brand Hub frontend SPA (`Mint-Rewards-BrandHub`), which has no server runtime. Despite `express` appearing in `package.json`, this is **not** an Express backend: `express` is used only as a thin test-harness adapter (`app.ts`) to mount two App Router handlers for `supertest`. Actual routing is 100% Next.js App Router (`app/api/**/route.ts`).

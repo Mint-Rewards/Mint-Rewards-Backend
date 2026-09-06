@@ -160,10 +160,8 @@ async function main() {
   const known = {
     organizations: new Set(),
     users: new Set(),
-    captains: new Set(),
     brands: new Set(),
     campaigns: new Set(),
-    collections: new Set(),
     deals: new Set(),
     brandusers: new Set(),
   };
@@ -172,10 +170,6 @@ async function main() {
   // not exist. Every caller's `=== undefined` orphan check works unchanged.
   const ref = (set, oid) => (set.has(oid) ? oid : undefined);
 
-  // Collected during the users pass, consumed after collections/captains
-  // exist — pickupHistory entries reference both, and collections is
-  // migrated well after users.
-  const pendingPickupHistory = []; // { userId, entries: [...] }
 
   const counts = {};
   const bump = (k, n = 1) => (counts[k] = (counts[k] ?? 0) + n);
@@ -345,33 +339,6 @@ async function main() {
       );
       bump("user_referrals");
     }
-
-    const pickupHistory = asArray(doc.pickupHistory, `users/${doc._id}.pickupHistory`);
-    if (pickupHistory.length) {
-      pendingPickupHistory.push({ userId: id, entries: pickupHistory });
-    }
-  }
-
-  console.log("Migrating captains...");
-  for (const doc of await db.collection("captains").find().toArray()) {
-    const id = oidStr(doc._id);
-    await insertRow(pgClient, "captains", {
-      id: id,
-      name: doc.name,
-      phone: doc.phone,
-      email: doc.email,
-      password: doc.password,
-      avatar: doc.avatar,
-      national_id: doc.nationalId,
-      national_id_image: doc.nationalIdImage,
-      role: doc.role,
-      device_token: doc.deviceToken,
-      created: doc.created,
-      email_verified: doc.emailVerified,
-      verification_token: doc.verificationToken,
-    });
-    known.captains.add(id);
-    bump("captains");
   }
 
   console.log("Migrating logistics...");
@@ -543,47 +510,6 @@ async function main() {
     }
   }
 
-  console.log("Migrating collections...");
-  for (const doc of await db.collection("collections").find().toArray()) {
-    const id = oidStr(doc._id);
-    await insertRow(pgClient, "collections", {
-      id: id,
-      name: doc.name,
-      area: doc.area,
-      city: doc.city,
-      radius: doc.radius,
-      start_area_lat: doc.startAreaLat,
-      start_area_lang: doc.startAreaLang,
-      start_date: doc.startDate,
-      status: doc.status,
-    });
-    known.collections.add(id);
-    bump("collections");
-
-    for (const userRef of asArray(doc.users, `collections/${doc._id}.users`)) {
-      const userId = ref(known.users, oidStr(userRef));
-      if (userId === undefined) {
-        warn(`collection ${doc._id}: user ${userRef} not found — skipping collection_users row.`);
-        continue;
-      }
-      await insertRow(pgClient, "collection_users", { collection_id: id, user_id: userId });
-      bump("collection_users");
-    }
-    for (const cwd of asArray(doc.captainsWithDates, `collections/${doc._id}.captainsWithDates`)) {
-      const captainId = ref(known.captains, oidStr(cwd.captain));
-      if (captainId === undefined) {
-        warn(`collection ${doc._id}: captain ${cwd.captain} not found — skipping collection_captains row.`);
-        continue;
-      }
-      await insertRow(pgClient, "collection_captains", {
-        collection_id: id,
-        captain_id: captainId,
-        date: cwd.date,
-      });
-      bump("collection_captains");
-    }
-  }
-
   console.log("Migrating deals...");
   for (const doc of await db.collection("deals").find().toArray()) {
     const brandId = ref(known.brands, oidStr(doc.brand));
@@ -687,64 +613,6 @@ async function main() {
     }
   }
 
-  console.log("Migrating pickups / pickup_items (deferred until collections + captains exist)...");
-  for (const { userId, entries } of pendingPickupHistory) {
-    for (const [entryIdx, entry] of entries.entries()) {
-      const label = `users/(pg id ${userId}).pickupHistory[${entryIdx}]`;
-      const collectionId = ref(known.collections, oidStr(entry.collectionId));
-      const captainId = ref(known.captains, oidStr(entry.captain));
-      if (collectionId === undefined || captainId === undefined) {
-        warn(
-          `pickup for user ${userId}: collectionId=${entry.collectionId} captain=${entry.captain} ` +
-            `did not both resolve — skipping pickup (this is the un-remapped-ObjectId case the ` +
-            `normalized schema is designed to surface).`,
-        );
-        continue;
-      }
-      const snap = asObject(entry.addressSnapshot, `${label}.addressSnapshot`);
-      const snapAddr = asObject(snap.structuredAddress, `${label}.addressSnapshot.structuredAddress`);
-      const snapLoc = asObject(snap.location, `${label}.addressSnapshot.location`);
-      const pickupId = await insertReturningId(pgClient, "pickups", {
-        user_id: userId,
-        collection_id: collectionId,
-        captain_id: captainId,
-        occurred_at: entry.date,
-        status: entry.status,
-        comment: entry.comment,
-        snapshot_address: snap.address,
-        snapshot_province: snap.province,
-        snapshot_city: snap.city,
-        snapshot_town: snap.town,
-        snapshot_town_other: snap.townOther,
-        snapshot_sub_area: snap.subArea,
-        snapshot_sub_area_other: snap.subAreaOther,
-        snapshot_structured_city_id: snapAddr.cityId,
-        snapshot_structured_area_id: snapAddr.areaId,
-        snapshot_structured_block_id: snapAddr.blockId,
-        snapshot_structured_area_other: snapAddr.areaOther,
-        snapshot_structured_block_other: snapAddr.blockOther,
-        snapshot_house_no: snapAddr.houseNo,
-        snapshot_street_or_block: snapAddr.streetOrBlock,
-        snapshot_location_lng: snapLoc.coordinates?.[0],
-        snapshot_location_lat: snapLoc.coordinates?.[1],
-        snapshot_location_source: snapLoc.source,
-        snapshot_location_precision: snapLoc.precision,
-        snapshot_location_accuracy_meters: snapLoc.accuracyMeters,
-        snapshot_location_captured_at: snapLoc.capturedAt,
-        snapshot_source: snap.snapshotSource,
-        snapshot_at: snap.snapshotAt,
-      });
-      bump("pickups");
-      for (const qr of asArray(entry.qrCodesWithWeights, `${label}.qrCodesWithWeights`)) {
-        await insertRow(pgClient, "pickup_items", {
-          pickup_id: pickupId,
-          qr_code: qr.qrCode,
-          weight: qr.weight,
-        });
-        bump("pickup_items");
-      }
-    }
-  }
 
   await mongo.close();
   await pgClient.end();

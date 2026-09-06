@@ -15,6 +15,32 @@ of both options and the measured costs is in
 `docs/plans/HANDOFF-2026-09-02-postgres-migration.md`. Read that before
 treating any DDL statement below as current.
 
+**DECISION 2026-09-06 — six tables removed from this schema.** `captains`,
+`collections`, `collection_users`, `collection_captains`, `pickups` and
+`pickup_items` now belong to the admin service (`mint-rewards-admin-api`),
+which models them materially differently: zones, time slots, routed stops
+carrying their own outcome and no-collection reason, PostGIS geography, a
+five-state lifecycle. The versions here were flat Mongo dumps with text-typed
+dates and coordinates. Nothing was lost — production holds **zero**
+`pickupHistory` entries, 4 test collections from 2024–25 that never produced a
+pickup, and 5 captains named "captain 1" … "captain 5". Full analysis, and the
+argument for one database rather than two joined by a sync job, in
+`mint-rewards-admin-api/docs/schema-reconciliation.md`. `logistics` stays,
+having no admin counterpart.
+
+Consequences already applied: `scripts/postgres-normalized-schema.sql` drops
+those tables plus the now-orphan `collection_status` and `snapshot_source`
+enums; `scripts/migrate-mongo-to-postgres-normalized.mjs` loses the captains,
+collections and pickups passes, and no longer buffers `pickupHistory` during
+the users pass; `scripts/verify-etl-fixtures.mjs` keeps the four assertions
+that were never about those tables and drops the sixteen that were. The
+fixture seeder is unchanged — it writes to Mongo, and the extra shapes are
+simply no longer read.
+
+Re-verified 2026-09-06 end to end against a local fixture database: schema
+applies clean (24 tables, 9 enums, 25 FKs), ETL exits 0 with one deliberate
+warning, verifier 4/4.
+
 **Latest verification run: `docs/plans/HANDOFF-2026-09-02-postgres-migration.md`**
 — the ETL was re-run end to end on 2026-09-02 against both the real test
 cluster and a dedicated fixture dataset (exit 0 both times; 20/20 content

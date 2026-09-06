@@ -13,6 +13,7 @@ import {
   BrandUserDocument,
 } from "@/lib/types";
 import { PERMISSION_LEVELS, ORG_ROLES } from "@/lib/modules";
+import { attachDualWrite } from "@/lib/dualWrite";
 
 // INVARIANT: this module never opens the DB connection at import time.
 // The driver runs with bufferCommands:false (see lib/mongodb.ts), so every
@@ -572,9 +573,18 @@ const getModel = <T extends mongoose.Document>(
   name: string,
   schema: Schema<T>,
   collection?: string,
-): Model<T> =>
-  (mongoose.models[name] as Model<T>) ||
-  mongoose.model<T>(name, schema, collection);
+): Model<T> => {
+  const existing = mongoose.models[name] as Model<T> | undefined;
+  if (existing) return existing;
+  // The single registration point for the Mongo -> Postgres mirror. Hooking
+  // here rather than at the 44 write sites is what makes coverage a property
+  // of the code instead of a thing someone has to remember: a new model, or a
+  // new route writing an old one, is mirrored without touching this file
+  // again. Must run before mongoose.model() compiles the schema — middleware
+  // added afterwards is silently ignored.
+  attachDualWrite(schema, collection ?? mongoose.pluralize()?.(name));
+  return mongoose.model<T>(name, schema, collection);
+};
 
 export const BrandModel = getModel<BrandDocument>(
   "Brand",

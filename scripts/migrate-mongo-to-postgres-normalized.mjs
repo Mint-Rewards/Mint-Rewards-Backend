@@ -29,6 +29,7 @@
 import dotenv from "dotenv";
 import { MongoClient } from "mongodb";
 import pg from "pg";
+import { NESTED_CHILDREN } from "../lib/mirroredTables.js";
 
 dotenv.config({ path: ".env" });
 dotenv.config({ path: ".env.local" });
@@ -272,10 +273,11 @@ async function main() {
     const loc = asObject(doc.location, `users/${doc._id}.location`);
     const addr = asObject(doc.structuredAddress, `users/${doc._id}.structuredAddress`);
     const ver = asObject(doc.locationVerification, `users/${doc._id}.locationVerification`);
-    const hasLocationData =
-      doc.location || doc.structuredAddress || doc.locationVerification ||
-      doc.locationCompletedAt || (doc.locationVersion ?? 0) > 0;
-    if (hasLocationData) {
+    // Shared with the dual-write and the reconciler, so all three agree on
+    // which users get a row. Testing `doc.location` for existence would not:
+    // Mongoose stamps `{ type: "Point" }` on every user via the schema
+    // default, which would give all ~7,269 an otherwise empty child row.
+    if (NESTED_CHILDREN.user_locations.present(doc)) {
       await insertRow(pgClient, "user_locations", {
         user_id: id,
         lng: loc.coordinates?.[0],

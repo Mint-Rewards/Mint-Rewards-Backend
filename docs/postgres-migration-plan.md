@@ -224,6 +224,69 @@ the schema draft:
   dual-write (`latitude`/`longitude`), and blindly coercing types during
   migration risks data loss on unparseable rows.
 
+## Dual-write — BUILT 2026-09-06
+
+Off unless `DUAL_WRITE_ENABLED=true` and `POSTGRES_URL` are both set.
+
+| Piece | |
+|---|---|
+| `lib/mirroredTables.js` | The one definition of what is mirrored. CommonJS so `lib/` TypeScript, the `.mjs` scripts and ts-jest all read the same file. |
+| `lib/postgres.ts` | The shadow pool. Null when unconfigured, capped at 4 connections, with an idle-error handler so a dropped client cannot take the process down. |
+| `lib/dualWrite.ts` | The mirror and the Mongoose middleware. |
+| `lib/models.ts` | One line in `getModel` — the single registration point. |
+
+**Hooked at `getModel`, not at the 44 write sites.** Coverage becomes a
+property of the code rather than something to remember: a new model, or a new
+route writing an existing one, is mirrored without touching anything.
+
+**Updates re-read the document rather than translating `$set`.** This is a
+deliberate departure from the plan. Dotted paths, positional operators and
+`$inc`/`$push` would each need their own translation, every one a chance to
+write a subtly wrong column — and that bug would look exactly like a lost
+write. Ids are captured in a `pre` hook (a filter can stop matching the
+document it just changed, and after a delete there is nothing left to look up)
+and the fresh documents are mirrored whole in `post`.
+
+**Fail open, and bounded.** Every path swallows its errors behind a
+`[dual-write]` log line. Writes are awaited rather than detached: on a
+serverless host a detached promise may never run, so the mirror would silently
+stop in exactly the environment it matters in. A 2s timeout keeps that from
+holding a request open.
+
+**Credentials are mirrored, deliberately.** The instinct to hold password
+hashes back is wrong here: the ETL already copies them, Postgres becomes the
+authentication store at the end of the window, and a user who signed up or
+changed their password mid-window would otherwise reach cutover unable to log
+in — invisibly, since an unmirrored column is also unreconciled. `user_otp_flows`
+is genuinely not mirrored; an OTP in flight at cutover is worth "request a new
+code", not a dual-write path.
+
+### A bug this found in the ETL
+
+`hasLocationData` tested `doc.location` for existence. `UserSchema` declares
+`location.type` with `default: "Point"`, so **Mongoose stamps `{ type: "Point" }`
+on every user who has never dropped a pin** — the same quirk that makes a plain
+2dsphere index unbuildable on that collection. The ETL would therefore have
+given all ~7,269 users an otherwise empty `user_locations` row. The presence
+rule now looks for a value rather than the container, and lives in
+`lib/mirroredTables.js` so the ETL, the dual-write and the reconciler cannot
+disagree about which users get a row.
+
+### Verified
+
+`__tests__/dualWrite.test.ts` (12, no databases) covers the shared definition
+and fail-open: an unreachable Postgres resolves rather than throwing, and logs.
+
+`__tests__/dualWriteIntegration.test.ts` (10, skipped unless
+`DUAL_WRITE_TEST_POSTGRES_URL` is set) runs against real databases and
+exercises the write shapes the routes use — `.save()`, `findOneAndUpdate`,
+`updateOne`, `updateMany`, `findOneAndDelete`, `deleteMany`, and the dotted
+`$set` the location routes issue. The last test shells out to the reconciler
+and asserts it finds nothing: dual-write writes, and the job that certifies
+the window agrees the stores match.
+
+Full suite: **358 passing**.
+
 ## The nightly reconciliation job — BUILT 2026-09-06
 
 `scripts/reconcile-mongo-postgres.mjs`. Read-only against both databases, so

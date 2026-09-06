@@ -331,6 +331,14 @@ const parsed = {
   jwtSecret: requiredSecret("JWT_SECRET"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN?.trim() || "7d",
 
+  // Mongo -> Postgres dual-write, for the 30-day migration window. Off unless
+  // both are set. Mongo stays authoritative throughout; a Postgres failure is
+  // logged and swallowed, never surfaced to the user (see lib/dualWrite.ts).
+  dualWrite: {
+    enabled: optionalBoolean("DUAL_WRITE_ENABLED"),
+    postgresUrl: optionalString("POSTGRES_URL"),
+  },
+
   // BrandHub (separate secret by design — see lib/brandJwt.ts)
   brandhubJwtSecret: requiredSecret("BRANDHUB_JWT_SECRET"),
 

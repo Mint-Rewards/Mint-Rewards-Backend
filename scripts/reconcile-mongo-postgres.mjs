@@ -9,11 +9,14 @@
 // READ-ONLY against both databases. It is safe to point at production, and
 // it has no --yes guard for that reason.
 //
-// The column list comes from information_schema rather than a hand-written
-// map: a second copy of the field mapping would drift from the ETL's, and a
-// reconciler that agrees with a stale map reports success it has not earned.
-// Mongo field names are derived by camel-casing the column, which covers
-// almost every column as written; the exceptions are declared in NESTED below.
+// What is checked comes from lib/mirroredTables.js — the same file the
+// dual-write reads to decide what to write. Two lists would drift, and a
+// reconciler checking a different set than the one being mirrored reports
+// either false confidence or permanent noise.
+//
+// The column list itself comes from information_schema rather than a
+// hand-written map, and Mongo field names are derived by camel-casing the
+// column; only the nested children are spelled out.
 //
 // Usage:
 //   node scripts/reconcile-mongo-postgres.mjs
@@ -25,66 +28,18 @@
 import "dotenv/config";
 import { MongoClient } from "mongodb";
 import pg from "pg";
+import {
+  MIRRORED as ENTITIES,
+  NESTED_CHILDREN as NESTED,
+  SECRET_COLUMNS,
+  camelCase as camel,
+} from "../lib/mirroredTables.js";
 
 const MONGO_URI = process.env.RECONCILE_MONGODB_URI || process.env.MONGODB_URI;
 const PG_URL = process.env.RECONCILE_POSTGRES_URL || process.env.POSTGRES_URL;
 
-/** Postgres table -> the Mongo collection it mirrors, 1:1 on _id. */
-const ENTITIES = {
-  users: "users",
-  brands: "brands",
-  campaigns: "campaigns",
-  deals: "deals",
-  organizations: "organizations",
-  brandusers: "brandusers",
-  brandthemes: "brandthemes",
-  logistics: "logistics",
-  locations: "locations",
-};
 
-/**
- * Columns whose value does not come from a same-named top-level Mongo field.
- * Anything not listed is `camelCase(column)` on the document root.
- */
-const NESTED = {
-  user_locations: {
-    collection: "users",
-    // Keyed on the parent's _id, so the row is present iff the user has any
-    // location data at all — the ETL's `hasLocationData` condition.
-    key: "user_id",
-    present: (d) =>
-      Boolean(d.location || d.structuredAddress || d.locationVerification ||
-              d.locationCompletedAt || (d.locationVersion ?? 0) > 0),
-    fields: {
-      lng: (d) => d.location?.coordinates?.[0],
-      lat: (d) => d.location?.coordinates?.[1],
-      source: (d) => d.location?.source,
-      precision: (d) => d.location?.precision,
-      accuracy_meters: (d) => d.location?.accuracyMeters,
-      captured_at: (d) => d.location?.capturedAt,
-      structured_city_id: (d) => d.structuredAddress?.cityId,
-      structured_area_id: (d) => d.structuredAddress?.areaId,
-      structured_block_id: (d) => d.structuredAddress?.blockId,
-      structured_area_other: (d) => d.structuredAddress?.areaOther,
-      structured_block_other: (d) => d.structuredAddress?.blockOther,
-      structured_house_no: (d) => d.structuredAddress?.houseNo,
-      structured_street_or_block: (d) => d.structuredAddress?.streetOrBlock,
-      version: (d) => d.locationVersion ?? 0,
-      completed_at: (d) => d.locationCompletedAt,
-      verification_status: (d) => d.locationVerification?.status,
-      verification_method: (d) => d.locationVerification?.method,
-      verification_geocoded_area_raw: (d) => d.locationVerification?.geocodedAreaRaw,
-      verification_geocoded_area_id: (d) => d.locationVerification?.geocodedAreaId,
-      verification_selected_area_id: (d) => d.locationVerification?.selectedAreaId,
-      verification_distance_meters: (d) => d.locationVerification?.distanceMeters,
-      verification_checked_at: (d) => d.locationVerification?.checkedAt,
-      verification_resolved_by: (d) => d.locationVerification?.resolvedBy,
-    },
-  },
-};
 
-/** Never read, never compared, never printed. */
-const SECRET_COLUMNS = new Set(["password", "password_hash", "otp_hash"]);
 
 const args = process.argv.slice(2);
 const asJson = args.includes("--json");
@@ -96,9 +51,6 @@ function argValue(flag) {
   return i === -1 ? undefined : args[i + 1];
 }
 
-function camel(col) {
-  return col.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
-}
 
 /** What Postgres would store for a value the document does not carry. */
 function applyDefault(value, col) {

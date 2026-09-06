@@ -65,7 +65,10 @@ window length in the dead of night, active users are effectively zero.
 1. Brief freeze → run the ETL → enable dual-write → unfreeze.
    (Enabling dual-write _before_ the ETL races it; _after_ loses the writes in
    between. The 5-second freeze is what makes this ordering safe and cheap.)
-2. **Dual-write to Mongo and Postgres for 14 days**, Mongo authoritative.
+2. **Dual-write to Mongo and Postgres for 30 days**, Mongo authoritative.
+   (Extended from 14 on 2026-09-06. See the note under the ObjectId decision:
+   at 30 days the window matches `JWT_EXPIRES_IN`, so every session minted
+   before the cutover has expired naturally by the time the window closes.)
 3. **Roll back to Mongo only if information currently being captured is lost.**
 4. If the window passes cleanly, transition to 100% Postgres.
 
@@ -74,7 +77,7 @@ Three requirements this strategy imposes, none yet implemented:
 - **Dual-write must fail open.** A Postgres write error must never fail the
   user's request while Mongo is authoritative — log and continue. Otherwise the
   failure surface doubles on behalf of a database no user depends on yet.
-- **"Successful" needs a daily definition, not a day-14 one.** Dual-write
+- **"Successful" needs a daily definition, not a day-30 one.** Dual-write
   diverges silently; a failed shadow write leaves no trace in the user-visible
   path. Without nightly reconciliation the rollback trigger is unfalsifiable,
   because loss nobody is looking for is loss nobody sees. The comparison logic
@@ -99,10 +102,21 @@ IDENTITY` primary keys and retained **no** column holding the original Mongo
 Dual-write cannot resolve a reference without it — and worse:
 
 - Every signed-in user's JWT carries a Mongo ObjectId as its subject
-  (`{"id":"6a985811cf8c5c4aa3f43823", ...}`) and `JWT_EXPIRES_IN=30d`, i.e.
-  **longer than the 14-day window**. On switchover day every active session
-  presents an ObjectId. If Postgres cannot resolve it, the app's global 401
-  handler signs the entire user base out at once.
+  (`{"id":"6a985811cf8c5c4aa3f43823", ...}`) and production runs
+  `JWT_EXPIRES_IN=30d`. Throughout the window every active session presents an
+  ObjectId; if Postgres cannot resolve it, the app's global 401 handler signs
+  the entire user base out at once.
+  - **Updated 2026-09-06.** At 14 days the window was shorter than the token
+    lifetime, so sessions minted before the cutover were guaranteed to outlive
+    it. At 30 days the two are equal: a token issued on cutover day expires on
+    day 30, so by the time the window closes every pre-cutover session has
+    rotated on its own. That removes the switchover-day cliff, though it does
+    not make the ObjectId decision optional — the SecureStore key names below,
+    and dual-write's need to resolve references, stand on their own.
+  - Note `.env.example` and the `lib/env.ts` default both say `7d`, while
+    production is `30d`. Whichever is right, they should agree before anyone
+    provisions a new environment and reasons about this window from the wrong
+    number.
 - The app bakes `user._id` into persisted SecureStore key _names_ —
   `demoScheduledCollection_<_id>` (`store/store.ts` ~L459) and
   `appleFullName_<id>`. Both deliberately survive logout, and the Apple one is
@@ -664,9 +678,9 @@ transition with no user disruption and no data loss.
    _In progress._ Everything else in the dual-write plan depends on it.
 2. **Build dual-write**, fail-open, Mongo authoritative. 44 write sites / 30
    files; Mongoose query + document middleware is the least invasive route.
-3. **Build the nightly reconciliation job.** Without it the 14-day window
+3. **Build the nightly reconciliation job.** Without it the 30-day window
    produces confidence rather than evidence, and the rollback trigger cannot
-   fire. Generalise `scripts/verify-etl-fixtures.mjs`.
+   fire. **Built 2026-09-06:** `scripts/reconcile-mongo-postgres.mjs`.
 4. **Define the point of no return.** Rollback is free while Mongo is
    authoritative and nothing writes only to Postgres. After the switch to 100%
    Postgres, rolling back loses every Postgres-side write. Decide the trigger
@@ -701,6 +715,6 @@ transition with no user disruption and no data loss.
   pole"_ — written before the 5-second measurement. At that window length the
   whole apparatus is probably unnecessary.
 - _"Consider CDC / dual-write replication for a near-zero-downtime cutover"_ —
-  the measurement closed this fork. A brief freeze is sufficient. (The 14-day
+  the measurement closed this fork. A brief freeze is sufficient. (The 30-day
   dual-write in the chosen strategy is a _verification_ mechanism after the
   initial load, not a replication strategy for it.)

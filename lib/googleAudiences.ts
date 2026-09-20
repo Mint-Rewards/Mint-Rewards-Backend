@@ -24,7 +24,25 @@
  * google route.
  */
 
-/** Google project 490896222696 — superseded 2026-07-29/30. */
+/**
+ * Google project 490896222696.
+ *
+ * VERIFIED 2026-09-20 against the Cloud console: project 78392867949, named
+ * above as the replacement, does NOT exist in the engineering-app-org
+ * organisation (99488475543). All three IDs below are live, undeleted OAuth
+ * clients in the "Mint Rewards App" project (project-b6c5b956-e219-40ca-994),
+ * and two of them are exactly what GOOGLE_IOS_CLIENT_ID and
+ * GOOGLE_WEB_CLIENT_ID are set to today.
+ *
+ * So do NOT action the "REMOVE THIS" instruction above without re-checking the
+ * console first. Deleting this list as it stands would drop the auto-created
+ * web client (…-kdpg…, created 2026-07-14) from the accepted audiences; the
+ * other two survive only because the env vars happen to supply them.
+ *
+ * What actually changed on 2026-07-29/30 is unresolved — the production Vercel
+ * client IDs were last modified on exactly those dates, but they are stored as
+ * Secret-typed values and cannot be read back to confirm what they hold.
+ */
 export const LEGACY_GOOGLE_AUDIENCES: readonly string[] = [
   // iOS client, every build up to and including iOS 2.1.7 build 48.
   "490896222696-4jtrnrbi9uhn98q2ukjb68f2cd45dq2v.apps.googleusercontent.com",

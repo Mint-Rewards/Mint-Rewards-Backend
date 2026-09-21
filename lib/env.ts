@@ -384,6 +384,12 @@ const parsed = {
   // than trusting unsigned input.
   resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET?.trim() || null,
 
+  // The notification service. Both null is a legitimate state, not an error:
+  // push is new, and a backend that refuses to start because notifications are
+  // not wired up is useless. Device registration reports it plainly instead.
+  notificationsUrl: process.env.NOTIFICATIONS_URL?.trim() || null,
+  notificationsToken: process.env.NOTIFICATIONS_TOKEN?.trim() || null,
+
   // Physical mailing address for email footers. Required by anti-spam law in
   // most of the jurisdictions this sends into, and until it is set the
   // templates render a visible placeholder rather than silently omitting it.

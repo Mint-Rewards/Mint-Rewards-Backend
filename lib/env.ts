@@ -390,6 +390,12 @@ const parsed = {
   notificationsUrl: process.env.NOTIFICATIONS_URL?.trim() || null,
   notificationsToken: process.env.NOTIFICATIONS_TOKEN?.trim() || null,
 
+  // The operations API, which owns collections. Null until it is wired up, and
+  // the invitation endpoints answer "nothing pending" rather than failing —
+  // collections are an admin-side concept the consumer app has never needed.
+  adminApiUrl: process.env.ADMIN_API_URL?.trim() || null,
+  adminApiToken: process.env.ADMIN_API_TOKEN?.trim() || null,
+
   // Physical mailing address for email footers. Required by anti-spam law in
   // most of the jurisdictions this sends into, and until it is set the
   // templates render a visible placeholder rather than silently omitting it.

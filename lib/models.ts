@@ -1,13 +1,8 @@
 import mongoose, { Model, Schema } from "mongoose";
 import {
   BrandDocument,
-  BrandThemeDocument,
   CampaignDocument,
-  CollectionDocument,
   DealDocument,
-  LocationDocument,
-  LogisticsDocument,
-  CaptainDocument,
   UserDocument,
   OrganizationDocument,
   BrandUserDocument,
@@ -170,100 +165,6 @@ const CampaignSchema = new Schema<CampaignDocument>(
   { timestamps: false },
 );
 
-const CaptainSchema = new Schema<CaptainDocument>(
-  {
-    name: stringRequired,
-    phone: stringRequired,
-    email: { ...stringRequired, unique: true, lowercase: true },
-    password: stringRequired,
-    avatar: stringDefaultEmpty,
-    nationalId: String,
-    nationalIdImage: String,
-    role: { type: String, default: "CAPTAIN" },
-    deviceToken: stringDefaultEmpty,
-    created: { type: Date, default: Date.now },
-    emailVerified: { type: Boolean, default: false },
-    verificationToken: String,
-  },
-  { timestamps: false },
-);
-
-const CollectionSchema = new Schema<CollectionDocument>(
-  {
-    name: stringRequired,
-    area: stringRequired,
-    city: stringRequired,
-    radius: stringRequired,
-    startAreaLat: stringRequired,
-    startAreaLang: stringRequired,
-    startDate: stringRequired,
-    status: {
-      type: String,
-      enum: ["PENDING", "COMPLETED"],
-      default: "PENDING",
-      required: true,
-    },
-    users: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-    captainsWithDates: [
-      {
-        date: stringRequired,
-        captain: {
-          type: Schema.Types.ObjectId,
-          ref: "Captain",
-          required: true,
-        },
-        _id: false,
-      },
-    ],
-  },
-  { timestamps: false },
-);
-
-const LocationSchema = new Schema<LocationDocument>(
-  {
-    province: stringRequired,
-    cities: [
-      {
-        name: { ...stringRequired, trim: true },
-        towns: [{ type: String, trim: true }],
-        _id: false,
-      },
-    ],
-  },
-  { timestamps: false },
-);
-
-const LogisticsSchema = new Schema<LogisticsDocument>(
-  {
-    name: stringRequired,
-    phone: stringRequired,
-    email: { ...stringRequired, unique: true, lowercase: true },
-    password: stringRequired,
-    avatar: stringDefaultEmpty,
-    role: { type: String, default: "LOGISTIC" },
-    deviceToken: stringDefaultEmpty,
-    created: { type: Date, default: Date.now },
-    emailVerified: { type: Boolean, default: false },
-    verificationToken: String,
-  },
-  { timestamps: false },
-);
-
-const BrandThemeSchema = new Schema<BrandThemeDocument>(
-  {
-    name: stringRequired,
-    logo: stringRequired,
-    backgroundColor: stringRequired,
-    accentColor: stringRequired,
-    status: stringRequired,
-  },
-  { timestamps: false },
-);
 
 const qrCodeWithWeightSchema = new Schema(
   {
@@ -332,16 +233,18 @@ const pickupAddressSnapshotSchema = new Schema(
 
 const pickupHistorySchema = new Schema(
   {
+    // Plain ObjectIds, not refs. The Collection and Captain models were
+    // removed as dead code — nothing read them, and operations moved to the
+    // admin API's Postgres. A `ref` to an unregistered model is a
+    // MissingSchemaError waiting for the first populate() someone writes.
     collectionId: {
       type: Schema.Types.ObjectId,
-      ref: "Collection",
       required: true,
     },
     collectionName: stringRequired,
     date: { type: Date, default: Date.now },
     captain: {
       type: Schema.Types.ObjectId,
-      ref: "Captain",
       required: true,
     },
     qrCodesWithWeights: {
@@ -587,31 +490,6 @@ export const CampaignModel = getModel<CampaignDocument>(
   "campaigns",
 );
 
-export const CaptainModel = getModel<CaptainDocument>(
-  "Captain",
-  CaptainSchema,
-  "captains",
-);
-export const CollectionModel = getModel<CollectionDocument>(
-  "Collection",
-  CollectionSchema,
-  "collections",
-);
-export const LocationModel = getModel<LocationDocument>(
-  "Location",
-  LocationSchema,
-  "locations",
-);
-export const LogisticsModel = getModel<LogisticsDocument>(
-  "Logistics",
-  LogisticsSchema,
-  "logistics",
-);
-export const BrandThemeModel = getModel<BrandThemeDocument>(
-  "BrandTheme",
-  BrandThemeSchema,
-  "brandthemes",
-);
 
 // Compound index for the most common dashboard queries
 LogSchema.index({ userId: 1, timestamp: -1 });
@@ -737,12 +615,7 @@ export const BrandUserModel = getModel<BrandUserDocument>(
 export type {
   BrandDocument,
   CampaignDocument,
-  CaptainDocument,
-  CollectionDocument,
   DealDocument,
-  LocationDocument,
-  LogisticsDocument,
-  BrandThemeDocument,
   UserDocument,
   OrganizationDocument,
   BrandUserDocument,

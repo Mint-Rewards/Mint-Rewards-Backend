@@ -1,6 +1,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { BrandModel, CampaignModel } from "@/lib/models";
+import { CampaignModel } from "@/lib/models";
+import { findBrands } from "@/lib/repositories/brandhub";
 import { isCampaignActive } from "@/lib/campaignDates";
 import { legacyBrandIdOf } from "@/lib/legacyBrandEmail";
 
@@ -70,9 +71,7 @@ export async function GET(req: Request) {
     // happened to be APPROVED and reported the app was "showing the test
     // database". Approving the clones (scripts/approve-legacy-clones.js) is
     // what makes the APPROVED filter safe; restore it once that has run.
-    const listedBrands = await BrandModel.find({
-      status: "PENDING",
-    });
+    const listedBrands = await findBrands({ status: "PENDING" });
 
     // A cloned BrandHub document carries `legacyBrandId`, pairing it with the
     // legacy document it was cloned from. Both can be listed at once, which
@@ -116,12 +115,10 @@ export async function GET(req: Request) {
     // which scanned the whole brands collection on every request. Clones
     // written before the field existed need scripts/approve-legacy-clones.js
     // to backfill it.
-    const pairedBrands = await BrandModel.find({
-      legacyBrandId: { $ne: null },
-    }).select("_id legacyBrandId");
+    const pairedBrands = await findBrands({ hasLegacyBrandId: true });
     const listedIdByPairedId = new Map<string, string>();
     for (const paired of pairedBrands) {
-      const brandHubId = paired._id.toString();
+      const brandHubId = paired._id;
       const legacyId = String(paired.legacyBrandId);
       if (listedById.has(brandHubId)) {
         listedIdByPairedId.set(legacyId, brandHubId);

@@ -6,8 +6,8 @@
 
 import mongoose from "mongoose";
 import { NextRequest, NextResponse } from "next/server";
-import connectToDatabase from "../lib/mongodb";
-import { OrganizationModel } from "../lib/models";
+import { createOrganization } from "../lib/repositories/brandhub";
+import { closePostgres, getPool } from "../lib/postgres";
 import { requireModuleAccess } from "../lib/requireModuleAccess";
 import { signBrandToken } from "../lib/brandJwt";
 import type { BrandJwtPayload } from "../lib/modules";
@@ -44,46 +44,48 @@ describe("requireModuleAccess chain", () => {
   let expiredOrgId: string;
 
   beforeAll(async () => {
-    await connectToDatabase();
     const now = new Date();
 
-    const [subscribed, unsubscribed, expired] = await OrganizationModel.create([
-      {
-        name: "RMA Test Org (subscribed)",
-        moduleSubscriptions: [
-          {
-            module: "consumer-reporting",
-            status: "active",
-            activatedAt: now,
-            expiresAt: null,
-          },
-        ],
-      },
-      { name: "RMA Test Org (unsubscribed)", moduleSubscriptions: [] },
-      {
-        name: "RMA Test Org (expired)",
-        moduleSubscriptions: [
-          {
-            module: "consumer-reporting",
-            status: "active",
-            activatedAt: new Date(now.getTime() - 60 * DAY),
-            expiresAt: new Date(now.getTime() - 30 * DAY),
-          },
-        ],
-      },
-    ]);
-    subscribedOrgId = subscribed._id.toString();
-    unsubscribedOrgId = unsubscribed._id.toString();
-    expiredOrgId = expired._id.toString();
+    const subscribed = await createOrganization({
+      name: "RMA Test Org (subscribed)",
+      moduleSubscriptions: [
+        {
+          module: "consumer-reporting",
+          status: "active",
+          activatedAt: now,
+          expiresAt: null,
+        },
+      ],
+    });
+    const unsubscribed = await createOrganization({
+      name: "RMA Test Org (unsubscribed)",
+      moduleSubscriptions: [],
+    });
+    const expired = await createOrganization({
+      name: "RMA Test Org (expired)",
+      moduleSubscriptions: [
+        {
+          module: "consumer-reporting",
+          status: "active",
+          activatedAt: new Date(now.getTime() - 60 * DAY),
+          expiresAt: new Date(now.getTime() - 30 * DAY),
+        },
+      ],
+    });
+    subscribedOrgId = subscribed._id;
+    unsubscribedOrgId = unsubscribed._id;
+    expiredOrgId = expired._id;
   });
 
   afterAll(async () => {
     // If beforeAll never got a connection there are no fixtures to remove, and
     // querying anyway throws "before initial connection is complete" — a second
     // failure that buries the one that actually mattered.
-    if (mongoose.connection.readyState !== 1) return;
-    await OrganizationModel.deleteMany({ name: /^RMA Test Org / });
-    await mongoose.disconnect();
+    await getPool().query(
+      "DELETE FROM consumer.organizations WHERE name LIKE 'RMA Test Org %'",
+    );
+    await closePostgres();
+    if (mongoose.connection.readyState === 1) await mongoose.disconnect();
   });
 
   it("returns 401 when no token is provided", async () => {

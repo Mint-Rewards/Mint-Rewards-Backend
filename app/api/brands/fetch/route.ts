@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, CampaignModel, DealModel } from "@/lib/models";
+import { CampaignModel, DealModel } from "@/lib/models";
+import { findBrands } from "@/lib/repositories/brandhub";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 const normalize = (value: unknown) =>
@@ -25,9 +26,8 @@ export async function GET(req: NextRequest) {
   try {
     await connectToDatabase();
 
-    const brands = await BrandModel.find({ status: "APPROVED" })
-      .sort({ _id: -1 })
-      .lean();
+    // Newest first, as `sort({ _id: -1 })` meant — see findBrands.
+    const brands = await findBrands({ status: "APPROVED" });
 
     const brandIds = brands.map((b) => b._id);
 

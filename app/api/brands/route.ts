@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, CampaignModel } from "@/lib/models";
-import { Brand, Campaign } from "@/lib/types";
+import { CampaignModel } from "@/lib/models";
+import { findBrands, type BrandDoc } from "@/lib/repositories/brandhub";
+import { Campaign } from "@/lib/types";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 export async function GET(req: NextRequest) {
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
         .trim()
         .toLowerCase();
 
-    const brands = await BrandModel.find({}).lean<Brand[]>();
+    const brands = await findBrands();
     const campaigns = await CampaignModel.find({
       status: { $ne: "EXPIRED" },
     }).lean<Campaign[]>();
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
       campaignByRegistration.get(key)!.push(campaign);
     }
 
-    const brandsWithCampaigns: (Brand & { campaigns: Campaign[] })[] =
+    const brandsWithCampaigns: (BrandDoc & { campaigns: Campaign[] })[] =
       brands.map((brand) => {
         const key = normalizeRegistration(brand.registrationNumber);
         const campaigns = key ? campaignByRegistration.get(key) : undefined;

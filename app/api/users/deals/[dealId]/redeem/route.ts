@@ -1,7 +1,8 @@
 import { Types } from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { BrandModel, DealModel } from "@/lib/models";
+import { DealModel } from "@/lib/models";
+import { findBrandById } from "@/lib/repositories/brandhub";
 
 interface RouteParams {
   params: Promise<{ dealId: string }>;
@@ -43,7 +44,9 @@ export async function POST(req: Request, { params }: RouteParams) {
       return Response.json({ error: "Deal not found." }, { status: 404 });
     }
 
-    const brand = await BrandModel.findById(deal.brand).select("status").lean();
+    // String(): the deal is still a Mongo document, so its brand is an
+    // ObjectId, and the brand it points at now lives in Postgres keyed by hex.
+    const brand = await findBrandById(String(deal.brand));
     if (!brand || brand.status !== "APPROVED") {
       return Response.json({ error: "Deal not found." }, { status: 404 });
     }

@@ -3,7 +3,12 @@
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import connectToDatabase from "../lib/mongodb";
-import { BrandModel, CampaignModel } from "../lib/models";
+import { CampaignModel } from "../lib/models";
+import {
+  createBrand,
+  deleteBrandsByIds,
+  updateBrand,
+} from "../lib/repositories/brandhub";
 import { GET as getActiveCampaigns } from "../app/api/users/active-campaigns/route";
 
 // The public brand list and the campaign list must agree on brand identity.
@@ -41,7 +46,10 @@ describe("GET /api/users/active-campaigns", () => {
 
     // Original brand doc: no registrationNumber, minimal legacy shape. Listed
     // in its own right, so the clone has to supersede it explicitly.
-    const legacy = await BrandModel.collection.insertOne({
+    // The columns Mongo let a legacy document omit are NOT NULL here, so the
+    // placeholders are explicit rather than absent. Nothing in this test reads
+    // them — the pairing under test is legacyBrandId.
+    const legacy = await createBrand({
       companyName: `Legacy Brand ${suffix}`,
       brandName: `Legacy Brand ${suffix}`,
       email: `original-${suffix}@example.com`,
@@ -49,16 +57,20 @@ describe("GET /api/users/active-campaigns", () => {
       category: "Retail",
       themeColor: "#242E2E",
       status: "PENDING",
-    } as any);
-    legacyBrandId = legacy.insertedId.toString();
+      webLink: "https://example.com",
+      contactName: "N/A",
+      phone: "0000000000",
+      registrationNumber: `legacy-reg-${suffix}`,
+    });
+    legacyBrandId = legacy._id;
 
     const registrationNumber = `reg-${suffix}`;
-    const clone = await BrandModel.create({
+    const clone = await createBrand({
       companyName: `Legacy Brand ${suffix}`,
       brandName: `Legacy Brand ${suffix}`,
       // Contact email is ordinary data now; legacyBrandId is the pairing key.
       email: `clone-${suffix}@example.com`,
-      legacyBrandId: new mongoose.Types.ObjectId(legacyBrandId),
+      legacyBrandId,
       logo: "https://example.com/logo.png",
       category: "Retail",
       description: "",
@@ -104,7 +116,7 @@ describe("GET /api/users/active-campaigns", () => {
     legacyLinkedCampaignId = legacyLinked.insertedId.toString();
 
     // A standalone brand awaiting review, with no legacy counterpart.
-    const pending = await BrandModel.create({
+    const pending = await createBrand({
       companyName: `Pending Brand ${suffix}`,
       brandName: `Pending Brand ${suffix}`,
       email: `pending-${suffix}@example.com`,
@@ -120,20 +132,14 @@ describe("GET /api/users/active-campaigns", () => {
       status: "PENDING",
       role: "BRAND",
     });
-    pendingBrandId = pending._id.toString();
+    pendingBrandId = pending._id;
   });
 
   afterAll(async () => {
     await CampaignModel.deleteMany({
       _id: { $in: [campaignId, legacyLinkedCampaignId] },
     });
-    await BrandModel.deleteMany({
-      _id: {
-        $in: [legacyBrandId, cloneBrandId, pendingBrandId].map(
-          (id) => new mongoose.Types.ObjectId(id),
-        ),
-      },
-    });
+    await deleteBrandsByIds([legacyBrandId, cloneBrandId, pendingBrandId]);
     await mongoose.disconnect();
   });
 
@@ -190,10 +196,9 @@ describe("GET /api/users/active-campaigns", () => {
   // every campaign resolving through it — the brand card went empty with no
   // error surfaced anywhere (issue #98).
   it("keeps the legacy pairing after the brand edits its contact email", async () => {
-    await BrandModel.updateOne(
-      { _id: new mongoose.Types.ObjectId(cloneBrandId) },
-      { $set: { email: `rebranded-${suffix}@example.com` } },
-    );
+    await updateBrand(cloneBrandId, {
+      email: `rebranded-${suffix}@example.com`,
+    });
 
     const response = await getActiveCampaigns(userRequest(userId));
     const data = await response.json();

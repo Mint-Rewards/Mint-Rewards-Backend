@@ -1,13 +1,9 @@
 import mongoose, { Model, Schema } from "mongoose";
 import {
-  BrandDocument,
   CampaignDocument,
   DealDocument,
   UserDocument,
-  OrganizationDocument,
-  BrandUserDocument,
 } from "@/lib/types";
-import { PERMISSION_LEVELS, ORG_ROLES } from "@/lib/modules";
 
 // INVARIANT: this module never opens the DB connection at import time.
 // The driver runs with bufferCommands:false (see lib/mongodb.ts), so every
@@ -47,82 +43,6 @@ const stringDefaultEmpty = { type: String, default: "" } as const;
 
 // Provisional brand-level impact snapshot pending the brand↔collection data
 // pipeline. Once collections are brand-scoped, these figures can be derived.
-const MaterialBreakdownSchema = new Schema(
-  {
-    material: stringRequired,
-    weightKg: { type: Number, required: true },
-  },
-  { _id: false },
-);
-
-const EnvironmentalStatsSchema = new Schema(
-  {
-    totalWasteKg: { type: Number, required: true },
-    co2AvoidedKg: { type: Number, required: true },
-    materialBreakdown: { type: [MaterialBreakdownSchema], default: [] },
-  },
-  { _id: false },
-);
-
-// A dated bucket. Kept as a SEPARATE field from environmentalStats rather than
-// changing that field's type: existing documents hold a single subdocument
-// there, and retyping it to an array would break every legacy brand on read.
-// The analytics route prefers buckets and falls back to the snapshot.
-const EnvironmentalPeriodSchema = new Schema(
-  {
-    periodStart: stringRequired,
-    periodEnd: stringRequired,
-    totalWasteKg: { type: Number, required: true },
-    co2AvoidedKg: { type: Number, required: true },
-    materialBreakdown: { type: [MaterialBreakdownSchema], default: [] },
-  },
-  { _id: false },
-);
-
-const BrandSchema = new Schema<BrandDocument>(
-  {
-    // Optional: legacy brands predate organizations and must stay valid.
-    orgId: { type: Schema.Types.ObjectId, ref: "Organization", index: true },
-    // Set on documents cloned from a legacy brand by
-    // scripts/clone-legacy-brands.js, pairing this document with its source.
-    // This pairing used to be encoded in `email` as legacy-<24hex>@example.com,
-    // which made contact data load-bearing: correcting the email in BrandHub
-    // Settings silently unjoined every campaign resolving through it. See
-    // lib/legacyBrandEmail.ts.
-    legacyBrandId: { type: Schema.Types.ObjectId, ref: "Brand", index: true },
-    companyName: stringRequired,
-    brandName: stringRequired,
-    email: { ...stringRequired, unique: true, lowercase: true, trim: true },
-    logo: String,
-    themeImage: String,
-    category: stringRequired,
-    description: stringDefaultEmpty,
-    address: stringDefaultEmpty,
-    webLink: stringRequired,
-    appLink: stringDefaultEmpty,
-    contactName: stringRequired,
-    phone: stringRequired,
-    registrationNumber: { ...stringRequired, unique: true },
-    domain: stringDefaultEmpty,
-    themeColor: { type: String, default: "#3B82F6" },
-    status: {
-      type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED"],
-      default: "PENDING",
-      required: true,
-    },
-    role: { type: String, default: "BRAND" },
-    emailVerified: { type: Boolean, default: false },
-    verificationToken: String,
-    environmentalStats: { type: EnvironmentalStatsSchema, default: undefined },
-    environmentalPeriods: {
-      type: [EnvironmentalPeriodSchema],
-      default: undefined,
-    },
-  },
-  { timestamps: true },
-);
-
 const CampaignSchema = new Schema<CampaignDocument>(
   {
     name: stringRequired,
@@ -479,11 +399,6 @@ const getModel = <T extends mongoose.Document>(
   (mongoose.models[name] as Model<T>) ||
   mongoose.model<T>(name, schema, collection);
 
-export const BrandModel = getModel<BrandDocument>(
-  "Brand",
-  BrandSchema,
-  "brands",
-);
 export const CampaignModel = getModel<CampaignDocument>(
   "Campaign",
   CampaignSchema,
@@ -546,77 +461,9 @@ const DealSchema = new Schema<DealDocument>(
 
 export const DealModel = getModel<DealDocument>("Deal", DealSchema, "deals");
 
-const ModuleAccessSchema = new Schema(
-  {
-    module: stringRequired,
-    permissions: [{ type: String, enum: PERMISSION_LEVELS }],
-  },
-  { _id: false },
-);
-
-const OrganizationSchema = new Schema<OrganizationDocument>(
-  {
-    name: stringRequired,
-    plan: {
-      type: String,
-      enum: ["starter", "growth", "enterprise"],
-      default: "starter",
-    },
-    moduleSubscriptions: {
-      type: [
-        {
-          module: stringRequired,
-          status: {
-            type: String,
-            enum: ["active", "trial", "expired", "cancelled"],
-            required: true,
-          },
-          activatedAt: { type: Date, required: true },
-          expiresAt: { type: Date, default: null },
-          _id: false,
-        },
-      ],
-      // Settings is not a module anymore (brand-profile editing gates on
-      // org role, not a subscription) — new orgs start unsubscribed.
-      default: () => [],
-    },
-  },
-  { timestamps: true },
-);
-
-export const OrganizationModel = getModel<OrganizationDocument>(
-  "Organization",
-  OrganizationSchema,
-  "organizations",
-);
-
-const BrandUserSchema = new Schema<BrandUserDocument>(
-  {
-    orgId: {
-      type: Schema.Types.ObjectId,
-      ref: "Organization",
-      required: true,
-      index: true,
-    },
-    email: { ...stringRequired, unique: true, lowercase: true, trim: true },
-    passwordHash: stringRequired,
-    orgRole: { type: String, enum: ORG_ROLES, required: true },
-    moduleAccess: { type: [ModuleAccessSchema], default: [] },
-  },
-  { timestamps: true },
-);
-
-export const BrandUserModel = getModel<BrandUserDocument>(
-  "BrandUser",
-  BrandUserSchema,
-  "brandusers",
-);
 
 export type {
-  BrandDocument,
   CampaignDocument,
   DealDocument,
   UserDocument,
-  OrganizationDocument,
-  BrandUserDocument,
 };

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectToDatabase from "@/lib/mongodb";
-import { OrganizationModel } from "@/lib/models";
+import { findOrganizationById } from "@/lib/repositories/brandhub";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import {
   hasActiveSubscription,
@@ -31,11 +30,7 @@ export async function requireModuleAccess(
   if (auth instanceof NextResponse) return auth;
   const { brandUser } = auth;
 
-  await connectToDatabase();
-
-  const org = await OrganizationModel.findById(brandUser.orgId)
-    .select("moduleSubscriptions")
-    .lean();
+  const org = await findOrganizationById(brandUser.orgId);
 
   if (!org || !hasActiveSubscription(org.moduleSubscriptions, moduleName)) {
     return NextResponse.json(

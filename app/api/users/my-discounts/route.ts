@@ -1,6 +1,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { BrandModel, CampaignModel } from "@/lib/models";
+import { CampaignModel } from "@/lib/models";
+import { findBrands } from "@/lib/repositories/brandhub";
 import { isCampaignActive } from "@/lib/campaignDates";
 import mongoose from "mongoose";
 
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
     // here at the same time as there.
     const [campaigns, brands] = await Promise.all([
       CampaignModel.find({ status: "APPROVED" }).lean(),
-      BrandModel.find().lean(),
+      findBrands(),
     ]);
 
     // Brands with no registrationNumber would all collapse onto the "" key and

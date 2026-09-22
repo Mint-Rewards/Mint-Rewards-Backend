@@ -1,6 +1,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { BrandModel, DealModel } from "@/lib/models";
+import { DealModel } from "@/lib/models";
+import { findBrands } from "@/lib/repositories/brandhub";
 
 /**
  * GET /api/users/deals
@@ -35,10 +36,8 @@ export async function GET(req: Request) {
 
     // Only surface deals whose brand is itself approved, so brand moderation
     // and deal moderation cannot disagree.
-    const approvedBrands = await BrandModel.find({ status: "APPROVED" })
-      .select("_id companyName brandName logo themeColor category")
-      .lean();
-    const brandById = new Map(approvedBrands.map((b) => [b._id.toString(), b]));
+    const approvedBrands = await findBrands({ status: "APPROVED" });
+    const brandById = new Map(approvedBrands.map((b) => [b._id, b]));
 
     const now = Date.now();
     const isLive = (deal: {

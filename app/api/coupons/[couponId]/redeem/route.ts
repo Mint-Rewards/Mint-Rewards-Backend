@@ -1,6 +1,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { BrandModel, CampaignModel } from "@/lib/models";
+import { CampaignModel } from "@/lib/models";
+import { findBrandById } from "@/lib/repositories/brandhub";
 import mongoose from "mongoose";
 
 function generateReferenceCode(couponId: string): string {
@@ -102,7 +103,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     }
 
     const brand = campaign.brand
-      ? await BrandModel.findById(campaign.brand).lean()
+      ? await findBrandById(String(campaign.brand))
       : null;
 
     const couponCode = campaign.isSingleCode

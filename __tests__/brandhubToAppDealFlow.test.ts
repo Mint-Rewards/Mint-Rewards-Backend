@@ -4,12 +4,13 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 import connectToDatabase from "../lib/mongodb";
+import { DealModel } from "../lib/models";
 import {
-  BrandModel,
-  BrandUserModel,
-  DealModel,
-  OrganizationModel,
-} from "../lib/models";
+  createBrand,
+  deleteBrandsByIds,
+  findBrandById,
+} from "../lib/repositories/brandhub";
+import { closePostgres, getPool } from "../lib/postgres";
 import { POST as registerOrg } from "../app/api/brandhub/auth/register/route";
 import { PATCH as moderateBrand } from "../app/api/brands/[id]/route";
 import { POST as createBrandDeal } from "../app/api/brandhub/brands/[brandId]/deals/route";
@@ -134,7 +135,7 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
 
     // A second brand that never gets approved, to prove brand moderation and
     // deal moderation cannot disagree.
-    const unapproved = await BrandModel.create({
+    const unapproved = await createBrand({
       companyName: `Unapproved Co ${suffix}`,
       brandName: `Unapproved Brand ${suffix}`,
       email: `unapproved-${suffix}@example.com`,
@@ -146,21 +147,28 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
       status: "PENDING",
       role: "BRAND",
     });
-    unapprovedBrandId = unapproved._id.toString();
+    unapprovedBrandId = unapproved._id;
   });
 
   afterAll(async () => {
-    await Promise.all([
-      DealModel.deleteMany({ brand: { $in: [brandId, unapprovedBrandId] } }),
-      BrandModel.deleteMany({ _id: { $in: [brandId, unapprovedBrandId] } }),
-      BrandUserModel.deleteMany({ email: `flow-${suffix}@example.com` }),
-      OrganizationModel.deleteMany({ _id: orgId }),
+    await DealModel.deleteMany({ brand: { $in: [brandId, unapprovedBrandId] } });
+    await deleteBrandsByIds([brandId, unapprovedBrandId]);
+    const pool = getPool();
+    await pool.query("DELETE FROM consumer.brand_users WHERE email = $1", [
+      `flow-${suffix}@example.com`,
     ]);
+    await pool.query("DELETE FROM consumer.brand_users WHERE org_id = $1", [
+      orgId,
+    ]);
+    await pool.query("DELETE FROM consumer.organizations WHERE id = $1", [
+      orgId,
+    ]);
+    await closePostgres();
     await mongoose.disconnect();
   });
 
   it("creates the brand as PENDING, so it is not live before review", async () => {
-    const brand = await BrandModel.findById(brandId).lean();
+    const brand = await findBrandById(brandId);
     expect(brand?.status).toBe("PENDING");
   });
 
@@ -172,7 +180,7 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
       { params: Promise.resolve({ id: brandId }) },
     );
     expect(response.status).toBe(200);
-    await expect(BrandModel.findById(brandId).lean()).resolves.toMatchObject({
+    await expect(findBrandById(brandId)).resolves.toMatchObject({
       status: "APPROVED",
     });
   });

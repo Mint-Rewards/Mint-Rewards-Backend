@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel } from "@/lib/models";
+import {
+  findBrandById,
+  isDuplicateKeyError,
+  updateBrand,
+  withoutVerificationToken,
+  type BrandDoc,
+} from "@/lib/repositories/brandhub";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 import { uploadBrandLogo, isLogoUploadError } from "@/lib/brandLogoUpload";
 
@@ -16,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
     const { id } = await params;
 
-    const brand = await BrandModel.findById(id);
+    const brand = await findBrandById(id);
 
     if (!brand) {
       return Response.json(
@@ -165,22 +171,19 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    let brand;
+    let brand: Omit<BrandDoc, "verificationToken"> | null;
     try {
-      brand = await BrandModel.findByIdAndUpdate(
+      const updated = await updateBrand(
         id,
-        { $set: update },
-        { new: true, runValidators: true },
-      ).select("-password -verificationToken");
+        update as Partial<BrandDoc>,
+      );
+      brand = updated ? withoutVerificationToken(updated) : null;
     } catch (error: unknown) {
       // Duplicate key on the unique `email` index — surface as a clean 409
-      // instead of the raw Mongo error.
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code?: number }).code === 11000
-      ) {
+      // instead of the raw driver error. Postgres says 23505 where Mongo said
+      // 11000, and the driver buries it under a wrapper, so the repository
+      // answers the question instead.
+      if (isDuplicateKeyError(error)) {
         return NextResponse.json(
           {
             success: false,

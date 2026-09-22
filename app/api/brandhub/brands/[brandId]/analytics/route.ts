@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, CampaignModel, DealModel } from "@/lib/models";
+import { CampaignModel, DealModel } from "@/lib/models";
+import { findBrandById } from "@/lib/repositories/brandhub";
 import type {
   CampaignDocument,
   DealDocument,
@@ -138,9 +139,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       DealModel.find({ brand: brandId })
         .select("status startDate endDate")
         .lean<DealDocument[]>(),
-      BrandModel.findById(brandId)
-        .select("environmentalStats environmentalPeriods")
-        .lean(),
+      findBrandById(brandId),
     ]);
 
     const campaigns = periodApplied

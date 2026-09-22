@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, DealModel } from "@/lib/models";
+import { DealModel } from "@/lib/models";
+import { findBrandById } from "@/lib/repositories/brandhub";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const brand = await BrandModel.findById(id).lean();
+    const brand = await findBrandById(id);
     if (!brand) {
       return Response.json(
         { success: false, message: "Brand not found" },
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const brand = await BrandModel.findById(id).lean();
+    const brand = await findBrandById(id);
     if (!brand) {
       return Response.json(
         { success: false, message: "Brand not found" },

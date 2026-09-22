@@ -1,6 +1,6 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { BrandModel } from "@/lib/models";
+import { findBrands } from "@/lib/repositories/brandhub";
 
 /**
  * GET /api/users/brands
@@ -35,10 +35,7 @@ export async function GET(req: Request) {
 
     // Same sort as /api/users/deals (`_id: -1`, newest first) so a brand does
     // not jump position depending on which of the two payloads introduced it.
-    const brands = await BrandModel.find({ status: "APPROVED" })
-      .select("_id companyName brandName logo themeColor category")
-      .sort({ _id: -1 })
-      .lean();
+    const brands = await findBrands({ status: "APPROVED" });
 
     return Response.json({
       brands: brands.map((brand) => ({

@@ -12,8 +12,14 @@
  * transaction, which is why they could not be ported one at a time — see
  * lib/db/schema/brandhub.ts.
  */
-import { and, desc, eq, isNotNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/postgres";
+import { ORG_ROLES, type ModuleAccessEntry, type OrgRole } from "@/lib/modules";
+import type {
+  EnvironmentalPeriod,
+  EnvironmentalStats,
+  ModuleSubscription,
+} from "@/lib/types";
 import {
   brandUsers,
   brands,
@@ -89,7 +95,7 @@ export interface OrganizationDoc {
   _id: string;
   name: string;
   plan: string;
-  moduleSubscriptions: unknown[];
+  moduleSubscriptions: ModuleSubscription[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,8 +105,8 @@ export interface BrandUserDoc {
   orgId: string;
   email: string;
   passwordHash: string;
-  orgRole: string;
-  moduleAccess: unknown[];
+  orgRole: OrgRole;
+  moduleAccess: ModuleAccessEntry[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -128,21 +134,27 @@ export interface BrandDoc {
   role: string;
   emailVerified: boolean;
   verificationToken: string | null;
-  environmentalStats: unknown;
-  environmentalPeriods: unknown;
+  environmentalStats: EnvironmentalStats | null;
+  environmentalPeriods: EnvironmentalPeriod[] | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const asArray = (value: unknown): unknown[] =>
-  Array.isArray(value) ? value : [];
+/**
+ * jsonb arrives as `unknown`. The shapes are fixed by the application that
+ * wrote them, so they are asserted once here instead of at every call site —
+ * and a column holding something other than an array yields an empty one
+ * rather than throwing inside a response.
+ */
+const asArray = <T,>(value: unknown): T[] =>
+  Array.isArray(value) ? (value as T[]) : [];
 
 function toOrganization(row: OrganizationRow): OrganizationDoc {
   return {
     _id: row.id,
     name: row.name,
     plan: row.plan,
-    moduleSubscriptions: asArray(row.moduleSubscriptions),
+    moduleSubscriptions: asArray<ModuleSubscription>(row.moduleSubscriptions),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -154,8 +166,13 @@ function toBrandUser(row: BrandUserRow): BrandUserDoc {
     orgId: row.orgId,
     email: row.email,
     passwordHash: row.passwordHash,
-    orgRole: row.orgRole,
-    moduleAccess: asArray(row.moduleAccess),
+    // The column is a plain text CHECK, so an unexpected value is possible
+    // in principle; treating it as the least-privileged role is the only safe
+    // reading, and beats asserting a union the database does not enforce.
+    orgRole: (ORG_ROLES as readonly string[]).includes(row.orgRole)
+      ? (row.orgRole as OrgRole)
+      : "member",
+    moduleAccess: asArray<ModuleAccessEntry>(row.moduleAccess),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -185,8 +202,9 @@ function toBrand(row: BrandRow): BrandDoc {
     role: row.role,
     emailVerified: row.emailVerified,
     verificationToken: row.verificationToken,
-    environmentalStats: row.environmentalStats,
-    environmentalPeriods: row.environmentalPeriods,
+    environmentalStats: (row.environmentalStats as EnvironmentalStats) ?? null,
+    environmentalPeriods:
+      (row.environmentalPeriods as EnvironmentalPeriod[]) ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -200,14 +218,23 @@ function toBrand(row: BrandRow): BrandDoc {
  * orgId, so the two stores have to agree on what an id looks like for as long
  * as either of them is authoritative for anything.
  */
+/** Five random bytes, fixed for the life of the process, as Mongo does. */
+const PROCESS_RANDOM = Array.from({ length: 10 }, () =>
+  Math.floor(Math.random() * 16).toString(16),
+).join("");
+
+let counter = Math.floor(Math.random() * 0xffffff);
+
 export function newObjectId(): string {
   const seconds = Math.floor(Date.now() / 1000)
     .toString(16)
     .padStart(8, "0");
-  const random = Array.from({ length: 16 }, () =>
-    Math.floor(Math.random() * 16).toString(16),
-  ).join("");
-  return seconds + random;
+  // The counter is what makes two ids minted in the same second sort in the
+  // order they were created. Without it the tail is pure randomness and
+  // `ORDER BY id DESC` puts same-second rows in an arbitrary order — which is
+  // not what `sort({ _id: -1 })` did, and not what "newest first" means.
+  counter = (counter + 1) % 0x1000000;
+  return seconds + PROCESS_RANDOM + counter.toString(16).padStart(6, "0");
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +275,11 @@ export async function findOrganizationById(
 }
 
 export async function createOrganization(
-  input: { name: string; moduleSubscriptions?: unknown[]; plan?: string },
+  input: {
+    name: string;
+    moduleSubscriptions?: ModuleSubscription[];
+    plan?: string;
+  },
   tx?: Executor,
 ): Promise<OrganizationDoc> {
   return translating(async () => {
@@ -298,8 +329,8 @@ export async function createBrandUser(
     orgId: string;
     email: string;
     passwordHash: string;
-    orgRole: string;
-    moduleAccess?: unknown[];
+    orgRole: OrgRole;
+    moduleAccess?: ModuleAccessEntry[];
   },
   tx?: Executor,
 ): Promise<BrandUserDoc> {
@@ -368,6 +399,26 @@ export async function findBrands(
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(brands.id));
   return rows.map(toBrand);
+}
+
+/**
+ * Brands by id, keyed for joining.
+ *
+ * This is what `.populate("brand", ...)` used to do, now that the campaign or
+ * deal is in Mongo and the brand is not. Callers hold documents referencing
+ * brand ids and need the brands in one round trip rather than one per row.
+ */
+export async function findBrandsByIds(
+  ids: readonly string[],
+  tx?: Executor,
+): Promise<Map<string, BrandDoc>> {
+  const valid = [...new Set(ids)].filter((id) => /^[0-9a-fA-F]{24}$/.test(id));
+  if (valid.length === 0) return new Map();
+  const rows = await exec(tx)
+    .select()
+    .from(brands)
+    .where(inArray(brands.id, valid));
+  return new Map(rows.map((row) => [row.id, toBrand(row)]));
 }
 
 /** The signup collision check: either field already taken. */
@@ -468,6 +519,42 @@ export async function updateBrand(
       .returning();
     return rows[0] ? toBrand(rows[0]) : null;
   });
+}
+
+/**
+ * A brand without its verification token.
+ *
+ * `.select("-verificationToken")` on the way out, kept as an explicit step:
+ * the token is a credential, and a projection that silently stops being
+ * applied is not the kind of thing that shows up in a diff.
+ */
+export function withoutVerificationToken(
+  brand: BrandDoc,
+): Omit<BrandDoc, "verificationToken"> {
+  const { verificationToken: _omitted, ...rest } = brand;
+  void _omitted;
+  return rest;
+}
+
+/**
+ * Removes brands by id.
+ *
+ * Exists for test teardown, which has to clean up after itself the same way
+ * the Mongo-backed suites did. There is deliberately no delete-by-filter:
+ * a brand is referenced by campaigns and deals that live in another store,
+ * so removing one is not something a route should be able to do casually.
+ */
+export async function deleteBrandsByIds(
+  ids: readonly string[],
+  tx?: Executor,
+): Promise<number> {
+  const valid = [...new Set(ids)].filter((id) => /^[0-9a-fA-F]{24}$/.test(id));
+  if (valid.length === 0) return 0;
+  const rows = await exec(tx)
+    .delete(brands)
+    .where(inArray(brands.id, valid))
+    .returning({ id: brands.id });
+  return rows.length;
 }
 
 /** How many brands exist at all. Used by health and admin summaries. */

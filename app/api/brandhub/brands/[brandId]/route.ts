@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import connectToDatabase from "@/lib/mongodb";
-import { BrandModel } from "@/lib/models";
+import {
+  findBrandById,
+  isDuplicateKeyError,
+  updateBrand,
+  withoutVerificationToken,
+  type BrandDoc,
+} from "@/lib/repositories/brandhub";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { uploadBrandLogo, isLogoUploadError } from "@/lib/brandLogoUpload";
@@ -43,11 +48,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   const scope = await requireBrandScope(auth.brandUser, brandId);
   if (scope instanceof NextResponse) return scope;
 
-  await connectToDatabase();
-
-  const brand = await BrandModel.findById(brandId)
-    .select("-verificationToken")
-    .lean();
+  const found = await findBrandById(brandId);
+  const brand = found ? withoutVerificationToken(found) : null;
 
   if (!brand) {
     return NextResponse.json({ error: "Brand not found" }, { status: 404 });
@@ -73,7 +75,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       domain: brand.domain ?? "",
       themeColor: brand.themeColor ?? null,
       status: brand.status ?? null,
-      createdAt: brand.createdAt ?? brand._id.getTimestamp(),
+      createdAt: brand.createdAt,
     },
   });
 }
@@ -100,8 +102,6 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         { status: 403 },
       );
     }
-
-    await connectToDatabase();
 
     let body: Record<string, unknown> = {};
     let logoFile: File | null = null;
@@ -165,22 +165,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    let brand;
+    let brand: Omit<BrandDoc, "verificationToken"> | null;
     try {
-      brand = await BrandModel.findByIdAndUpdate(
-        brandId,
-        { $set: update },
-        { new: true, runValidators: true },
-      ).select("-verificationToken");
+      const updated = await updateBrand(brandId, update as Partial<BrandDoc>);
+      brand = updated ? withoutVerificationToken(updated) : null;
     } catch (error: unknown) {
       // Duplicate key on the unique `email` index — surface as a clean 409
-      // instead of the raw Mongo error.
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        (error as { code?: number }).code === 11000
-      ) {
+      // instead of the raw driver error.
+      if (isDuplicateKeyError(error)) {
         return Response.json(
           { success: false, message: "Email already in use" },
           { status: 409 },

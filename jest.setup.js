@@ -19,5 +19,9 @@ if (process.env.MONGODB_URI_TEST) {
 if (process.env.DATABASE_URL_TEST) {
   process.env.DATABASE_URL = process.env.DATABASE_URL_TEST;
 } else {
+  // BrandHub moved to Postgres, so its suites need one the way the rest need
+  // MONGODB_URI_TEST. Unsetting rather than throwing: suites that touch
+  // neither still run, and the ones that do fail loudly on their first query
+  // rather than silently passing against nothing.
   delete process.env.DATABASE_URL;
 }

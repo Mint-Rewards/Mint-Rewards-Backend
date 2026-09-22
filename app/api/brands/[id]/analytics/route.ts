@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, CampaignModel } from "@/lib/models";
+import { CampaignModel } from "@/lib/models";
+import { findBrandById } from "@/lib/repositories/brandhub";
 import type { CampaignDocument } from "@/lib/types";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const brand = await BrandModel.findById(id).lean();
+    const brand = await findBrandById(id);
     if (!brand) {
       return Response.json(
         { success: false, message: "Brand not found" },

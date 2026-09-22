@@ -3,12 +3,14 @@
 import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 import connectToDatabase from "../lib/mongodb";
+import { CampaignModel, DealModel } from "../lib/models";
 import {
-  BrandModel,
-  CampaignModel,
-  DealModel,
-  OrganizationModel,
-} from "../lib/models";
+  createBrand,
+  createOrganization,
+  deleteBrandsByIds,
+  updateBrand,
+} from "../lib/repositories/brandhub";
+import { closePostgres, getPool } from "../lib/postgres";
 import { signBrandToken } from "../lib/brandJwt";
 import { POST as createDeal } from "../app/api/brandhub/brands/[brandId]/deals/route";
 import { PATCH as updateDeal } from "../app/api/brandhub/brands/[brandId]/deals/[dealId]/route";
@@ -34,7 +36,7 @@ describe("BrandHub demo features", () => {
   beforeAll(async () => {
     await connectToDatabase();
     const suffix = new mongoose.Types.ObjectId().toString();
-    const org = await OrganizationModel.create({
+    const org = await createOrganization({
       name: `Demo Features Test Org ${suffix}`,
       moduleSubscriptions: [
         {
@@ -45,9 +47,9 @@ describe("BrandHub demo features", () => {
         },
       ],
     });
-    orgId = org._id.toString();
+    orgId = org._id;
 
-    const brand = await BrandModel.create({
+    const brand = await createBrand({
       orgId: org._id,
       brandName: `Demo Features Brand ${suffix}`,
       companyName: "Demo Features Co",
@@ -64,7 +66,7 @@ describe("BrandHub demo features", () => {
       status: "APPROVED",
       emailVerified: true,
     });
-    brandId = brand._id.toString();
+    brandId = brand._id;
 
     ownerToken = signBrandToken({
       sub: new mongoose.Types.ObjectId().toString(),
@@ -78,10 +80,7 @@ describe("BrandHub demo features", () => {
     await Promise.all([
       CampaignModel.deleteMany({ brand: brandId }),
       DealModel.deleteMany({ brand: brandId }),
-      BrandModel.updateOne(
-        { _id: brandId },
-        { $unset: { environmentalStats: 1 } },
-      ),
+      updateBrand(brandId, { environmentalStats: null }),
     ]);
   });
 
@@ -90,12 +89,13 @@ describe("BrandHub demo features", () => {
     // querying anyway throws "before initial connection is complete" — a second
     // failure that buries the one that actually mattered.
     if (mongoose.connection.readyState !== 1) return;
-    await Promise.all([
-      CampaignModel.deleteMany({ brand: brandId }),
-      DealModel.deleteMany({ brand: brandId }),
-      BrandModel.deleteOne({ _id: brandId }),
-      OrganizationModel.deleteOne({ _id: orgId }),
+    await CampaignModel.deleteMany({ brand: brandId });
+    await DealModel.deleteMany({ brand: brandId });
+    await deleteBrandsByIds([brandId]);
+    await getPool().query("DELETE FROM consumer.organizations WHERE id = $1", [
+      orgId,
     ]);
+    await closePostgres();
     await mongoose.disconnect();
   });
 
@@ -458,10 +458,7 @@ describe("BrandHub demo features", () => {
         { material: "Glass", weightKg: 160 },
       ],
     };
-    await BrandModel.updateOne(
-      { _id: brandId },
-      { $set: { environmentalStats } },
-    );
+    await updateBrand(brandId, { environmentalStats });
 
     const response = await getAnalytics(
       jsonRequest(

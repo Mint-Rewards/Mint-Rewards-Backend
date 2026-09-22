@@ -3,7 +3,11 @@
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import connectToDatabase from "../lib/mongodb";
-import { BrandModel, CampaignModel } from "../lib/models";
+import { CampaignModel } from "../lib/models";
+import {
+  createBrand,
+  deleteBrandsByIds,
+} from "../lib/repositories/brandhub";
 import {
   GET as getMyDiscounts,
   PATCH as patchMyDiscounts,
@@ -35,7 +39,7 @@ describe("/api/users/my-discounts", () => {
   const userId = new mongoose.Types.ObjectId().toString();
   const approvedReg = `approved-reg-${suffix}`;
   const unapprovedBrandReg = `unapproved-brand-reg-${suffix}`;
-  const brandIds: mongoose.Types.ObjectId[] = [];
+  const brandIds: string[] = [];
   const campaignIds: mongoose.Types.ObjectId[] = [];
 
   let approvedCampaignId: string;
@@ -48,7 +52,7 @@ describe("/api/users/my-discounts", () => {
   type CampaignStatus = BrandStatus | "EXPIRED";
 
   const makeBrand = async (registrationNumber: string, status: BrandStatus) => {
-    const brand = await BrandModel.create({
+    const brand = await createBrand({
       companyName: `Brand ${registrationNumber}`,
       brandName: `Brand ${registrationNumber}`,
       email: `${registrationNumber}@example.com`,
@@ -122,7 +126,7 @@ describe("/api/users/my-discounts", () => {
 
   afterAll(async () => {
     await CampaignModel.deleteMany({ _id: { $in: campaignIds } });
-    await BrandModel.deleteMany({ _id: { $in: brandIds } });
+    await deleteBrandsByIds(brandIds);
     await mongoose.disconnect();
   });
 

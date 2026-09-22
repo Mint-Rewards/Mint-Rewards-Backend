@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { put } from "@vercel/blob";
-import connectToDatabase from "@/lib/mongodb";
-import mongoose, { Types } from "mongoose";
-import { OrganizationModel, BrandUserModel, BrandModel } from "@/lib/models";
+
+import {
+  createBrand,
+  createBrandUser,
+  createOrganization,
+  findBrandUserByEmail,
+  inTransaction,
+  isDuplicateKeyError,
+  newObjectId,
+  type BrandUserDoc,
+  type OrganizationDoc,
+} from "@/lib/repositories/brandhub";
 import { signBrandToken } from "@/lib/brandJwt";
 import { MODULE_CATALOGUE, hasActiveSubscription } from "@/lib/modules";
 import { validatePasswordLength } from "@/lib/password";
@@ -133,12 +142,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     logoUrl = blob.url;
   }
 
-  await connectToDatabase();
-
   const normalizedEmail = email.toLowerCase().trim();
-  const existing = await BrandUserModel.findOne({
-    email: normalizedEmail,
-  }).lean();
+  const existing = await findBrandUserByEmail(normalizedEmail);
 
   if (existing) {
     return NextResponse.json(
@@ -163,46 +168,41 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   // with "Email already in use". The user was stranded with an account holding
   // zero brands after a UI that told them signup had failed (issue #99).
   //
-  // Requires a replica set. Both deployed and CI use Atlas (mongodb+srv), and
-  // README.md documents the local requirement.
-  const session = await mongoose.startSession();
-  let org: Awaited<ReturnType<typeof OrganizationModel.create>>[number];
-  let user: Awaited<ReturnType<typeof BrandUserModel.create>>[number];
+  // Postgres now, and no longer a replica-set requirement — but the same
+  // all-or-nothing guarantee, which is the part that matters.
+  let org: OrganizationDoc;
+  let user: BrandUserDoc;
 
   try {
-    await session.withTransaction(async () => {
-      // Reset on retry: withTransaction may run this callback more than once.
+    await inTransaction(async (tx) => {
+      // Reset on retry, in case the callback runs more than once.
       brands.length = 0;
 
       // New orgs start with an active subscription to every catalogue module
       // so all tabs are usable immediately; a billing flow can narrow this
       // later.
-      [org] = await OrganizationModel.create(
-        [
-          {
-            name: orgName,
-            moduleSubscriptions: MODULE_CATALOGUE.map((m) => ({
-              module: m.id,
-              status: "active",
-              activatedAt: new Date(),
-              expiresAt: null,
-            })),
-          },
-        ],
-        { session },
+      org = await createOrganization(
+        {
+          name: orgName,
+          moduleSubscriptions: MODULE_CATALOGUE.map((m) => ({
+            module: m.id,
+            status: "active",
+            activatedAt: new Date(),
+            expiresAt: null,
+          })),
+        },
+        tx,
       );
 
-      [user] = await BrandUserModel.create(
-        [
-          {
-            orgId: org._id,
-            email: normalizedEmail,
-            passwordHash,
-            orgRole: "owner",
-            moduleAccess: [],
-          },
-        ],
-        { session },
+      user = await createBrandUser(
+        {
+          orgId: org._id,
+          email: normalizedEmail,
+          passwordHash,
+          orgRole: "owner",
+          moduleAccess: [],
+        },
+        tx,
       );
 
       if (brandName) {
@@ -212,31 +212,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         // category/webLink/contactName/phone are all schema-required — fall
         // back to a placeholder for each when omitted so a missing optional
         // field never throws an uncaught Mongoose ValidationError.
-        const brandId = new Types.ObjectId();
-        const [brand] = await BrandModel.create(
-          [
-            {
-              _id: brandId,
-              orgId: org._id,
-              brandName,
-              companyName: orgName,
-              email: normalizedEmail,
-              category: category ?? "general",
-              webLink: webLink ?? "https://example.com",
-              appLink: appLink ?? "",
-              address: address ?? "",
-              description: description ?? "",
-              contactName: contactName ?? normalizedEmail,
-              phone: phone ?? "N/A",
-              registrationNumber: `BH-${brandId.toString()}`,
-              ...(logoUrl ? { logo: logoUrl } : {}),
-            },
-          ],
-          { session },
+        const brandId = newObjectId();
+        const brand = await createBrand(
+          {
+            _id: brandId,
+            orgId: org._id,
+            brandName,
+            companyName: orgName,
+            email: normalizedEmail,
+            category: category ?? "general",
+            webLink: webLink ?? "https://example.com",
+            appLink: appLink ?? "",
+            address: address ?? "",
+            description: description ?? "",
+            contactName: contactName ?? normalizedEmail,
+            phone: phone ?? "N/A",
+            registrationNumber: `BH-${brandId}`,
+            ...(logoUrl ? { logo: logoUrl } : {}),
+          },
+          tx,
         );
 
         brands.push({
-          id: brand._id.toString(),
+          id: brand._id,
           brandName: brand.brandName,
           companyName: brand.companyName,
           logo: brand.logo ?? null,
@@ -248,28 +246,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // so a concurrent signup can still collide on BrandUser.email; Brand.email
     // can collide with a brand registered elsewhere. Either way the
     // transaction has rolled back and nothing was written.
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error as { code?: number }).code === 11000
-    ) {
-      const keyPattern = (error as { keyPattern?: Record<string, unknown> })
-        .keyPattern;
-      const message =
-        keyPattern && "registrationNumber" in keyPattern
-          ? "Could not allocate a unique brand record. Please retry."
-          : "This email is already registered.";
+    if (isDuplicateKeyError(error)) {
+      // Which constraint decides the wording: a registration-number clash is
+      // a collision between two generated ids and a retry fixes it, whereas
+      // an email clash is the caller's to resolve.
+      const constraint =
+        error instanceof Error && "constraint" in error
+          ? String((error as { constraint?: string }).constraint ?? "")
+          : "";
+      const message = constraint.includes("registration_number")
+        ? "Could not allocate a unique brand record. Please retry."
+        : "This email is already registered.";
       return NextResponse.json({ error: message }, { status: 409 });
     }
     throw error;
-  } finally {
-    await session.endSession();
   }
 
   const token = signBrandToken({
-    sub: user!._id.toString(),
-    orgId: org!._id.toString(),
+    sub: user!._id,
+    orgId: org!._id,
     orgRole: "owner",
     moduleAccess: [],
   });
@@ -277,8 +272,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json(
     {
       token,
-      orgId: org!._id.toString(),
-      userId: user!._id.toString(),
+      orgId: org!._id,
+      userId: user!._id,
       brands,
       defaultBrandId: brands[0]?.id ?? null,
       // Same contract as login. New orgs subscribe to the full catalogue at

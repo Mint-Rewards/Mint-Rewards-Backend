@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, CampaignModel } from "@/lib/models";
+import { CampaignModel } from "@/lib/models";
+import { findBrandById } from "@/lib/repositories/brandhub";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const brand = await BrandModel.findById(id).lean();
+    const brand = await findBrandById(id);
     if (!brand) {
       return Response.json(
         { success: false, message: "Brand not found" },
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const brand = await BrandModel.findById(id).lean();
+    const brand = await findBrandById(id);
     if (!brand) {
       return Response.json(
         { success: false, message: "Brand not found" },

@@ -50,12 +50,12 @@ describe("generated ids", () => {
     expect(newObjectId()).toMatch(/^[0-9a-f]{24}$/);
   });
 
-  it("sorts chronologically as text", () => {
-    // This is what makes `ORDER BY id DESC` equal `sort({ _id: -1 })`. An
-    // ObjectId starts with a big-endian timestamp, so hex order is time order.
-    const earlier = newObjectId();
-    const later = newObjectId();
-    expect(later >= earlier).toBe(true);
+  it("sorts chronologically as text, even within one second", () => {
+    // This is what makes `ORDER BY id DESC` equal `sort({ _id: -1 })`. The
+    // timestamp prefix handles seconds; the counter handles everything minted
+    // inside the same one, which a purely random tail did not.
+    const ids = Array.from({ length: 200 }, () => newObjectId());
+    expect([...ids].sort()).toEqual(ids);
   });
 
   it("does not repeat itself", () => {

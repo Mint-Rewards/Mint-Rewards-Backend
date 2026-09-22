@@ -1,6 +1,9 @@
 import { after } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import {
+  findUserByEmailWithOtp,
+  setUserOtp,
+} from "@/lib/repositories/users";
 import sendSignupEmail from "@/emailServices/signupConfirmation";
 import { generateOtp, hashOtp } from "@/lib/otp";
 import {
@@ -57,8 +60,9 @@ export async function POST(req: Request) {
 
     await connectToDatabase();
 
-    const user = await UserModel.findOne({ email: normalizedEmail }).select(
-      "+emailVerification",
+    const user = await findUserByEmailWithOtp(
+      normalizedEmail,
+      "emailVerification",
     );
 
     if (!user || user.emailVerified) {
@@ -68,20 +72,21 @@ export async function POST(req: Request) {
     // Same generic response as the "no account" branch above — a distinct
     // status here would let callers detect a registered, unverified email by
     // firing two requests back to back.
-    const lastSentAt = user.emailVerification?.lastSentAt;
+    const lastSentAt = user.otp?.lastSentAt
+      ? new Date(user.otp.lastSentAt)
+      : null;
     if (lastSentAt && Date.now() - lastSentAt.getTime() < RESEND_THROTTLE_MS) {
       return Response.json(GENERIC_RESPONSE);
     }
 
     const otp = generateOtp();
 
-    user.emailVerification = {
+    await setUserOtp(user._id, "emailVerification", {
       otpHash: hashOtp(otp),
-      expiresAt: new Date(Date.now() + OTP_TTL_MS),
+      expiresAt: new Date(Date.now() + OTP_TTL_MS).toISOString(),
       attempts: 0,
-      lastSentAt: new Date(),
-    };
-    await user.save();
+      lastSentAt: new Date().toISOString(),
+    });
 
     const recipientEmail = user.email;
     // Deferred so the response returns at the same speed regardless of

@@ -1,6 +1,10 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { UserModel } from "@/lib/models";
+import {
+  findUserById,
+  findUsersHoldingEmails,
+  updateUser,
+} from "@/lib/repositories/users";
 import sendReferralEmail from "@/emailServices/referralEmail";
 import { isValidEmail } from "@/lib/emailFormat";
 
@@ -58,7 +62,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const user = await UserModel.findById(userId);
+    const user = await findUserById(String(userId));
 
     if (!user) {
       return Response.json({ error: "User not found." }, { status: 404 });
@@ -80,12 +84,7 @@ export async function POST(req: Request) {
     // `email` is unique and therefore indexed; `referrals` is indexed by the
     // schema (lib/models.ts). Selecting only the two fields keeps this off the
     // full documents.
-    const matches = await UserModel.find({
-      $or: [
-        { referrals: { $in: normalizedEmails } },
-        { email: { $in: normalizedEmails } },
-      ],
-    }).select("email referrals");
+    const matches = await findUsersHoldingEmails(normalizedEmails);
 
     const registered = new Set(
       matches
@@ -142,8 +141,9 @@ export async function POST(req: Request) {
       .map((outcome) => outcome.email);
 
     if (sentEmails.length > 0) {
-      user.referrals = [...new Set([...user.referrals, ...sentEmails])];
-      await user.save();
+      await updateUser(user._id, {
+        referrals: [...new Set([...user.referrals, ...sentEmails])],
+      });
     }
 
     // Counts only, and one `skipped` bucket rather than a breakdown.

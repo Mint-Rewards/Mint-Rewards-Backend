@@ -1,7 +1,11 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import {
+  findUserById,
+  setUserOtp,
+  setUserPassword,
+} from "@/lib/repositories/users";
 import { checkRateLimit, clientIp, rateLimitResponse } from "@/lib/rateLimit";
 import { serverEnv } from "@/lib/env";
 import { validatePasswordLength } from "@/lib/password";
@@ -59,7 +63,7 @@ export async function POST(req: Request) {
 
     await connectToDatabase();
 
-    const user = await UserModel.findById(payload.sub);
+    const user = await findUserById(String(payload.sub));
     if (!user) {
       return Response.json(
         { error: "Invalid or expired reset session." },
@@ -68,9 +72,10 @@ export async function POST(req: Request) {
     }
 
     const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
-    user.passwordReset = undefined;
-    await user.save();
+    await setUserPassword(user._id, await bcrypt.hash(password, salt));
+    // Burn the reset block with the password change: a code that outlived the
+    // password it reset could be replayed.
+    await setUserOtp(user._id, "passwordReset", null);
 
     return Response.json({
       success: true,

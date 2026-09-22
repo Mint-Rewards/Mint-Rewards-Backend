@@ -3,7 +3,12 @@
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import connectToDatabase from "../lib/mongodb";
-import { UserModel } from "../lib/models";
+import {
+  createUser,
+  deleteUser,
+  findUserById,
+  updateUser,
+} from "../lib/repositories/users";
 
 // The fan-out is the thing under test, so the send itself is mocked: these
 // cases are about which addresses are attempted and which are recorded, and a
@@ -49,19 +54,21 @@ function referralRequest(userId: string, emails: unknown): Request {
 
 describe("POST /api/users/referrals", () => {
   const suffix = new mongoose.Types.ObjectId().toString();
-  const createdUserIds: mongoose.Types.ObjectId[] = [];
+  const createdUserIds: string[] = [];
 
   const addr = (local: string) => `${local}-${suffix}@example.com`;
 
   const makeUser = async (fields: Record<string, unknown> = {}) => {
-    const user = await UserModel.create({
+    const user = await createUser({
       userName: "Referrer",
       email: addr(`user-${createdUserIds.length}`),
       password: "hashed-placeholder",
       mintId: `MINT-${suffix.slice(-6)}-${createdUserIds.length}`,
-      ...fields,
     });
-    createdUserIds.push(user._id as mongoose.Types.ObjectId);
+    createdUserIds.push(user._id);
+    if (Object.keys(fields).length > 0) {
+      return (await updateUser(user._id, fields))!;
+    }
     return user;
   };
 
@@ -75,15 +82,16 @@ describe("POST /api/users/referrals", () => {
   });
 
   afterAll(async () => {
-    await UserModel.deleteMany({ _id: { $in: createdUserIds } });
+    for (const id of createdUserIds) await deleteUser(id);
+    const { closePostgres } = await import("../lib/postgres");
+    await closePostgres();
   });
 
   // Issue #144 defect 1 / acceptance 1.
   it("delivers to every valid address when one is already referred", async () => {
     const stranger = await makeUser();
     const collided = addr("collided");
-    stranger.referrals = [collided];
-    await stranger.save();
+    await updateUser(stranger._id, { referrals: [collided] });
 
     const referrer = await makeUser();
     const fresh = [addr("fresh-a"), addr("fresh-b")];
@@ -113,7 +121,7 @@ describe("POST /api/users/referrals", () => {
 
     expect(await res.json()).toEqual({ requested: 2, sent: 1, skipped: 1 });
 
-    const saved = await UserModel.findById(referrer._id).select("referrals");
+    const saved = await findUserById(referrer._id);
     // The failed address must not be recorded — recording it under a global
     // dedupe locked the recipient out of the feature permanently.
     expect(saved?.referrals).toEqual([delivered]);
@@ -135,7 +143,7 @@ describe("POST /api/users/referrals", () => {
     );
 
     expect(await res.json()).toEqual({ requested: 1, sent: 0, skipped: 1 });
-    const saved = await UserModel.findById(referrer._id).select("referrals");
+    const saved = await findUserById(referrer._id);
     expect(saved?.referrals).toEqual([]);
   });
 
@@ -170,7 +178,7 @@ describe("POST /api/users/referrals", () => {
     );
 
     expect(attempted).toEqual([]);
-    const saved = await UserModel.findById(referrer._id).select("referrals");
+    const saved = await findUserById(referrer._id);
     expect(saved?.referrals).toEqual([]);
   });
 

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OAuth2Client } from "google-auth-library";
 import dbConnect from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import {
+  addPoints,
+  createUser,
+  findUserByEmail,
+  findUserByMintId,
+} from "@/lib/repositories/users";
 import { SignOptions } from "jsonwebtoken";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
@@ -12,7 +17,7 @@ import { googleAudiences } from "@/lib/googleAudiences";
 async function generateMintId(): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
     const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
-    const existing = await UserModel.findOne({ mintId });
+    const existing = await findUserByMintId(mintId);
     if (!existing) {
       return mintId;
     }
@@ -72,7 +77,7 @@ export async function POST(req: NextRequest) {
     await dbConnect();
 
     // Find or create user
-    let user = await UserModel.findOne({ email: email?.toLowerCase() });
+    let user = email ? await findUserByEmail(email) : null;
 
     if (!user) {
       const mintId = await generateMintId();
@@ -80,26 +85,25 @@ export async function POST(req: NextRequest) {
         crypto.randomBytes(32).toString("hex"),
         10,
       );
-      user = await UserModel.create({
+      user = await createUser({
         userName: name || email?.split("@")[0] || "User",
-        email: email?.toLowerCase(),
+        email: email?.toLowerCase() ?? "",
         password: randomPassword,
         avatar: picture || "",
         mintId,
-        // Baseline signup grant for ALL new Google users, referred or not —
-        // matches the `points: 100` in users/signup/route.ts. Without it these
-        // accounts fell through to the schema default of 0.
-        points: 100,
         emailVerified: true,
-        firstTimeLogin: true,
       });
+      // Baseline signup grant for ALL new Google users, referred or not —
+      // matches the 100 points in users/signup/route.ts.
+      await addPoints(user._id, 100);
     }
-    const jwtPayload = { id: user.id };
+    const jwtPayload = { id: user._id };
     const token = jwt.sign(jwtPayload, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
     });
 
-    const { password: _password, ...userResponse } = user.toObject();
+    // The repository's default projection already excludes the password.
+    const userResponse = user;
 
     return NextResponse.json({
       Status: "Success",

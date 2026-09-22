@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import dbConnect from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import {
+  addPoints,
+  createUser,
+  findUserByAppleId,
+  findUserByEmail,
+  findUserByMintId,
+  updateUser,
+} from "@/lib/repositories/users";
 import { SignOptions } from "jsonwebtoken";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
@@ -17,7 +24,7 @@ const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
 async function generateMintId(): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
     const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
-    const existing = await UserModel.findOne({ mintId });
+    const existing = await findUserByMintId(mintId);
     if (!existing) {
       return mintId;
     }
@@ -56,16 +63,13 @@ export async function POST(req: NextRequest) {
     await dbConnect();
 
     // 1. Try to find by Apple's stable user ID first
-    let user = await UserModel.findOne({ appleId: sub });
+    let user = await findUserByAppleId(sub);
 
     // 2. Fall back to email match (covers Google/email users signing in with Apple
     //    for the first time using the same email)
     if (!user && email) {
-      user = await UserModel.findOne({ email: email.toLowerCase() });
-      if (user) {
-        user.appleId = sub;
-        await user.save();
-      }
+      user = await findUserByEmail(email);
+      if (user) user = await updateUser(user._id, { appleId: sub });
     }
 
     // 3. Create a new user if none found
@@ -82,28 +86,29 @@ export async function POST(req: NextRequest) {
         10,
       );
 
-      user = await UserModel.create({
+      user = await createUser({
         userName: displayName,
         email: email?.toLowerCase() ?? `${sub}@privaterelay.appleid.com`,
         password: randomPassword,
-        avatar: "",
         appleId: sub,
         mintId,
-        // Baseline signup grant for ALL new Apple users, referred or not —
-        // matches the `points: 100` in users/signup/route.ts. Without it these
-        // accounts fell through to the schema default of 0.
-        points: 100,
         emailVerified: true,
-        firstTimeLogin: true,
       });
+      // Baseline signup grant for ALL new Apple users, referred or not —
+      // matches the 100 points in users/signup/route.ts. Granted rather than
+      // set at creation: createUser does not accept points, because a signup
+      // that can set them is a signup that can mint them.
+      await addPoints(user._id, 100);
+      user = (await findUserByAppleId(sub)) ?? user;
     }
 
-    const jwtPayload = { id: user.id };
+    const jwtPayload = { id: user._id };
     const token = jwt.sign(jwtPayload, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
     });
 
-    const { password: _password, ...userResponse } = user.toObject();
+    // The repository's default projection already excludes the password.
+    const userResponse = user;
 
     return NextResponse.json({
       Status: "Success",

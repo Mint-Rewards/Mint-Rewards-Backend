@@ -25,7 +25,11 @@
 
 import { isProfileCompleteForBonus } from "@/lib/evaluateProfileCompletion";
 import { serverEnv } from "@/lib/env";
-import { UserModel } from "@/lib/models";
+import {
+  findUserById,
+  payProfileBonus,
+  startBonusWindow,
+} from "@/lib/repositories/users";
 
 const MS_PER_HOUR = 60 * 60 * 1000;
 
@@ -93,13 +97,7 @@ export async function startProfileBonusWindow(
   try {
     if (!userId) return null;
 
-    const startedAt = new Date();
-    const stamped = await UserModel.findOneAndUpdate(
-      { _id: userId, profileBonusWindowStartedAt: { $exists: false } },
-      { $set: { profileBonusWindowStartedAt: startedAt } },
-    );
-
-    return stamped ? startedAt : null;
+    return await startBonusWindow(String(userId), new Date());
   } catch (error) {
     console.error("Profile bonus window stamp failed:", error);
     return null;
@@ -129,11 +127,7 @@ export async function awardProfileBonusIfEligible(
     const now = new Date();
     if (!isCampaignLive(now)) return;
 
-    const user = await UserModel.findById(userId)
-      .select(
-        "userName phone city town townOther structuredAddress location locationVersion profileBonusWindowStartedAt profileBonusGrantedAt",
-      )
-      .lean();
+    const user = await findUserById(String(userId));
 
     if (!user) return;
     // Cheap checks before the completion evaluation, which touches the registry.
@@ -143,17 +137,11 @@ export async function awardProfileBonusIfEligible(
 
     const { points } = serverEnv.appConfig.profileBonus;
 
-    // The claim. `$exists: false` on the grant stamp is the whole idempotency
-    // story: a second call — concurrent or minutes later — matches no document
-    // and increments nothing. Re-checking `profileBonusGrantedAt` above is only
-    // an optimisation; THIS is the guarantee.
-    const paid = await UserModel.findOneAndUpdate(
-      { _id: userId, profileBonusGrantedAt: { $exists: false } },
-      {
-        $set: { profileBonusGrantedAt: now, profileBonusPoints: points },
-        $inc: { points },
-      },
-    );
+    // The claim. `profile_bonus_granted_at IS NULL` is the whole idempotency
+    // story: a second call — concurrent or minutes later — matches no row and
+    // increments nothing. Re-checking `profileBonusGrantedAt` above is only an
+    // optimisation; THIS is the guarantee.
+    const paid = await payProfileBonus(String(userId), points, now);
 
     if (paid) {
       console.info(

@@ -2,7 +2,14 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import {
+  addPoints,
+  createUser,
+  findUserByEmail,
+  findUserByMintId,
+  setUserOtp,
+  updateUser,
+} from "@/lib/repositories/users";
 import sendSignupEmail from "@/emailServices/signupConfirmation";
 import { generateOtp, hashOtp } from "@/lib/otp";
 import {
@@ -21,7 +28,7 @@ const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
 async function generateMintId() {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
-    const existingUser = await UserModel.findOne({ mintId });
+    const existingUser = await findUserByMintId(mintId);
     if (!existingUser) {
       return mintId;
     }
@@ -120,7 +127,7 @@ export async function POST(req: Request) {
     if (emailLimit.limited)
       return rateLimitResponse(emailLimit.retryAfterSeconds);
 
-    const existingUser = await UserModel.findOne({ email });
+    const existingUser = await findUserByEmail(email);
 
     if (existingUser) {
       console.log(`Signup attempt with existing email`);
@@ -137,29 +144,32 @@ export async function POST(req: Request) {
 
     const otp = generateOtp();
 
-    const newUser = new UserModel({
+    const newUser = await createUser({
       userName,
       email,
       password: hashedPassword,
       phone,
+      mintId,
+    });
+
+    // The address block and the starting points are not createUser's to
+    // accept: points are server-granted, and a signup that could set them is
+    // a signup that could mint them.
+    await updateUser(newUser._id, {
       address,
       province,
       city,
       town,
       latitude,
       longitude,
-      mintId,
-      points: 100,
-      emailVerified: false,
-      emailVerification: {
-        otpHash: hashOtp(otp),
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-        attempts: 0,
-        lastSentAt: new Date(),
-      },
     });
-
-    await newUser.save();
+    await addPoints(newUser._id, 100);
+    await setUserOtp(newUser._id, "emailVerification", {
+      otpHash: hashOtp(otp),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      attempts: 0,
+      lastSentAt: new Date().toISOString(),
+    });
 
     try {
       await sendSignupEmail(email, otp);
@@ -167,17 +177,15 @@ export async function POST(req: Request) {
       console.error("Signup email failed to send:", emailErr);
     }
 
-    const payload = { id: newUser.id };
+    const payload = { id: newUser._id };
     const token = jwt.sign(payload, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
     });
 
-    // select:false doesn't apply to freshly constructed docs — strip the OTP hash.
-    const {
-      password: _password,
-      emailVerification: _emailVerification,
-      ...userResponse
-    } = newUser.toObject();
+    // Re-read so the response carries the address and points just written —
+    // and through the default projection, which cannot include the OTP hash
+    // this route has just set.
+    const userResponse = await findUserByEmail(email);
 
     return Response.json({
       success: true,

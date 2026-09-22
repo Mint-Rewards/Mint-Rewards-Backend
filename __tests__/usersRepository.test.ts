@@ -248,8 +248,8 @@ whenLive("consumer accounts", () => {
         },
       });
       const after = await repo.findUserById(user._id);
-      expect(after?.location?.coordinates[0]).toBeCloseTo(67.0011, 5);
-      expect(after?.location?.coordinates[1]).toBeCloseTo(24.8607, 5);
+      expect(after?.location?.coordinates?.[0]).toBeCloseTo(67.0011, 5);
+      expect(after?.location?.coordinates?.[1]).toBeCloseTo(24.8607, 5);
       expect(after?.location?.precision).toBe("building");
     });
 
@@ -260,7 +260,7 @@ whenLive("consumer accounts", () => {
       });
       await repo.updateUser(user._id, { location: null });
       const after = await repo.findUserById(user._id);
-      expect(after?.location).toBeNull();
+      expect(after?.location).toBeUndefined();
       // And the precision with it — a stale "building" would put the row back
       // in the routable set with no pin to route to.
       const raw = await (await import("@/lib/postgres")).getPool().query(
@@ -276,7 +276,7 @@ whenLive("consumer accounts", () => {
         location: { type: "Point", coordinates: [67, 24] },
       });
       await repo.updateUser(user._id, { city: "Karachi" });
-      expect((await repo.findUserById(user._id))?.location).not.toBeNull();
+      expect((await repo.findUserById(user._id))?.location).toBeDefined();
     });
   });
 });

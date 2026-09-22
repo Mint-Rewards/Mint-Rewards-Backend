@@ -1,6 +1,11 @@
 import jwt from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import {
+  consumeOtp,
+  findUserByEmailWithOtp,
+  recordOtpAttempt,
+  setUserOtp,
+} from "@/lib/repositories/users";
 import { verifyOtp } from "@/lib/otp";
 import {
   checkRateLimit,
@@ -51,23 +56,25 @@ export async function POST(req: Request) {
 
     await connectToDatabase();
 
-    const user = await UserModel.findOne({ email: normalizedEmail }).select(
-      "+passwordReset",
+    const user = await findUserByEmailWithOtp(
+      normalizedEmail,
+      "passwordReset",
     );
 
-    const reset = user?.passwordReset;
+    const reset = user?.otp;
+    // jsonb returns the timestamp as an ISO string, not a Date.
+    const expiresAt = reset?.expiresAt ? new Date(reset.expiresAt) : null;
     if (
       !user ||
       !reset?.otpHash ||
-      !reset.expiresAt ||
-      reset.expiresAt.getTime() < Date.now()
+      !expiresAt ||
+      expiresAt.getTime() < Date.now()
     ) {
       return genericFailure();
     }
 
     if ((reset.attempts ?? 0) >= MAX_ATTEMPTS) {
-      user.passwordReset = undefined;
-      await user.save();
+      await setUserOtp(user._id, "passwordReset", null);
       return Response.json(
         { error: "Too many attempts. Request a new code." },
         { status: 429 },
@@ -80,26 +87,24 @@ export async function POST(req: Request) {
       // Atomic $inc guarded by the OTP hash we just read, so parallel wrong
       // guesses can't race each other into under-counting attempts, and a
       // concurrent resend/consume can't have its state clobbered.
-      await UserModel.updateOne(
-        { _id: user._id, "passwordReset.otpHash": reset.otpHash },
-        { $inc: { "passwordReset.attempts": 1 } },
-      );
+      await recordOtpAttempt(user._id, "passwordReset", reset.otpHash);
       return genericFailure();
     }
 
     // Single use: burn the OTP the moment it verifies, but only if it's
     // still the OTP we just checked — guards against a concurrent request
     // already having consumed or rotated it.
-    const consumed = await UserModel.findOneAndUpdate(
-      { _id: user._id, "passwordReset.otpHash": reset.otpHash },
-      { $unset: { passwordReset: "" } },
+    const consumed = await consumeOtp(
+      user._id,
+      "passwordReset",
+      reset.otpHash,
     );
     if (!consumed) {
       return genericFailure();
     }
 
     const resetToken = jwt.sign(
-      { sub: user.id, purpose: "pwreset" },
+      { sub: user._id, purpose: "pwreset" },
       JWT_SECRET,
       { expiresIn: RESET_TOKEN_TTL },
     );

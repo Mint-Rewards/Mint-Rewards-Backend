@@ -2,7 +2,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import {
+  countUsers,
+  findUserByEmailForLogin,
+} from "@/lib/repositories/users";
 import {
   checkRateLimit,
   clientIp,
@@ -61,7 +64,7 @@ export async function POST(req: Request) {
 
     await connectToDatabase();
 
-    const user = await UserModel.findOne({ email: normalizedEmail });
+    const user = await findUserByEmailForLogin(normalizedEmail);
 
     // Run bcrypt.compare regardless of whether the user was found so that
     // response timing stays constant and prevents email enumeration.
@@ -89,7 +92,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const payload = { id: user.id };
+    const payload = { id: user._id };
 
     const token = jwt.sign(payload, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
@@ -99,9 +102,11 @@ export async function POST(req: Request) {
       throw new Error();
     }
 
-    const userCount = await UserModel.countDocuments();
+    const userCount = await countUsers();
 
-    const { password: _password, ...userResponse } = user.toObject();
+    // The login read is the one that carries the hash, so it is stripped here
+    // rather than relied on being absent — every other read omits it already.
+    const { password: _password, ...userResponse } = user;
 
     return Response.json({
       users: userCount,

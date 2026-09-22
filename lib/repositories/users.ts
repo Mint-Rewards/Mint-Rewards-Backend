@@ -20,20 +20,22 @@ import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/postgres";
 import { users } from "@/lib/db/schema";
 import type { Executor } from "@/lib/repositories/brandhub";
+import type { User } from "@/lib/types";
 
 const exec = (tx?: Executor): Executor => tx ?? getDb();
 
 const OBJECT_ID = /^[0-9a-fA-F]{24}$/;
 
-export interface UserLocation {
-  type: "Point";
-  /** [lng, lat] — GeoJSON order, the reverse of how humans say it. */
-  coordinates: [number, number];
-  source?: string;
-  precision?: string;
-  accuracyMeters?: number;
-  capturedAt?: Date;
-}
+/**
+ * The domain's own shapes, not new ones.
+ *
+ * evaluateLocation, the completion evaluator and their tests all take these
+ * types; a parallel set here would mean every caller converting between two
+ * descriptions of the same thing.
+ */
+export type UserLocation = NonNullable<User["location"]>;
+export type StructuredAddress = NonNullable<User["structuredAddress"]>;
+export type LocationVerification = NonNullable<User["locationVerification"]>;
 
 export interface OtpBlock {
   otpHash?: string;
@@ -74,19 +76,26 @@ export interface UserDoc {
    * the completion evaluator and their tests all take `user.location`, and
    * they should not have to learn how this table is laid out.
    */
-  location: UserLocation | null;
-  structuredAddress: Record<string, unknown> | null;
-  locationVerification: Record<string, unknown> | null;
+  location?: UserLocation;
+  structuredAddress?: StructuredAddress;
+  locationVerification?: LocationVerification;
   locationVersion: number;
-  locationCompletedAt: Date | null;
-  profileBonusWindowStartedAt: Date | null;
-  profileBonusGrantedAt: Date | null;
-  profileBonusPoints: number | null;
+  locationCompletedAt?: Date;
+  /**
+   * Omitted rather than null when unset, like the other optional fields here.
+   *
+   * It matters for these three: absence is the meaning. An unset grant stamp
+   * is what "not paid" is, and callers test it for truthiness or for being
+   * undefined — a null would satisfy the first and quietly fail the second.
+   */
+  profileBonusWindowStartedAt?: Date;
+  profileBonusGrantedAt?: Date;
+  profileBonusPoints?: number;
   pickupHistory: unknown[];
   created: Date;
   firstTimeLogin: boolean;
   emailVerified: boolean;
-  appleId: string | null;
+  appleId?: string;
 }
 
 /**
@@ -171,16 +180,16 @@ function toUser(row: PublicRow): UserDoc {
     totalWasteCollected: row.totalWasteCollected as string,
     referrals: (row.referrals as string[]) ?? [],
     referralRewardGranted: row.referralRewardGranted as boolean,
-    location:
-      typeof lng === "number" && typeof lat === "number"
-        ? {
-            type: "Point",
-            coordinates: [lng, lat],
+    ...(typeof lng === "number" && typeof lat === "number"
+      ? {
+          location: {
+            type: "Point" as const,
+            coordinates: [lng, lat] as [number, number],
             ...(row.locationSource
-              ? { source: row.locationSource as string }
+              ? { source: row.locationSource as UserLocation["source"] }
               : {}),
             ...(row.locationPrecision
-              ? { precision: row.locationPrecision as string }
+              ? { precision: row.locationPrecision as UserLocation["precision"] }
               : {}),
             ...(row.locationAccuracyMeters !== null
               ? { accuracyMeters: row.locationAccuracyMeters as number }
@@ -188,23 +197,36 @@ function toUser(row: PublicRow): UserDoc {
             ...(row.locationCapturedAt
               ? { capturedAt: row.locationCapturedAt as Date }
               : {}),
-          }
-        : null,
-    structuredAddress: row.structuredAddress as Record<string, unknown> | null,
-    locationVerification: row.locationVerification as Record<
-      string,
-      unknown
-    > | null,
+          },
+        }
+      : {}),
+    ...(row.structuredAddress
+      ? { structuredAddress: row.structuredAddress as StructuredAddress }
+      : {}),
+    ...(row.locationVerification
+      ? {
+          locationVerification:
+            row.locationVerification as LocationVerification,
+        }
+      : {}),
     locationVersion: row.locationVersion as number,
-    locationCompletedAt: row.locationCompletedAt as Date | null,
-    profileBonusWindowStartedAt: row.profileBonusWindowStartedAt as Date | null,
-    profileBonusGrantedAt: row.profileBonusGrantedAt as Date | null,
-    profileBonusPoints: row.profileBonusPoints as number | null,
+    ...(row.locationCompletedAt
+      ? { locationCompletedAt: row.locationCompletedAt as Date }
+      : {}),
+    ...(row.profileBonusWindowStartedAt
+      ? { profileBonusWindowStartedAt: row.profileBonusWindowStartedAt as Date }
+      : {}),
+    ...(row.profileBonusGrantedAt
+      ? { profileBonusGrantedAt: row.profileBonusGrantedAt as Date }
+      : {}),
+    ...(row.profileBonusPoints !== null
+      ? { profileBonusPoints: row.profileBonusPoints as number }
+      : {}),
     pickupHistory: (row.pickupHistory as unknown[]) ?? [],
     created: row.created as Date,
     firstTimeLogin: row.firstTimeLogin as boolean,
     emailVerified: row.emailVerified as boolean,
-    appleId: row.appleId as string | null,
+    ...(row.appleId ? { appleId: row.appleId as string } : {}),
   };
 }
 
@@ -317,6 +339,31 @@ export async function findUserByReferral(
   return rows[0] ? toUser(rows[0]) : null;
 }
 
+/**
+ * Anyone who already holds one of these addresses — as their own, or in their
+ * referrals.
+ *
+ * One round trip answers both questions the invite path asks: which addresses
+ * belong to registered accounts, and which have already been invited by
+ * somebody. `email` is unique and indexed; `referrals` is a text[] and the
+ * ANY() test can use a GIN index if one is ever needed.
+ */
+export async function findUsersHoldingEmails(
+  emails: readonly string[],
+  tx?: Executor,
+): Promise<UserDoc[]> {
+  const wanted = [...new Set(emails.map((e) => e.toLowerCase()))];
+  if (wanted.length === 0) return [];
+  const rows = await exec(tx)
+    .select(PUBLIC)
+    .from(users)
+    .where(
+      sql`${users.email} = ANY(${sql.param(wanted)}::text[])
+          OR ${users.referrals} && ${sql.param(wanted)}::text[]`,
+    );
+  return rows.map(toUser);
+}
+
 /** Accounts matching any of these addresses, for the referral sweep. */
 export async function findUsersByEmails(
   emails: readonly string[],
@@ -394,8 +441,6 @@ export type UserPatch = Partial<
     | "totalCollections"
     | "totalWasteCollected"
     | "referrals"
-    | "structuredAddress"
-    | "locationVerification"
     | "locationVersion"
     | "locationCompletedAt"
     | "emailVerified"
@@ -411,23 +456,95 @@ export type UserPatch = Partial<
    * routable.
    */
   location?: UserLocation | null;
+  structuredAddress?: StructuredAddress;
+  locationVerification?: LocationVerification;
 };
+
+/**
+ * Accepts Mongo's dotted paths as well as whole fields.
+ *
+ * `PATCH /api/users/location` and `PUT /api/users/update-profile` both build
+ * their writes as `structuredAddress.<key>` and `location.<key>`, because in
+ * Mongo that is what sets one key without disturbing its siblings. Those
+ * semantics are carefully tested — writing `areaOther` must clear `areaId`
+ * and leave `cityId` alone — so the translation lives here rather than in two
+ * routes whose logic would otherwise have to be rewritten and re-proven.
+ *
+ * `structuredAddress.*` becomes a jsonb merge, which preserves the keys it
+ * does not mention. `location.*` becomes the scalar columns and the geography
+ * beside them.
+ */
+export type DottedPatch = UserPatch & Record<string, unknown>;
 
 export async function updateUser(
   id: string,
-  patch: UserPatch,
+  patch: DottedPatch,
   tx?: Executor,
 ): Promise<UserDoc | null> {
   if (!OBJECT_ID.test(id)) return null;
   const values: Record<string, unknown> = {};
+  const structuredPatch: Record<string, unknown> = {};
+  const verificationPatch: Record<string, unknown> = {};
+  const locationPatch: Record<string, unknown> = {};
+
   for (const [key, value] of Object.entries(patch)) {
     if (key === "location" || value === undefined) continue;
+    if (key.startsWith("structuredAddress.")) {
+      structuredPatch[key.slice("structuredAddress.".length)] = value;
+      continue;
+    }
+    if (key.startsWith("locationVerification.")) {
+      verificationPatch[key.slice("locationVerification.".length)] = value;
+      continue;
+    }
+    if (key.startsWith("location.")) {
+      locationPatch[key.slice("location.".length)] = value;
+      continue;
+    }
     values[key] = value;
+  }
+
+  if (Object.keys(structuredPatch).length > 0) {
+    // `||` merges right over left, so unmentioned keys survive — which is
+    // exactly what dot notation did.
+    values.structuredAddress = sql`COALESCE(${users.structuredAddress}, '{}'::jsonb) || ${JSON.stringify(structuredPatch)}::jsonb`;
+  }
+
+  if (Object.keys(verificationPatch).length > 0) {
+    // Merged, never replaced. Every row where geocodedAreaRaw and
+    // selectedAreaId disagree is a labelled geocoder failure, and a write that
+    // mentions one must not drop the other.
+    values.locationVerification = sql`COALESCE(${users.locationVerification}, '{}'::jsonb) || ${JSON.stringify(verificationPatch)}::jsonb`;
+  }
+
+  if (Object.keys(locationPatch).length > 0) {
+    const pair = locationPatch.coordinates;
+    if (Array.isArray(pair) && pair.length === 2) {
+      values.geog = sql`ST_SetSRID(ST_MakePoint(${Number(pair[0])}, ${Number(pair[1])}), 4326)::geography`;
+    }
+    // `type` is always "Point" and has no column — the geography carries it.
+    if ("source" in locationPatch) values.locationSource = locationPatch.source;
+    if ("precision" in locationPatch) {
+      values.locationPrecision = locationPatch.precision;
+    }
+    if ("accuracyMeters" in locationPatch) {
+      values.locationAccuracyMeters = locationPatch.accuracyMeters;
+    }
+    if ("capturedAt" in locationPatch) {
+      values.locationCapturedAt = locationPatch.capturedAt;
+    }
   }
   if (patch.location !== undefined) {
     const place = patch.location;
-    values.geog = place
-      ? sql`ST_SetSRID(ST_MakePoint(${place.coordinates[0]}, ${place.coordinates[1]}), 4326)::geography`
+    // The domain type allows a location with no coordinates — a row can carry
+    // a precision and nothing else. Without a pair there is nothing to store
+    // in a geography column, so that clears it rather than writing a partial.
+    const pair =
+      place?.coordinates && place.coordinates.length === 2
+        ? place.coordinates
+        : null;
+    values.geog = pair
+      ? sql`ST_SetSRID(ST_MakePoint(${pair[0]}, ${pair[1]}), 4326)::geography`
       : null;
     // Cleared together. A precision left behind without a pin would still
     // read as "building" and put the row back in the routable set.

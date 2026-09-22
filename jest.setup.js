@@ -10,3 +10,14 @@ if (process.env.MONGODB_URI_TEST) {
       "Define MONGODB_URI_TEST in .env (a separate test database).",
   );
 }
+
+// Postgres, during the migration off Mongo. Same rule as above: a test run
+// must never reach the live database. There is no Postgres test instance yet,
+// so the default is to unset it entirely, which makes lib/postgres report
+// "not configured" — the state every suite currently expects. Point
+// DATABASE_URL_TEST at a throwaway Postgres to exercise the real thing.
+if (process.env.DATABASE_URL_TEST) {
+  process.env.DATABASE_URL = process.env.DATABASE_URL_TEST;
+} else {
+  delete process.env.DATABASE_URL;
+}

@@ -249,6 +249,25 @@ function optionalPositiveInt(key: string, fallback: number): number {
  * treat an unset key as "resolve nothing" rather than refuse to boot the
  * whole deployment over one unprovisioned third-party credential.
  */
+/**
+ * Optional, but malformed-if-present. A blank DATABASE_URL means "Postgres is
+ * not configured here" and the app carries on; a DATABASE_URL pointing at
+ * something that is not Postgres is a misconfiguration and should be caught at
+ * boot, exactly as requiredMatching does for the ones that are mandatory.
+ */
+function optionalMatching(
+  key: string,
+  pattern: RegExp,
+  hint: string,
+): string | null {
+  const value = process.env[key]?.trim();
+  if (!value) return null;
+  if (!pattern.test(value)) {
+    problems.push(`${key} is malformed — expected ${hint}`);
+  }
+  return value;
+}
+
 function optionalString(key: string): string | null {
   const value = process.env[key]?.trim();
   return value || null;
@@ -323,6 +342,19 @@ const parsed = {
     MONGODB_URI_KEY,
     /^mongodb(\+srv)?:\/\//,
     'a connection string starting with "mongodb://" or "mongodb+srv://"',
+  ),
+
+  /**
+   * Postgres, during the migration off Mongo.
+   *
+   * Optional on purpose: nothing reads it yet, and a deployment without it must
+   * still boot. Mongo stays authoritative until a model is actually ported, so
+   * an absent DATABASE_URL is a normal state rather than a broken one.
+   */
+  databaseUrl: optionalMatching(
+    "DATABASE_URL",
+    /^postgres(ql)?:\/\//,
+    'a connection string starting with "postgres://" or "postgresql://"',
   ),
 
   // Consumer-app JWT. Signing algorithm and payload shape are unchanged —

@@ -84,3 +84,51 @@ export function respondToInvitation(
     body: { response },
   });
 }
+
+export interface InboxNotification {
+  id: number;
+  event: string;
+  title: string;
+  body: string;
+  data: Record<string, string>;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export interface Inbox {
+  notifications: InboxNotification[];
+  unread: number;
+  /** Cursor for the next page, or null when this one reached the end. */
+  nextBefore: number | null;
+}
+
+/**
+ * What this household has been told.
+ *
+ * Reads notification records rather than deliveries: a message sent while they
+ * had no device registered is still theirs to read, and that is exactly the
+ * case on the first collection anyone is invited to.
+ */
+export function listNotifications(
+  userId: string,
+  opts: { limit?: number; before?: number } = {},
+): Promise<AdminApiResult<Inbox>> {
+  const query = new URLSearchParams({
+    audience: "USER",
+    subjectId: userId,
+    ...(opts.limit ? { limit: String(opts.limit) } : {}),
+    ...(opts.before ? { before: String(opts.before) } : {}),
+  });
+  return call(`/notifications?${query.toString()}`);
+}
+
+/** Marks messages read. Omitting ids means everything this household has. */
+export function markNotificationsRead(
+  userId: string,
+  ids?: number[],
+): Promise<AdminApiResult<{ read: number }>> {
+  return call("/notifications/read", {
+    method: "POST",
+    body: { audience: "USER", subjectId: userId, ...(ids?.length ? { ids } : {}) },
+  });
+}

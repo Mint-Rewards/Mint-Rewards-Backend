@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  * Public app configuration for the mobile client's force-update gate.
  *
  * Unauthenticated by design — the client calls this before login, and in the
- * blocking case the user cannot log in at all until they update. middleware.ts
+ * blocking case the user cannot log in at all until they update. proxy.ts
  * only applies CORS over /api/:path*, so there is no auth to opt out of; this
  * comment exists so nobody later "fixes" the missing auth check.
  *

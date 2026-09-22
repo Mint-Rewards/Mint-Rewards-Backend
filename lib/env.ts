@@ -9,8 +9,8 @@
  * Deliberately dependency-free: this is a flat map of ~16 string keys, and
  * keeping it hand-rolled means no schema library ends up in the bundle.
  *
- * NOTE FOR middleware.ts: do not import this file. It throws at module load,
- * which in the middleware bundle would take down the entire /api/:path*
+ * NOTE FOR proxy.ts: do not import this file. It throws at module load,
+ * which in the proxy bundle would take down the entire /api/:path*
  * matcher on a single missing key. Middleware uses lib/edgeEnv.ts, which reads
  * the same variables but fails closed instead of throwing.
  */

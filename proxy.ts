@@ -19,7 +19,7 @@ function isAllowedOrigin(origin: string): boolean {
   );
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const origin = request.headers.get("origin");
   // Requests without an Origin header (mobile apps, curl, server-to-server)
   // pass through untouched — CORS is browser-only enforcement.

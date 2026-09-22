@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "deploy": "./scripts/deploy.sh --prod --yes",
     "db:migrate": "node --experimental-strip-types --env-file=.env scripts/migrate.ts",
-    "db:backfill:logs": "node --experimental-strip-types --env-file=.env scripts/backfill-logs.ts"
+    "db:backfill:logs": "node --experimental-strip-types --env-file=.env scripts/backfill-logs.ts",
+    "db:backfill:brandhub": "node --experimental-strip-types --env-file=.env scripts/backfill-brandhub.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.3.1",

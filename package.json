@@ -13,7 +13,9 @@
     "format:check": "prettier --check .",
     "test": "jest",
     "typecheck": "tsc --noEmit",
-    "deploy": "./scripts/deploy.sh --prod --yes"
+    "deploy": "./scripts/deploy.sh --prod --yes",
+    "db:migrate": "node --experimental-strip-types --env-file=.env scripts/migrate.ts",
+    "db:backfill:logs": "node --experimental-strip-types --env-file=.env scripts/backfill-logs.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.3.1",

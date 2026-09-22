@@ -7,3 +7,4 @@
  */
 export * from "./logs";
 export * from "./brandhub";
+export * from "./deals";

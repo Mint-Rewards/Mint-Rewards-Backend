@@ -1,0 +1,28 @@
+# Secrets never travel with the deployment — Vercel holds them as environment
+# variables.
+#
+# This file did not exist, and `vercel deploy` uploads whatever .vercelignore
+# does not exclude — .gitignore is not consulted. The 2026-09-22 CLI deploy
+# therefore shipped the local .env into the build, where Next loaded it
+# ("Environments: .env" in the build log) and the build failed on a value that
+# Vercel's own environment would have supplied correctly. That file carries the
+# production Mongo URI, the Supabase credentials and the FCM service account
+# key, none of which should leave this machine.
+.env
+.env.*
+!.env.example
+
+node_modules
+.next
+.git
+.github
+.claude
+
+# Tests and their fixtures are not run from the deployment.
+__tests__
+jest.config.js
+jest.setup.js
+docs
+
+# Local build artefacts.
+tsconfig.tsbuildinfo

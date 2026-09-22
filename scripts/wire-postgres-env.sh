@@ -27,11 +27,39 @@ fi
 URL="$(grep '^DATABASE_URL=' .env | cut -d= -f2- | tr -d '"')"
 [ -n "$URL" ] || { echo "DATABASE_URL is not set in .env"; exit 1; }
 
+# --value and --non-interactive are both required. Piping the value on stdin
+# satisfies only the first prompt: preview then asks for a git branch and
+# development asks Secret-or-Config, and with stdin exhausted the command
+# abandons the prompt and still exits 0. The first version of this script did
+# exactly that and reported three successes having written one.
+add() {
+  local environment="$1"
+  shift
+  npx vercel env rm DATABASE_URL "$environment" --yes >/dev/null 2>&1 || true
+  npx vercel env add DATABASE_URL "$environment" \
+    --value "$URL" --sensitive --force --non-interactive "$@" >/dev/null 2>&1
+}
+
+# No --git-branch: a preview variable scoped to one branch applies only to
+# that branch, and every preview deploy needs a database.
+add production
+add preview
+add development
+
+# Asked for, not assumed. `vercel env ls` is the only thing that actually
+# knows, and the point of this script is that the deploy does not go out with
+# a variable missing.
+failed=0
 for ENVIRONMENT in production preview development; do
-  npx vercel env rm DATABASE_URL "$ENVIRONMENT" --yes >/dev/null 2>&1 || true
-  printf '%s' "$URL" | npx vercel env add DATABASE_URL "$ENVIRONMENT" >/dev/null
-  echo "  DATABASE_URL set for $ENVIRONMENT"
+  if npx vercel env ls "$ENVIRONMENT" 2>/dev/null \
+       | awk 'NF>2 && $1=="DATABASE_URL"' | grep -q .; then
+    echo "  DATABASE_URL confirmed present for $ENVIRONMENT"
+  else
+    echo "  DATABASE_URL MISSING for $ENVIRONMENT"
+    failed=1
+  fi
 done
+[ "$failed" -eq 0 ] || { echo; echo "Not all environments are set — do not deploy yet."; exit 1; }
 
 echo
 echo "Set. Deploy after this, not before:"

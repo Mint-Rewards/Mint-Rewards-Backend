@@ -1,7 +1,5 @@
 import mongoose, { Model, Schema } from "mongoose";
 import {
-  CampaignDocument,
-  DealDocument,
   UserDocument,
 } from "@/lib/types";
 
@@ -43,49 +41,6 @@ const stringDefaultEmpty = { type: String, default: "" } as const;
 
 // Provisional brand-level impact snapshot pending the brand↔collection data
 // pipeline. Once collections are brand-scoped, these figures can be derived.
-const CampaignSchema = new Schema<CampaignDocument>(
-  {
-    name: stringRequired,
-    startDate: String,
-    endDate: String,
-    discountCodes: { type: [String], default: [] },
-    isSingleCode: { type: Boolean, default: false },
-    discountPercentage: String,
-    addresses: [
-      {
-        province: stringRequired,
-        city: stringRequired,
-        town: stringRequired,
-        _id: false,
-      },
-    ],
-    status: {
-      type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED", "EXPIRED"],
-      default: "PENDING",
-      required: true,
-    },
-    users: [{ type: Schema.Types.ObjectId, ref: "User" }],
-    brand: {
-      type: Schema.Types.ObjectId,
-      ref: "Brand",
-      required: true,
-    },
-    brandRegistration: { type: String, default: "" },
-    // Brand-portal fields (set at creation time)
-    description: String,
-    campaignType: String,
-    targetAudience: String,
-    budget: Number,
-    backgroundColor: String,
-    badge: String,
-    subtitle: String,
-    banner: String,
-  },
-  { timestamps: false },
-);
-
-
 const qrCodeWithWeightSchema = new Schema(
   {
     qrCode: stringDefaultEmpty,
@@ -399,11 +354,6 @@ const getModel = <T extends mongoose.Document>(
   (mongoose.models[name] as Model<T>) ||
   mongoose.model<T>(name, schema, collection);
 
-export const CampaignModel = getModel<CampaignDocument>(
-  "Campaign",
-  CampaignSchema,
-  "campaigns",
-);
 
 
 // Compound index for the most common dashboard queries
@@ -423,47 +373,7 @@ UserSchema.index({ referrals: 1 });
 
 export const UserModel = getModel<UserDocument>("User", UserSchema, "users");
 
-const DealSchema = new Schema<DealDocument>(
-  {
-    brand: { type: Schema.Types.ObjectId, ref: "Brand", required: true },
-    title: stringRequired,
-    description: stringDefaultEmpty,
-    discountPercentage: { type: Number, default: null },
-    discountAmount: { type: Number, default: null },
-    // Inventory of codes; promoCode mirrors codes[0] for legacy readers.
-    codes: { type: [String], default: [] },
-    promoCode: { type: String, default: null },
-    startDate: { type: String, default: null },
-    endDate: { type: String, default: null },
-    maxUses: { type: Number, default: null },
-    currentUses: { type: Number, default: 0 },
-    minimumPurchase: { type: Number, default: null },
-    status: {
-      type: String,
-      enum: ["pending", "active", "rejected", "inactive", "expired"],
-      default: "pending",
-    },
-    users: [{ type: Schema.Types.ObjectId, ref: "User" }],
-    claims: {
-      type: [
-        {
-          user: { type: Schema.Types.ObjectId, ref: "User", required: true },
-          code: stringRequired,
-          claimedAt: { type: Date, default: Date.now },
-          _id: false,
-        },
-      ],
-      default: [],
-    },
-  },
-  { timestamps: true },
-);
-
-export const DealModel = getModel<DealDocument>("Deal", DealSchema, "deals");
-
 
 export type {
-  CampaignDocument,
-  DealDocument,
   UserDocument,
 };

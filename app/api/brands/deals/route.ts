@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { DealModel } from "@/lib/models";
 import { findBrandsByIds } from "@/lib/repositories/brandhub";
+import { findDeals } from "@/lib/repositories/deals";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 export async function GET(req: NextRequest) {
@@ -14,14 +14,14 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status");
     const brandId = searchParams.get("brandId");
 
-    const filter: Record<string, unknown> = {};
-    if (status) filter.status = status.toLowerCase();
-    if (brandId) filter.brand = brandId;
+    const deals = await findDeals({
+      status: status ? status.toLowerCase() : undefined,
+      brand: brandId ?? undefined,
+    });
 
     // What `.populate("brand", ...)` used to do. The deal is still a Mongo
     // document and the brand is not, so the join is done here: one query for
     // the brands referenced, then the same projection populate was given.
-    const deals = await DealModel.find(filter).sort({ _id: -1 }).lean();
     const brandsById = await findBrandsByIds(
       deals.map((row) => String(row.brand ?? "")),
     );

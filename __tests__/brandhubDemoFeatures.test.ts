@@ -3,11 +3,16 @@
 import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 import connectToDatabase from "../lib/mongodb";
-import { CampaignModel, DealModel } from "../lib/models";
+import {
+  createCampaign as seedCampaign,
+  createDeal as seedDeal,
+  findCampaignById,
+} from "../lib/repositories/deals";
 import {
   createBrand,
   createOrganization,
   deleteBrandsByIds,
+  newObjectId,
   updateBrand,
 } from "../lib/repositories/brandhub";
 import { closePostgres, getPool } from "../lib/postgres";
@@ -78,8 +83,10 @@ describe("BrandHub demo features", () => {
 
   beforeEach(async () => {
     await Promise.all([
-      CampaignModel.deleteMany({ brand: brandId }),
-      DealModel.deleteMany({ brand: brandId }),
+      getPool().query("DELETE FROM consumer.campaigns WHERE brand = $1", [
+        brandId,
+      ]),
+      getPool().query("DELETE FROM consumer.deals WHERE brand = $1", [brandId]),
       updateBrand(brandId, { environmentalStats: null }),
     ]);
   });
@@ -89,8 +96,12 @@ describe("BrandHub demo features", () => {
     // querying anyway throws "before initial connection is complete" — a second
     // failure that buries the one that actually mattered.
     if (mongoose.connection.readyState !== 1) return;
-    await CampaignModel.deleteMany({ brand: brandId });
-    await DealModel.deleteMany({ brand: brandId });
+    await getPool().query("DELETE FROM consumer.campaigns WHERE brand = $1", [
+      brandId,
+    ]);
+    await getPool().query("DELETE FROM consumer.deals WHERE brand = $1", [
+      brandId,
+    ]);
     await deleteBrandsByIds([brandId]);
     await getPool().query("DELETE FROM consumer.organizations WHERE id = $1", [
       orgId,
@@ -185,7 +196,7 @@ describe("BrandHub demo features", () => {
   });
 
   it("appends codes without removing inventory or changing promoCode", async () => {
-    const deal = await DealModel.create({
+    const deal = await seedDeal({
       brand: brandId,
       title: "Append inventory",
       codes: ["FIRST1"],
@@ -210,7 +221,7 @@ describe("BrandHub demo features", () => {
   });
 
   it("resets an approved campaign to PENDING after a brand edit", async () => {
-    const campaign = await CampaignModel.create({
+    const campaign = await seedCampaign({
       brand: brandId,
       name: "Approved campaign",
       status: "APPROVED",
@@ -235,7 +246,7 @@ describe("BrandHub demo features", () => {
     expect(response.status).toBe(200);
     expect(body.campaign.status).toBe("PENDING");
     await expect(
-      CampaignModel.findById(campaign._id).lean(),
+      findCampaignById(campaign._id),
     ).resolves.toMatchObject({
       status: "PENDING",
     });
@@ -244,7 +255,7 @@ describe("BrandHub demo features", () => {
   // Codes could previously only be set at creation, so a campaign that
   // exhausted its pool stopped being redeemable with no way to top it up.
   it("appends discount codes to a campaign, deduping against the existing pool", async () => {
-    const campaign = await CampaignModel.create({
+    const campaign = await seedCampaign({
       brand: brandId,
       name: "Append codes campaign",
       status: "APPROVED",
@@ -283,7 +294,7 @@ describe("BrandHub demo features", () => {
   // nothing for an admin to re-review — and taking the campaign offline is the
   // opposite of what a brand refilling an exhausted pool wants.
   it("leaves an approved campaign approved when only codes are appended", async () => {
-    const campaign = await CampaignModel.create({
+    const campaign = await seedCampaign({
       brand: brandId,
       name: "Top-up campaign",
       status: "APPROVED",
@@ -313,13 +324,13 @@ describe("BrandHub demo features", () => {
     expect(body.campaign.status).toBe("APPROVED");
     expect(body.campaign.discountCodes).toEqual(["ONLY1", "TOPUP1", "TOPUP2"]);
     await expect(
-      CampaignModel.findById(campaign._id).lean(),
+      findCampaignById(campaign._id),
     ).resolves.toMatchObject({ status: "APPROVED" });
   });
 
   // A content edit still re-moderates, even when it arrives alongside addCodes.
   it("re-moderates when a content edit accompanies appended codes", async () => {
-    const campaign = await CampaignModel.create({
+    const campaign = await seedCampaign({
       brand: brandId,
       name: "Mixed edit campaign",
       status: "APPROVED",
@@ -351,7 +362,7 @@ describe("BrandHub demo features", () => {
   // user. A client computing it from what it submitted overshoots whenever an
   // overlapping code is dropped.
   it("derives deal maxUses from the real code count after an overlapping re-paste", async () => {
-    const deal = await DealModel.create({
+    const deal = await seedDeal({
       brand: brandId,
       title: "Overlap inventory",
       codes: ["DUP1", "DUP2"],
@@ -380,9 +391,9 @@ describe("BrandHub demo features", () => {
   });
 
   it("returns campaign and deal counts from live brand-scoped fixtures", async () => {
-    const userA = new mongoose.Types.ObjectId();
-    const userB = new mongoose.Types.ObjectId();
-    await CampaignModel.create([
+    const userA = newObjectId();
+    const userB = newObjectId();
+    for (const seed of [
       {
         brand: brandId,
         name: "Active approved",
@@ -402,13 +413,17 @@ describe("BrandHub demo features", () => {
       { brand: brandId, name: "Pending", status: "PENDING" },
       { brand: brandId, name: "Rejected", status: "REJECTED" },
       { brand: brandId, name: "Expired", status: "EXPIRED" },
-    ]);
-    await DealModel.create([
+    ]) {
+      await seedCampaign(seed);
+    }
+    for (const seed of [
       { brand: brandId, title: "Active one", status: "active" },
       { brand: brandId, title: "Active two", status: "active" },
       { brand: brandId, title: "Inactive", status: "inactive" },
       { brand: brandId, title: "Expired", status: "expired" },
-    ]);
+    ]) {
+      await seedDeal(seed);
+    }
 
     const response = await getAnalytics(
       jsonRequest(

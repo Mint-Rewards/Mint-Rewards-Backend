@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
-import { CampaignModel } from "@/lib/models";
 import { findBrandById } from "@/lib/repositories/brandhub";
+import { createCampaign, findCampaigns } from "@/lib/repositories/deals";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 
@@ -32,9 +32,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const campaigns = await CampaignModel.find({ brand: id })
-      .sort({ _id: -1 })
-      .lean();
+    const campaigns = await findCampaigns({ brand: id });
 
     return Response.json({ success: true, campaigns, total: campaigns.length });
   } catch (error: unknown) {
@@ -121,7 +119,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const campaign = await CampaignModel.create({
+    const campaign = await createCampaign({
       name: (name as string).trim(),
       ...(typeof startDate === "string" && startDate && { startDate }),
       ...(typeof endDate === "string" && endDate && { endDate }),

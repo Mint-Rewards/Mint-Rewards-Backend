@@ -93,11 +93,11 @@ async function main(): Promise<void> {
       await run(
         `INSERT INTO consumer.campaigns
            (id, name, start_date, end_date, discount_codes, is_single_code,
-            discount_percentage, addresses, status, users, brand,
+            discount_percentage, addresses, status, users, brand, brand_id,
             brand_registration, description, campaign_type, target_audience,
             budget, background_color, badge, subtitle, banner)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
-                 $18,$19,$20)
+                 $18,$19,$20,$21)
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name, start_date = EXCLUDED.start_date,
            end_date = EXCLUDED.end_date,
@@ -106,6 +106,7 @@ async function main(): Promise<void> {
            discount_percentage = EXCLUDED.discount_percentage,
            addresses = EXCLUDED.addresses, status = EXCLUDED.status,
            users = EXCLUDED.users, brand = EXCLUDED.brand,
+           brand_id = EXCLUDED.brand_id,
            brand_registration = EXCLUDED.brand_registration,
            description = EXCLUDED.description,
            campaign_type = EXCLUDED.campaign_type,
@@ -126,6 +127,10 @@ async function main(): Promise<void> {
           CAMPAIGN_STATUSES.has(status) ? status : "PENDING",
           stringArray(doc.users),
           id(doc.brand),
+          // Not in CampaignSchema, so easy to miss — and 7 of 8 production
+          // campaigns carry it. Dropping it unpairs a repointed campaign from
+          // the brand card it should appear on.
+          doc.brandId ? id(doc.brandId) : null,
           text(doc.brandRegistration, "") ?? "",
           text(doc.description),
           text(doc.campaignType),

@@ -1,9 +1,12 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { CampaignModel } from "@/lib/models";
 import { findBrands } from "@/lib/repositories/brandhub";
+import {
+  claimCampaignForUser,
+  findCampaignById,
+  findCampaigns,
+} from "@/lib/repositories/deals";
 import { isCampaignActive } from "@/lib/campaignDates";
-import mongoose from "mongoose";
 
 const normalize = (value: unknown) =>
   String(value ?? "")
@@ -39,7 +42,7 @@ export async function GET(req: Request) {
     // app/api/users/active-campaigns/route.ts. Add `status: "APPROVED"` back
     // here at the same time as there.
     const [campaigns, brands] = await Promise.all([
-      CampaignModel.find({ status: "APPROVED" }).lean(),
+      findCampaigns({ status: "APPROVED" }),
       findBrands(),
     ]);
 
@@ -126,10 +129,8 @@ export async function PATCH(req: Request) {
 
     // Approved only — a code must never be issued for a campaign that has not
     // cleared moderation.
-    const campaign = await CampaignModel.findOne({
-      _id: discountId,
-      status: "APPROVED",
-    }).lean();
+    const found = await findCampaignById(discountId);
+    const campaign = found?.status === "APPROVED" ? found : null;
 
     if (!campaign) {
       return Response.json({ error: "Campaign not found." }, { status: 404 });
@@ -194,10 +195,8 @@ export async function PUT(req: Request) {
 
     // Approved only, matching PATCH — marking an unmoderated campaign as
     // availed would burn the user's one redemption on it.
-    const campaign = await CampaignModel.findOne({
-      _id: discountId,
-      status: "APPROVED",
-    }).lean();
+    const found = await findCampaignById(discountId);
+    const campaign = found?.status === "APPROVED" ? found : null;
 
     if (!campaign) {
       return Response.json({ error: "Campaign not found." }, { status: 404 });
@@ -212,10 +211,10 @@ export async function PUT(req: Request) {
       );
     }
 
-    await CampaignModel.updateOne(
-      { _id: discountId, status: "APPROVED" },
-      { $addToSet: { users: new mongoose.Types.ObjectId(userId) } },
-    );
+    // Guarded the same way the coupon path is: adds this person to `users`
+    // only if they are not already there. A repeat is a no-op, not a second
+    // redemption.
+    await claimCampaignForUser(discountId, userId);
 
     return Response.json({ success: true });
   } catch (error: any) {

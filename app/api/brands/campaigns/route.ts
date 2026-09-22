@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { CampaignModel } from "@/lib/models";
 import { findBrandsByIds } from "@/lib/repositories/brandhub";
+import { findCampaigns } from "@/lib/repositories/deals";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 export async function GET(req: NextRequest) {
@@ -14,14 +14,14 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get("status");
     const brandId = searchParams.get("brandId");
 
-    const filter: Record<string, unknown> = {};
-    if (status) filter.status = status.toUpperCase();
-    if (brandId) filter.brand = brandId;
+    const campaigns = await findCampaigns({
+      status: status ? status.toUpperCase() : undefined,
+      brand: brandId ?? undefined,
+    });
 
     // What `.populate("brand", ...)` used to do. The campaign is still a Mongo
     // document and the brand is not, so the join is done here: one query for
     // the brands referenced, then the same projection populate was given.
-    const campaigns = await CampaignModel.find(filter).sort({ _id: -1 }).lean();
     const brandsById = await findBrandsByIds(
       campaigns.map((row) => String(row.brand ?? "")),
     );

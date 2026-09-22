@@ -3,12 +3,15 @@
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import connectToDatabase from "../lib/mongodb";
-import { CampaignModel } from "../lib/models";
 import {
   createBrand,
   deleteBrandsByIds,
   updateBrand,
 } from "../lib/repositories/brandhub";
+import {
+  createCampaign,
+  deleteCampaignsByIds,
+} from "../lib/repositories/deals";
 import { GET as getActiveCampaigns } from "../app/api/users/active-campaigns/route";
 
 // The public brand list and the campaign list must agree on brand identity.
@@ -87,33 +90,34 @@ describe("GET /api/users/active-campaigns", () => {
     });
     cloneBrandId = clone._id.toString();
 
-    // Inserted raw: `brandId` is not in CampaignSchema, so create() would drop it.
-    const campaign = await CampaignModel.collection.insertOne({
+    // `brandId` is a real column now — it was missing from the first version
+    // of consumer.campaigns precisely because CampaignSchema never had it.
+    const campaign = await createCampaign({
       name: `20% off ${suffix}`,
       startDate: "2025-02-04",
       endDate: "2099-12-31",
       discountPercentage: "20",
       status: "APPROVED",
       brand: clone._id,
-      brandId: new mongoose.Types.ObjectId(legacyBrandId),
+      brandId: legacyBrandId,
       brandRegistration: registrationNumber,
       addresses: [],
-    } as any);
-    campaignId = campaign.insertedId.toString();
+    });
+    campaignId = campaign._id;
 
     // A campaign never repointed by the migration: it still names the legacy
     // brand and carries no registration, so the legacyBrandId pairing is the
     // only route back to the listed BrandHub brand.
-    const legacyLinked = await CampaignModel.collection.insertOne({
+    const legacyLinked = await createCampaign({
       name: `5% off ${suffix}`,
       startDate: "2025-02-04",
       endDate: "2099-12-31",
       discountPercentage: "5",
       status: "APPROVED",
-      brand: new mongoose.Types.ObjectId(legacyBrandId),
+      brand: legacyBrandId,
       addresses: [],
-    } as any);
-    legacyLinkedCampaignId = legacyLinked.insertedId.toString();
+    });
+    legacyLinkedCampaignId = legacyLinked._id;
 
     // A standalone brand awaiting review, with no legacy counterpart.
     const pending = await createBrand({
@@ -136,9 +140,7 @@ describe("GET /api/users/active-campaigns", () => {
   });
 
   afterAll(async () => {
-    await CampaignModel.deleteMany({
-      _id: { $in: [campaignId, legacyLinkedCampaignId] },
-    });
+    await deleteCampaignsByIds([campaignId, legacyLinkedCampaignId]);
     await deleteBrandsByIds([legacyBrandId, cloneBrandId, pendingBrandId]);
     await mongoose.disconnect();
   });

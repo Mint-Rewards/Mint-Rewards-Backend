@@ -4,7 +4,10 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 import connectToDatabase from "../lib/mongodb";
-import { DealModel } from "../lib/models";
+import {
+  createDeal,
+  findDealById,
+} from "../lib/repositories/deals";
 import {
   createBrand,
   deleteBrandsByIds,
@@ -151,7 +154,10 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
   });
 
   afterAll(async () => {
-    await DealModel.deleteMany({ brand: { $in: [brandId, unapprovedBrandId] } });
+    const pool0 = getPool();
+    await pool0.query("DELETE FROM consumer.deals WHERE brand = ANY($1)", [
+      [brandId, unapprovedBrandId],
+    ]);
     await deleteBrandsByIds([brandId, unapprovedBrandId]);
     const pool = getPool();
     await pool.query("DELETE FROM consumer.brand_users WHERE email = $1", [
@@ -223,7 +229,7 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
     ).deal._id.toString();
 
     // An ACTIVE deal belonging to a brand that was never approved.
-    const orphan = await DealModel.create({
+    const orphan = await createDeal({
       brand: unapprovedBrandId,
       title: `Deal of an unapproved brand ${suffix}`,
       codes: ["ORPHAN-1"],
@@ -251,7 +257,7 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
     );
     expect(response.status).toBe(200);
     await expect(
-      DealModel.findById(approvedDealId).lean(),
+      findDealById(approvedDealId),
     ).resolves.toMatchObject({
       status: "active",
     });
@@ -336,7 +342,7 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
     expect(body.code).toBe(first);
     expect(body.alreadyClaimed).toBe(true);
 
-    const deal = await DealModel.findById(approvedDealId).lean();
+    const deal = await findDealById(approvedDealId);
     expect(deal?.currentUses).toBe(1);
   });
 

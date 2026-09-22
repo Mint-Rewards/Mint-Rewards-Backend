@@ -1,8 +1,6 @@
-import { Types } from "mongoose";
-import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { DealModel } from "@/lib/models";
 import { findBrandById } from "@/lib/repositories/brandhub";
+import { claimDealCode, findDealById } from "@/lib/repositories/deals";
 
 interface RouteParams {
   params: Promise<{ dealId: string }>;
@@ -23,8 +21,6 @@ export async function POST(req: Request, { params }: RouteParams) {
   try {
     const { dealId } = await params;
 
-    await connectToDatabase();
-
     const userId = await getAuthenticatedUserId({
       headers: { authorization: req.headers.get("authorization") ?? undefined },
     });
@@ -33,92 +29,41 @@ export async function POST(req: Request, { params }: RouteParams) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!Types.ObjectId.isValid(dealId)) {
-      return Response.json({ error: "Deal not found." }, { status: 404 });
-    }
-
-    const userObjectId = new Types.ObjectId(userId);
-
-    const deal = await DealModel.findById(dealId).lean();
+    const deal = await findDealById(dealId);
     if (!deal || deal.status !== "active") {
       return Response.json({ error: "Deal not found." }, { status: 404 });
     }
 
-    // String(): the deal is still a Mongo document, so its brand is an
-    // ObjectId, and the brand it points at now lives in Postgres keyed by hex.
-    const brand = await findBrandById(String(deal.brand));
+    const brand = await findBrandById(deal.brand);
     if (!brand || brand.status !== "APPROVED") {
       return Response.json({ error: "Deal not found." }, { status: 404 });
     }
 
-    // Returning the existing code keeps this idempotent: a user re-opening a
-    // claimed deal sees their code again rather than consuming a second one.
-    const existing = (deal.claims ?? []).find(
-      (c) => c.user?.toString() === userId,
-    );
-    if (existing) {
-      return Response.json({ code: existing.code, alreadyClaimed: true });
-    }
+    // One statement does the whole thing now: it picks the code at the
+    // current cursor and commits the claim together, so there is no window to
+    // lose and no retry loop. See claimDealCode.
+    const outcome = await claimDealCode(dealId, userId);
 
-    const codes = deal.codes ?? [];
-    if (codes.length === 0) {
-      return Response.json(
-        { error: "This deal has no promo codes available." },
-        { status: 409 },
-      );
-    }
-
-    // Retry on lost races: each attempt targets the next unclaimed position,
-    // and the `currentUses` guard makes a stale attempt match nothing.
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const fresh = await DealModel.findById(dealId)
-        .select("currentUses codes maxUses")
-        .lean();
-      if (!fresh) {
-        return Response.json({ error: "Deal not found." }, { status: 404 });
-      }
-
-      const index = fresh.currentUses ?? 0;
-      const cap =
-        typeof fresh.maxUses === "number"
-          ? Math.min(fresh.maxUses, (fresh.codes ?? []).length)
-          : (fresh.codes ?? []).length;
-
-      if (index >= cap) {
+    switch (outcome.status) {
+      case "claimed":
+        return Response.json({ code: outcome.code, alreadyClaimed: false });
+      // Idempotent: re-opening a claimed deal shows the same code rather than
+      // consuming a second one.
+      case "already":
+        return Response.json({ code: outcome.code, alreadyClaimed: true });
+      case "no-codes":
+        return Response.json(
+          { error: "This deal has no promo codes available." },
+          { status: 409 },
+        );
+      case "exhausted":
         return Response.json(
           { error: "This deal is fully redeemed." },
           { status: 409 },
         );
-      }
-
-      const code = (fresh.codes ?? [])[index];
-
-      const committed = await DealModel.findOneAndUpdate(
-        {
-          _id: dealId,
-          status: "active",
-          currentUses: index,
-          users: { $ne: userObjectId },
-        },
-        {
-          $inc: { currentUses: 1 },
-          $addToSet: { users: userObjectId },
-          $push: {
-            claims: { user: userObjectId, code, claimedAt: new Date() },
-          },
-        },
-        { new: true },
-      ).lean();
-
-      if (committed) {
-        return Response.json({ code, alreadyClaimed: false });
-      }
+      default:
+        return Response.json({ error: "Deal not found." }, { status: 404 });
     }
-
-    return Response.json(
-      { error: "Could not claim a code right now. Please try again." },
-      { status: 503 },
-    );
   } catch (error: unknown) {
     const message =
       error instanceof Error

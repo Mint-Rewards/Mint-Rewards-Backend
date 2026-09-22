@@ -113,13 +113,23 @@ describe("against a real database", () => {
   whenLive("writes", () => {
     afterAll(async () => {
       const { getPool, closePostgres } = await import("@/lib/postgres");
-      await getPool().query(
-        "DELETE FROM consumer.brands WHERE email LIKE 'roundtrip-%'",
+      const pool = getPool();
+      // Children before parents, and scoped by the org rather than by an
+      // email pattern. Deleting organizations first trips
+      // brands_org_id_fkey, and a teardown that fails leaves rows behind
+      // that make the next run fail differently — which is how six stray
+      // organizations accumulated before this was noticed.
+      await pool.query(
+        `DELETE FROM consumer.brands WHERE org_id IN
+           (SELECT id FROM consumer.organizations WHERE name LIKE 'roundtrip-%')
+         OR email LIKE 'roundtrip-%'`,
       );
-      await getPool().query(
-        "DELETE FROM consumer.brand_users WHERE email LIKE 'roundtrip-%'",
+      await pool.query(
+        `DELETE FROM consumer.brand_users WHERE org_id IN
+           (SELECT id FROM consumer.organizations WHERE name LIKE 'roundtrip-%')
+         OR email LIKE 'roundtrip-%'`,
       );
-      await getPool().query(
+      await pool.query(
         "DELETE FROM consumer.organizations WHERE name LIKE 'roundtrip-%'",
       );
       await closePostgres();

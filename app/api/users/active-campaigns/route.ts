@@ -1,7 +1,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { CampaignModel } from "@/lib/models";
 import { findBrands } from "@/lib/repositories/brandhub";
+import { findCampaigns } from "@/lib/repositories/deals";
 import { isCampaignActive } from "@/lib/campaignDates";
 import { legacyBrandIdOf } from "@/lib/legacyBrandEmail";
 
@@ -90,15 +90,10 @@ export async function GET(req: Request) {
 
     // APPROVED alone is not enough: an expired-but-still-APPROVED campaign
     // must not be reported as active. Filter by real start/end dates too.
-    // .lean(): `brandId` is not in CampaignSchema, so a hydrated document would
-    // drop the very field that links a repointed campaign back to its original
-    // brand. Lean docs come straight from MongoDB and keep it.
-    const approvedCampaigns = await CampaignModel.find({
-      status: "APPROVED",
-    }).lean();
+    const approvedCampaigns = await findCampaigns({ status: "APPROVED" });
 
     const listedById = new Map<string, unknown>(
-      activeBrands.map((b) => [b._id.toString(), b]),
+      activeBrands.map((b) => [b._id, b]),
     );
     const listedByRegistration = new Map<string, string>(
       activeBrands

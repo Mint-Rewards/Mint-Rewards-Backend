@@ -1,12 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { CampaignModel, DealModel } from "@/lib/models";
 import { findBrandById } from "@/lib/repositories/brandhub";
-import type {
-  CampaignDocument,
-  DealDocument,
-  EnvironmentalPeriod,
-} from "@/lib/types";
+import {
+  findCampaigns,
+  findDeals,
+  type CampaignDoc,
+} from "@/lib/repositories/deals";
+import type { EnvironmentalPeriod } from "@/lib/types";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { isCampaignActive } from "@/lib/campaignDates";
@@ -15,7 +15,7 @@ interface RouteParams {
   params: Promise<{ brandId: string }>;
 }
 
-function isActive(campaign: CampaignDocument): boolean {
+function isActive(campaign: CampaignDoc): boolean {
   if (campaign.status !== "APPROVED") return false;
   return isCampaignActive(campaign);
 }
@@ -133,12 +133,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const periodApplied = Boolean(from || to);
 
     const [allCampaigns, allDeals, brand] = await Promise.all([
-      CampaignModel.find({ brand: brandId })
-        .sort({ _id: -1 })
-        .lean<CampaignDocument[]>(),
-      DealModel.find({ brand: brandId })
-        .select("status startDate endDate")
-        .lean<DealDocument[]>(),
+      findCampaigns({ brand: brandId }),
+      findDeals({ brand: brandId }),
       findBrandById(brandId),
     ]);
 

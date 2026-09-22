@@ -53,6 +53,16 @@ export const campaigns = consumer.table(
      * have dropped them at backfill rather than surfacing them.
      */
     brand: text("brand").notNull(),
+    /**
+     * The other half of a legacy pairing, not the owner.
+     *
+     * Written by the migration that repointed campaigns from legacy brand
+     * documents to their BrandHub clones, and absent from CampaignSchema
+     * because Mongoose never knew about it. active-campaigns resolves a
+     * repointed campaign through it, so a campaign that loses it goes missing
+     * from its brand's card with no error raised.
+     */
+    brandId: text("brand_id"),
     brandRegistration: text("brand_registration").notNull().default(""),
 
     description: text("description"),
@@ -66,6 +76,7 @@ export const campaigns = consumer.table(
   },
   (table) => [
     index("campaigns_brand_idx").on(table.brand),
+    index("campaigns_brand_id_idx").on(table.brandId),
     index("campaigns_status_idx").on(table.status),
     index("campaigns_brand_registration_idx").on(table.brandRegistration),
   ],

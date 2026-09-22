@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { CampaignModel, DealModel } from "@/lib/models";
 import { findBrands } from "@/lib/repositories/brandhub";
+import { findCampaigns, findDeals } from "@/lib/repositories/deals";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 const normalize = (value: unknown) =>
@@ -32,8 +32,8 @@ export async function GET(req: NextRequest) {
     const brandIds = brands.map((b) => b._id);
 
     const [campaigns, deals] = await Promise.all([
-      CampaignModel.find({ status: "APPROVED" }).lean(),
-      DealModel.find({ status: "active", brand: { $in: brandIds } }).lean(),
+      findCampaigns({ status: "APPROVED" }),
+      findDeals({ status: "active", brandIds: brandIds }),
     ]);
 
     // Campaigns link to a brand by `brand` id, but older records only carry

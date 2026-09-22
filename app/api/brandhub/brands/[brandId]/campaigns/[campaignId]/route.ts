@@ -1,7 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
-import { CampaignModel } from "@/lib/models";
+import {
+  deleteCampaignForBrand,
+  findCampaignForBrand,
+  updateCampaignForBrand,
+  type CampaignDoc,
+} from "@/lib/repositories/deals";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { cleanSuppliedCodes, parseSuppliedCodes } from "@/lib/dealCodes";
@@ -115,12 +120,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     // there is no path here to replace or remove a code.
     let appendCodes: string[] | null = null;
     if (body.addCodes !== undefined) {
-      const existingDoc = await CampaignModel.findOne({
-        _id: campaignId,
-        brand: brandId,
-      })
-        .select("discountCodes")
-        .lean();
+      const existingDoc = await findCampaignForBrand(campaignId, brandId);
 
       if (!existingDoc) {
         return Response.json(
@@ -129,7 +129,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         );
       }
 
-      const current = existingDoc.discountCodes ?? [];
+      const current = existingDoc.discountCodes;
       const result = cleanSuppliedCodes(
         parseSuppliedCodes(body.addCodes),
         current,
@@ -162,19 +162,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       update.status = "PENDING";
     }
 
-    const mutation: Record<string, unknown> = {};
-    if (Object.keys(update).length > 0) mutation.$set = update;
-    // $addToSet, not $push: two concurrent addCodes calls both clean against
-    // the same pre-read snapshot, and $push would let the overlap through
-    // twice. $addToSet makes the de-duplication atomic in the database.
-    if (appendCodes) {
-      mutation.$addToSet = { discountCodes: { $each: appendCodes } };
-    }
-
-    const campaign = await CampaignModel.findOneAndUpdate(
-      { _id: campaignId, brand: brandId },
-      mutation,
-      { new: true, runValidators: true },
+    // The append is a set union inside the UPDATE, not a read followed by a
+    // write: two concurrent addCodes calls both clean against the same
+    // pre-read snapshot, and appending blindly would let the overlap through
+    // twice. Doing it in the statement makes the de-duplication atomic.
+    const campaign = await updateCampaignForBrand(
+      campaignId,
+      brandId,
+      update as Partial<CampaignDoc>,
+      appendCodes ?? undefined,
     );
 
     if (!campaign) {
@@ -208,10 +204,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const campaign = await CampaignModel.findOneAndDelete({
-      _id: campaignId,
-      brand: brandId,
-    });
+    const campaign = await deleteCampaignForBrand(campaignId, brandId);
 
     if (!campaign) {
       return Response.json(

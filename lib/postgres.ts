@@ -62,6 +62,13 @@ export function isPostgresConfigured(): boolean {
  */
 export function getPool(): pg.Pool {
   if (!serverEnv.databaseUrl) throw new PostgresNotConfiguredError();
+  // A pool that has been ended can never serve another query, so a cached one
+  // in that state is worse than none — every caller after it fails with
+  // "Cannot use a pool after calling end". Drop it and open a fresh one.
+  if (cached.pool && (cached.pool.ended || cached.pool.ending)) {
+    cached.pool = null;
+    cached.db = null;
+  }
   cached.pool ??= new pg.Pool({
     connectionString: serverEnv.databaseUrl,
     max: 3,
@@ -103,9 +110,10 @@ export async function checkPostgres(): Promise<
 
 /** Closes the pool. For tests and scripts; serverless never calls it. */
 export async function closePostgres(): Promise<void> {
-  if (cached.pool) {
-    await cached.pool.end();
-    cached.pool = null;
-    cached.db = null;
-  }
+  // Cleared before the await, not after: if end() rejects, the cache must not
+  // be left holding a pool that can no longer be used.
+  const pool = cached.pool;
+  cached.pool = null;
+  cached.db = null;
+  if (pool) await pool.end();
 }

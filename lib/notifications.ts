@@ -52,8 +52,16 @@ async function call(
         authorization: `Bearer ${target.token}`,
       },
       body: JSON.stringify(body),
-      // A push registration is never worth holding a login open for.
-      signal: AbortSignal.timeout(5000),
+      // Generous, because this call can be slow for reasons that are not
+      // failures: the notification service is in another region and its
+      // function may be cold, which together cost several seconds before a
+      // byte of work is done. Five seconds aborted a registration that would
+      // have succeeded, and the failure is invisible — the phone just never
+      // becomes reachable.
+      //
+      // Nothing waits on this: the caller has already been answered, and a
+      // registration that fails is retried on the next app launch.
+      signal: AbortSignal.timeout(15000),
     });
     if (res.ok) return { ok: true, status: res.status };
     const text = await res.text().catch(() => "");

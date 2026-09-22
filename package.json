@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "./scripts/deploy.sh --prod --yes"
   },
   "dependencies": {
     "@vercel/blob": "^2.3.1",

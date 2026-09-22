@@ -49,8 +49,11 @@ async function call<T>(
         authorization: `Bearer ${target.token}`,
       },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
-      // A phone is waiting on this. Better a clear failure than a spinner.
-      signal: AbortSignal.timeout(6000),
+      // A phone IS waiting on this one, so it stays tighter than the
+      // notification client — but not so tight that a cold function in
+      // another region reads as an outage. 12s is past any reasonable cold
+      // start and still short enough to fail visibly rather than hang.
+      signal: AbortSignal.timeout(12000),
     });
     const text = await res.text();
     const parsed = text ? JSON.parse(text) : null;

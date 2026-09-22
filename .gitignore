@@ -27,3 +27,4 @@ graphify-out/
 # report, and transient .partial.ndjson / checkpoint files for a resumed
 # run) — real (hashed, but per-run) data, never committed.
 scripts/out/
+.env*

@@ -22,6 +22,29 @@ export interface Invitation {
   invitedAt: string | null;
   respondedAt: string | null;
   captainName: string | null;
+  captainAvatar: string | null;
+}
+
+/**
+ * A round this household has already been through.
+ *
+ * `outcome` is what happened to THEM, which is not what happened to the
+ * collection: a completed round still has doors nobody answered, and a
+ * household that declined has a history entry too.
+ */
+export interface PastCollection {
+  collectionId: number;
+  name: string;
+  scheduledDate: string;
+  timeSlot: string;
+  collectionStatus: string;
+  status: string;
+  outcome: "collected" | "missed" | "declined" | "cancelled" | "not_collected";
+  weightKg: number;
+  noCollectionReason: string | null;
+  resolvedAt: string | null;
+  captainName: string | null;
+  captainAvatar: string | null;
 }
 
 export type AdminApiResult<T> =
@@ -72,6 +95,13 @@ async function call<T>(
 
 export function listInvitations(userId: string): Promise<AdminApiResult<{ invitations: Invitation[] }>> {
   return call(`/household/${encodeURIComponent(userId)}/invitations`);
+}
+
+export function listPastCollections(
+  userId: string,
+  limit = 20,
+): Promise<AdminApiResult<{ collections: PastCollection[] }>> {
+  return call(`/household/${encodeURIComponent(userId)}/collections?limit=${limit}`);
 }
 
 export function respondToInvitation(

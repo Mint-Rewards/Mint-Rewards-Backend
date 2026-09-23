@@ -31,6 +31,7 @@ const INVITATION = {
   invitedAt: "2026-09-21T12:00:00.000Z",
   respondedAt: null,
   captainName: "Imran Baig",
+  captainAvatar: null,
 };
 
 const get = (token?: string) =>

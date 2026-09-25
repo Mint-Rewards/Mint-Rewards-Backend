@@ -46,6 +46,8 @@ const geography = customType<{ data: string; driverData: string }>({
   dataType: () => "geography(Point,4326)",
 });
 
+export const accountType = consumer.enum("account_type", ["HOUSEHOLD", "BRAND"]);
+
 export const users = consumer.table(
   "users",
   {
@@ -57,6 +59,30 @@ export const users = consumer.table(
     password: text("password").notNull(),
     mintId: text("mint_id").notNull(),
     role: text("role").notNull().default("MEMBER"),
+
+    /**
+     * Whether this account belongs to a household or to a brand.
+     *
+     * A brand that asks us to collect from them is a consumer of the service
+     * as well as a partner in it. The whole collection pipeline is keyed on a
+     * user id, so a brand gets an account here rather than stops being made
+     * polymorphic — what a van goes to is an address with a name, a number
+     * and a pin, whoever it belongs to.
+     *
+     * `role` is free text that nothing validates and was never going to carry
+     * this distinction.
+     */
+    accountType: accountType("account_type").notNull().default("HOUSEHOLD"),
+
+    /**
+     * Which brand this account collects for. Null for every household.
+     *
+     * Not unique: a brand may have several sites, and their impact sums
+     * across them. A check constraint ties this to accountType, because a
+     * BRAND row without one is unattributable impact and a household with one
+     * would put a family's waste on a company's ESG report.
+     */
+    brandId: text("brand_id"),
     phone: text("phone").notNull().default(""),
     avatar: text("avatar").notNull().default(""),
 

@@ -120,6 +120,19 @@ export const brands = consumer.table(
      * it into the array would break every legacy brand on read. The analytics
      * route prefers buckets and falls back to the snapshot.
      */
+    /**
+     * "We would like our waste collected too."
+     *
+     * On the brand rather than on the collection account, because it has to
+     * be answerable before an account exists — at sign-up, where the brand is
+     * being created in the same breath, and afterwards from settings.
+     *
+     * Switching it off does NOT remove the account: collections that already
+     * happened are the brand's own record, and honouring a toggle by deleting
+     * the account would take that history with it.
+     */
+    wantsCollections: boolean("wants_collections").notNull().default(false),
+
     environmentalStats: jsonb("environmental_stats"),
     environmentalPeriods: jsonb("environmental_periods"),
 

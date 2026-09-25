@@ -134,6 +134,7 @@ export interface BrandDoc {
   role: string;
   emailVerified: boolean;
   verificationToken: string | null;
+  wantsCollections: boolean;
   environmentalStats: EnvironmentalStats | null;
   environmentalPeriods: EnvironmentalPeriod[] | null;
   createdAt: Date;
@@ -202,6 +203,7 @@ function toBrand(row: BrandRow): BrandDoc {
     role: row.role,
     emailVerified: row.emailVerified,
     verificationToken: row.verificationToken,
+    wantsCollections: Boolean(row.wantsCollections),
     environmentalStats: (row.environmentalStats as EnvironmentalStats) ?? null,
     environmentalPeriods:
       (row.environmentalPeriods as EnvironmentalPeriod[]) ?? null,

@@ -104,6 +104,34 @@ export function listPastCollections(
   return call(`/household/${encodeURIComponent(userId)}/collections?limit=${limit}`);
 }
 
+export interface BrandImpact {
+  totalWasteKg: number;
+  co2AvoidedKg: number;
+  collections: number;
+  firstCollectedAt: string | null;
+  lastCollectedAt: string | null;
+}
+
+/**
+ * What a brand's own collections came to.
+ *
+ * Derived on the operations side from the stops themselves, so it cannot
+ * drift from what the console shows. Fail-open like every other call here:
+ * the caller distinguishes "nothing collected" from "could not ask".
+ */
+export function brandImpact(
+  brandId: string,
+  window: { from?: string; to?: string } = {},
+): Promise<AdminApiResult<BrandImpact>> {
+  const q = new URLSearchParams();
+  if (window.from) q.set("from", window.from);
+  if (window.to) q.set("to", window.to);
+  const query = q.toString();
+  return call(
+    `/brands/${encodeURIComponent(brandId)}/impact${query ? `?${query}` : ""}`,
+  );
+}
+
 export function respondToInvitation(
   userId: string,
   collectionId: number,

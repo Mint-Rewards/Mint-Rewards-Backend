@@ -21,6 +21,9 @@ export interface BrandCollectionAccount {
   name: string;
   phone: string;
   hasPin: boolean;
+  /** Where the pin is, so reopening the picker starts where they left it. */
+  lat: number | null;
+  lng: number | null;
 }
 
 /** The accounts this brand already holds, if any. */
@@ -33,13 +36,29 @@ export async function listBrandCollectionAccounts(
       name: users.userName,
       phone: users.phone,
       hasPin: sql<boolean>`${users.geog} IS NOT NULL`,
+      // Read from geog rather than the latitude/longitude text columns: geog
+      // is what operations routes on, so it is the one that must be shown
+      // back. The two agree today and this cannot be the place they stop.
+      lat: sql<number | null>`ST_Y(${users.geog}::geometry)`,
+      lng: sql<number | null>`ST_X(${users.geog}::geometry)`,
     })
     .from(users)
     .where(and(eq(users.brandId, brandId), eq(users.accountType, "BRAND")));
-  return rows.map((r: { id: string; name: string; phone: string; hasPin: unknown }) => ({
-    ...r,
-    hasPin: Boolean(r.hasPin),
-  }));
+  return rows.map(
+    (r: {
+      id: string;
+      name: string;
+      phone: string;
+      hasPin: unknown;
+      lat: number | null;
+      lng: number | null;
+    }) => ({
+      ...r,
+      hasPin: Boolean(r.hasPin),
+      lat: r.lat === null ? null : Number(r.lat),
+      lng: r.lng === null ? null : Number(r.lng),
+    }),
+  );
 }
 
 /**

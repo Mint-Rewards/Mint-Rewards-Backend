@@ -79,17 +79,34 @@ if (!accountId) {
 }
 console.log(`account      ${accountId}`);
 
-await db.query(
-  // Cast on both uses: the same parameter feeds a text column and
-  // ST_MakePoint, and Postgres will not deduce one type for two.
+/*
+ * Only pins an account that has none.
+ *
+ * A brand that dropped its own pin in BrandHub chose that point, and a seed
+ * script overwriting it with a constant would move a real premises to wherever
+ * this file happens to say. Seeding is for filling gaps, not for asserting.
+ *
+ * Cast on both uses below: the same parameter feeds a text column and
+ * ST_MakePoint, and Postgres will not deduce one type for two.
+ */
+const pinned = await db.query(
   `UPDATE consumer.users
       SET latitude = $2::text, longitude = $3::text,
           geog = ST_SetSRID(ST_MakePoint($3::float8, $2::float8), 4326)::geography,
           precision = 'building', source = 'map_pin', captured_at = now()
-    WHERE id = $1`,
+    WHERE id = $1 AND geog IS NULL`,
   [accountId, PIN.lat, PIN.lng],
 );
-console.log(`pinned       ${PIN.lat}, ${PIN.lng} (building / map_pin)`);
+if (pinned.rowCount) {
+  console.log(`pinned       ${PIN.lat}, ${PIN.lng} (building / map_pin)`);
+} else {
+  const { rows: at } = await db.query<{ lat: number; lng: number }>(
+    `SELECT ST_Y(geog::geometry) AS lat, ST_X(geog::geometry) AS lng
+       FROM consumer.users WHERE id = $1`,
+    [accountId],
+  );
+  console.log(`pin          kept existing ${at[0]?.lat?.toFixed(5)}, ${at[0]?.lng?.toFixed(5)}`);
+}
 
 if (reset) {
   await db.query(
@@ -141,6 +158,82 @@ for (const round of HISTORY) {
 
   total += round.kg;
   console.log(`round        ${day}  ${round.kg} kg`);
+}
+
+/*
+ * The other half of the ESG tab: materials consumers recycled that are linked
+ * to this brand.
+ *
+ * A different measurement from the premises pickups above — that one a
+ * captain weighed at their gate, this one attributed from consumer activity —
+ * which is why the dashboard shows them as two figures and this script writes
+ * them to two places.
+ *
+ * Written as dated BUCKETS, not one cumulative snapshot. The analytics route
+ * sums the buckets overlapping whatever the date picker asked for, so a
+ * frozen total would sit unchanged while the picker moved and make the range
+ * look broken.
+ */
+const MATERIALS = [
+  { material: "PET plastic", share: 0.42 },
+  { material: "Cardboard", share: 0.31 },
+  { material: "Aluminium", share: 0.16 },
+  { material: "Glass", share: 0.11 },
+];
+
+const monthStart = (back: number) => {
+  const d = new Date();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() - back);
+  return d;
+};
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+const periods = [3, 2, 1, 0].map((back) => {
+  const start = monthStart(back);
+  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0));
+  // Rising month on month, so the picker shows a trend rather than a flat line.
+  const kg = Math.round((140 + (3 - back) * 55) * 100) / 100;
+  return {
+    periodStart: iso(start),
+    periodEnd: iso(end),
+    totalWasteKg: kg,
+    co2AvoidedKg: Math.round(kg * 0.21 * 100) / 100,
+    materialBreakdown: MATERIALS.map((m) => ({
+      material: m.material,
+      weightKg: Math.round(kg * m.share * 100) / 100,
+    })),
+  };
+});
+
+const curatedTotal = periods.reduce((a, p) => a + p.totalWasteKg, 0);
+
+await db.query(
+  `UPDATE consumer.brands
+      SET environmental_periods = $2::jsonb,
+          -- The legacy snapshot too: the analytics route prefers buckets and
+          -- falls back to this, and a brand read through the older path
+          -- should not see nothing.
+          environmental_stats = $3::jsonb,
+          updated_at = now()
+    WHERE id = $1`,
+  [
+    brand.id,
+    JSON.stringify(periods),
+    JSON.stringify({
+      totalWasteKg: curatedTotal,
+      co2AvoidedKg: Math.round(curatedTotal * 0.21 * 100) / 100,
+      materialBreakdown: MATERIALS.map((m) => ({
+        material: m.material,
+        weightKg: Math.round(curatedTotal * m.share * 100) / 100,
+      })),
+    }),
+  ],
+);
+
+console.log(`\nesg buckets  ${periods.length} months, ${curatedTotal.toFixed(2)} kg attributed`);
+for (const p of periods) {
+  console.log(`  ${p.periodStart} → ${p.periodEnd}  ${p.totalWasteKg} kg`);
 }
 
 console.log(`\ntotal        ${total.toFixed(2)} kg`);

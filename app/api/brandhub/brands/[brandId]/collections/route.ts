@@ -14,6 +14,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { findBrandById } from "@/lib/repositories/brandhub";
 import {
   listBrandCollectionAccounts,
+  setBrandCollectionPin,
   setBrandWantsCollections,
 } from "@/lib/repositories/brandCollections";
 import { brandImpact } from "@/lib/adminApi";
@@ -85,4 +86,56 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     wants: body.wantsCollections,
   });
   return NextResponse.json(result);
+}
+
+/**
+ * Drops the pin on a collection account.
+ *
+ * Separate from PATCH because it answers a different question: PATCH is
+ * whether they want collections at all, this is where the van goes. A brand
+ * can opt in today and pin next week.
+ */
+export async function PUT(req: NextRequest, { params }: Ctx) {
+  const { brandId } = await params;
+
+  const access = await requireModuleAccess(req, "consumer-reporting", "write");
+  if (access instanceof NextResponse) return access;
+  const scope = await requireBrandScope(access.brandUser, brandId);
+  if (scope instanceof NextResponse) return scope;
+
+  let body: { accountId?: unknown; lat?: unknown; lng?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const lat = Number(body.lat);
+  const lng = Number(body.lng);
+  if (typeof body.accountId !== "string" || !body.accountId) {
+    return NextResponse.json({ error: "accountId is required." }, { status: 400 });
+  }
+  // Range-checked here rather than left to PostGIS: ST_MakePoint accepts any
+  // pair of numbers quite happily, and a transposed lat/lng lands in the sea.
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+    return NextResponse.json({ error: "lat must be between -90 and 90." }, { status: 400 });
+  }
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+    return NextResponse.json({ error: "lng must be between -180 and 180." }, { status: 400 });
+  }
+
+  try {
+    const pinned = await setBrandCollectionPin({
+      brandId,
+      accountId: body.accountId,
+      lat,
+      lng,
+    });
+    return NextResponse.json(pinned);
+  } catch {
+    return NextResponse.json(
+      { error: "No such collection account for this brand." },
+      { status: 404 },
+    );
+  }
 }

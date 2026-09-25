@@ -18,7 +18,8 @@
     "db:backfill:logs": "node --experimental-strip-types --env-file=.env scripts/backfill-logs.ts",
     "db:backfill:brandhub": "node --experimental-strip-types --env-file=.env scripts/backfill-brandhub.ts",
     "db:backfill:deals": "node --experimental-strip-types --env-file=.env scripts/backfill-deals.ts",
-    "db:backfill:users": "node --experimental-strip-types --env-file=.env scripts/backfill-users.ts"
+    "db:backfill:users": "node --experimental-strip-types --env-file=.env scripts/backfill-users.ts",
+    "seed:brand-collections": "node --experimental-strip-types --env-file=.env scripts/seed-brand-collections.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.3.1",

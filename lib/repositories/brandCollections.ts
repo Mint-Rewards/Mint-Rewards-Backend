@@ -105,3 +105,47 @@ export async function setBrandWantsCollections(input: {
     accounts: await listBrandCollectionAccounts(input.brandId),
   };
 }
+
+/**
+ * Where the van should actually go.
+ *
+ * Recorded as `map_pin` at `building` precision, which is what makes the
+ * account routable — those exact values are what operations checks before it
+ * will schedule anybody. A brand dragging a pin onto their own roof is the
+ * same act as a household doing it, and is trusted the same way.
+ *
+ * Deliberately not derived from the brand's address text: a geocoder returns
+ * a point on a street, and a captain sent there arrives somewhere plausible
+ * and nowhere useful.
+ */
+export async function setBrandCollectionPin(input: {
+  brandId: string;
+  accountId: string;
+  lat: number;
+  lng: number;
+}): Promise<{ accountId: string; lat: number; lng: number }> {
+  const updated = await getDb()
+    .update(users)
+    .set({
+      latitude: String(input.lat),
+      longitude: String(input.lng),
+      geog: sql`ST_SetSRID(ST_MakePoint(${input.lng}, ${input.lat}), 4326)::geography`,
+      locationPrecision: "building",
+      locationSource: "map_pin",
+      locationCapturedAt: new Date(),
+      locationVersion: sql`${users.locationVersion} + 1`,
+    })
+    .where(
+      and(
+        eq(users.id, input.accountId),
+        // Scoped to the brand that asked: an account id alone must not be
+        // enough to move somebody else's pin.
+        eq(users.brandId, input.brandId),
+        eq(users.accountType, "BRAND"),
+      ),
+    )
+    .returning({ id: users.id });
+
+  if (updated.length === 0) throw new Error("No such collection account for this brand.");
+  return { accountId: input.accountId, lat: input.lat, lng: input.lng };
+}

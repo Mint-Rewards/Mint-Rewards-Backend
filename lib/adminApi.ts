@@ -59,7 +59,7 @@ function configured(): { url: string; token: string } | null {
 
 async function call<T>(
   path: string,
-  init: { method: "GET" | "POST"; body?: unknown } = { method: "GET" },
+  init: { method: "GET" | "POST" | "DELETE"; body?: unknown } = { method: "GET" },
 ): Promise<AdminApiResult<T>> {
   const target = configured();
   if (!target) return { ok: false, error: "operations API not configured" };
@@ -102,6 +102,63 @@ export function listPastCollections(
   limit = 20,
 ): Promise<AdminApiResult<{ collections: PastCollection[] }>> {
   return call(`/household/${encodeURIComponent(userId)}/collections?limit=${limit}`);
+}
+
+/**
+ * A date this household could ask to be collected on.
+ *
+ * `myRequestId` and `myStatus` are folded into the row rather than returned
+ * as a separate list: the one thing the screen must never do is offer a slot
+ * the person has already asked for as though they had not.
+ */
+export interface CollectionSlot {
+  id: number;
+  zoneId: number;
+  zoneName: string;
+  city: string;
+  date: string;
+  timeSlot: "MORNING" | "AFTERNOON" | "EVENING";
+  /** How many neighbours have asked. A slot nobody wants reads as unlikely. */
+  pendingCount: number;
+  requestThreshold: number;
+  myRequestId: number | null;
+  myStatus: string | null;
+}
+
+export interface SlotAvailability {
+  eligible: boolean;
+  /**
+   * Why not, when `eligible` is false. "no_pin" is the only value operations
+   * sends today, and it is the one the app can act on — the fix is a pin.
+   */
+  reason?: string;
+  slots: CollectionSlot[];
+}
+
+export function listCollectionSlots(
+  userId: string,
+): Promise<AdminApiResult<SlotAvailability>> {
+  return call(`/household/${encodeURIComponent(userId)}/slots`);
+}
+
+export function requestCollectionSlot(
+  userId: string,
+  slotId: number,
+): Promise<AdminApiResult<{ request: { id: number; status: string } }>> {
+  return call(
+    `/household/${encodeURIComponent(userId)}/slots/${slotId}/request`,
+    { method: "POST" },
+  );
+}
+
+export function withdrawCollectionSlotRequest(
+  userId: string,
+  requestId: number,
+): Promise<AdminApiResult<{ withdrawn: boolean }>> {
+  return call(
+    `/household/${encodeURIComponent(userId)}/slot-requests/${requestId}`,
+    { method: "DELETE" },
+  );
 }
 
 export interface BrandImpact {

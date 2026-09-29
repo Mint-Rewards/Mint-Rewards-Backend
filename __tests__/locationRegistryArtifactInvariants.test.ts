@@ -55,7 +55,13 @@ describe("committed locationRegistry.json — structural invariants", () => {
   // only ever accompany a deliberate registry edit (and a matching app-repo
   // regeneration) — not a surprise in an unrelated diff.
   it("declares the expected city count", () => {
-    expect(Object.keys(registry.cities).length).toBe(58);
+    /*
+     * 58 -> 872, from the app repo's OpenStreetMap import
+     * (scripts/build-pakistan-locations.mjs). The registry is generated
+     * there and copied here, so this number moves only when that export is
+     * re-run and committed — which is exactly what this assertion is for.
+     */
+    expect(Object.keys(registry.cities).length).toBe(872);
   });
 
   it("gives every city a province, tier, and towns array", () => {

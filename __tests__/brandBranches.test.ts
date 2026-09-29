@@ -76,19 +76,26 @@ describe("a brand's premises", () => {
     await closePostgres();
   });
 
-  it("starts with the one account opting in created", async () => {
+  it("creates nothing when a brand opts in", async () => {
+    /*
+     * It used to conjure one account named after the brand, which then sat in
+     * the dashboard beside the premises the brand had actually named — an
+     * unexplained row called "Crumble" next to "North Nazimabad Branch", with
+     * a pin somewhere nobody deliberately chose. Premises are added one at a
+     * time by someone who knows what they are naming.
+     */
     const accounts = await listBrandCollectionAccounts(brandId);
-    expect(accounts).toHaveLength(1);
-    expect(accounts[0].hasPin).toBe(false);
+    expect(accounts).toHaveLength(0);
   });
 
-  it("adds a second premises, unpinned", async () => {
+  it("adds a premises, unpinned", async () => {
     /*
      * Unpinned on purpose, exactly as the first is. The brand's address is
      * not good enough: a geocoded street point sends a captain somewhere
      * plausible and nowhere useful, and no-pin-no-collection applies to a
      * warehouse as much as to a house.
      */
+    await addBrandCollectionBranch({ brandId, name: "Head office" });
     const accounts = await addBrandCollectionBranch({ brandId, name: "Clifton" });
     expect(accounts).toHaveLength(2);
     const clifton = accounts.find((a) => a.name === "Clifton");
@@ -261,6 +268,7 @@ describe("a brand's premises", () => {
     });
     neighbourBrandId = neighbour._id;
     await setBrandWantsCollections({ brandId: neighbourBrandId, wants: true });
+    await addBrandCollectionBranch({ brandId: neighbourBrandId, name: "Unit 4" });
 
     const ours = (await listBrandCollectionAccounts(brandId)).find((a) => a.hasPin)!;
     const theirs = (await listBrandCollectionAccounts(neighbourBrandId))[0];
@@ -296,5 +304,15 @@ describe("a brand's premises", () => {
     const before = await listBrandCollectionAccounts(brandId);
     const result = await setBrandWantsCollections({ brandId, wants: true });
     expect(result.accounts).toHaveLength(before.length);
+  });
+
+  it("leaves the premises alone when a brand opts out", async () => {
+    // Collections that already happened are the brand's own record, and
+    // deleting accounts to honour a toggle would take that history with it.
+    const before = await listBrandCollectionAccounts(brandId);
+    expect(before.length).toBeGreaterThan(0);
+    const off = await setBrandWantsCollections({ brandId, wants: false });
+    expect(off.accounts).toHaveLength(before.length);
+    await setBrandWantsCollections({ brandId, wants: true });
   });
 });

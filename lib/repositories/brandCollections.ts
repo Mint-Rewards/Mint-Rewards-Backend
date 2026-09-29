@@ -180,32 +180,30 @@ export async function renameBrandCollectionBranch(input: {
 }
 
 /**
- * Switches the brand's opt-in, creating the account the first time.
+ * Switches the brand's opt-in.
  *
- * Idempotent on the way in: a brand toggling on twice has one account, not
- * two. Switching off leaves the account alone — collections that already
- * happened are the brand's own record, and deleting the account to honour a
+ * It creates nothing. It used to conjure one account named after the brand,
+ * which then sat in the list beside the premises the brand had actually
+ * named — an unexplained row called "Crumble" next to "North Nazimabad
+ * Branch", with its own pin somewhere the brand never deliberately chose.
+ * Nobody asked for it and nobody could tell what it was.
+ *
+ * Premises are added one at a time, deliberately, by a brand that knows what
+ * it is naming. A brand with one shop adds one; the flow is the same either
+ * way, and there is no invisible first.
+ *
+ * Switching off leaves every account alone — collections that already
+ * happened are the brand's own record, and deleting accounts to honour a
  * toggle would take that history with it.
- *
- * The account starts with no pin. It is deliberately not derived from the
- * brand's free-text address: a geocoded guess is a point on a street, and the
- * hard rule is that a household without a building-level pin cannot be
- * catered for. The brand drops the pin themselves, and until they do the
- * dashboard can say so.
  */
 export async function setBrandWantsCollections(input: {
   brandId: string;
   wants: boolean;
 }): Promise<{ wantsCollections: boolean; accounts: BrandCollectionAccount[] }> {
+  // Existence only. Everything this used to read off the brand went into the
+  // account it used to conjure, and that account is gone.
   const [brand] = await getDb()
-    .select({
-      id: brands.id,
-      companyName: brands.companyName,
-      brandName: brands.brandName,
-      email: brands.email,
-      phone: brands.phone,
-      address: brands.address,
-    })
+    .select({ id: brands.id })
     .from(brands)
     .where(eq(brands.id, input.brandId));
   if (!brand) throw new Error("No such brand.");
@@ -214,30 +212,6 @@ export async function setBrandWantsCollections(input: {
     .update(brands)
     .set({ wantsCollections: input.wants, updatedAt: new Date() })
     .where(eq(brands.id, input.brandId));
-
-  if (input.wants) {
-    const existing = await listBrandCollectionAccounts(input.brandId);
-    if (existing.length === 0) {
-      const accountId = newObjectId();
-      const identity = syntheticIdentity(accountId);
-      await getDb().insert(users).values({
-        id: accountId,
-        userName: brand.brandName || brand.companyName || "Brand",
-        // Suffixed so it cannot collide with the brand's own BrandHub login
-        // or with a person who signed up with the same address.
-        email: identity.email,
-        password: "",
-        mintId: identity.mintId,
-        phone: brand.phone ?? "",
-        address: brand.address ?? "",
-        // Verified by construction: the brand authenticated to ask for this,
-        // and the directory will not list an unverified account at all.
-        emailVerified: true,
-        accountType: "BRAND",
-        brandId: input.brandId,
-      });
-    }
-  }
 
   return {
     wantsCollections: input.wants,

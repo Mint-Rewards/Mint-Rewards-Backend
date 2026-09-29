@@ -123,6 +123,11 @@ jobs:
           MONGODB_URI_TEST: ${{ secrets.MONGODB_URI_TEST }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           BRANDHUB_JWT_SECRET: ${{ secrets.BRANDHUB_JWT_SECRET }}
+          # By name, for the same reason as MONGODB_URI_TEST above:
+          # jest.setup.js DELETES a plain DATABASE_URL so that a test run can
+          # never reach a live database by accident. The service container is
+          # the throwaway Postgres that guard asks for.
+          DATABASE_URL_TEST: postgresql://postgres:postgres@localhost:5432/mint_ci
           NODE_ENV: test
 
       - name: Build check

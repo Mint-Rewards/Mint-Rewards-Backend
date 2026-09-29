@@ -62,6 +62,139 @@ export async function listBrandCollectionAccounts(
 }
 
 /**
+ * The synthetic identity every collection account needs.
+ *
+ * `users.email` and `users.mint_id` are both uniquely indexed, so a brand with
+ * several premises cannot share one of either. Both are derived from the
+ * account's own id, which is unique by construction — the earlier scheme keyed
+ * them off the BRAND id, which is exactly the thing several branches have in
+ * common.
+ *
+ * Nobody signs in with this address. It exists so the row satisfies a
+ * constraint written for people, and the `+` suffix keeps it from colliding
+ * with the brand's real BrandHub login.
+ */
+function syntheticIdentity(accountId: string): { email: string; mintId: string } {
+  return {
+    email: `collections+${accountId}@brands.mintrewards.app`,
+    mintId: `BRAND-${accountId.slice(-8).toUpperCase()}`,
+  };
+}
+
+/**
+ * How many premises one brand may register.
+ *
+ * Not a business rule so much as a guard: this endpoint creates rows in the
+ * table the whole consumer app is keyed on, and a loop in a client must not be
+ * able to fill it.
+ */
+export const MAX_BRAND_BRANCHES = 50;
+
+/**
+ * Adds another premises for this brand.
+ *
+ * A branch is not a new kind of thing — it is another account under the same
+ * `brand_id`, which is why no schema changed to allow this. Everything
+ * downstream already worked per row: the directory lists each door, zone
+ * containment asks about each pin, a round takes each as its own stop, and
+ * `impact.ts` sums by `brand_id`, so every branch rolls up into one ESG
+ * figure without being told to.
+ *
+ * It starts unpinned, deliberately, exactly as the first account does. The
+ * brand's address is not good enough: a geocoded street point sends a captain
+ * somewhere plausible and nowhere useful, and the no-pin-no-collection rule is
+ * the same for a warehouse as for a house.
+ */
+export async function addBrandCollectionBranch(input: {
+  brandId: string;
+  name: string;
+}): Promise<BrandCollectionAccount[]> {
+  const name = input.name.trim();
+  if (!name) throw new Error("A branch needs a name.");
+
+  const [brand] = await getDb()
+    .select({ id: brands.id, phone: brands.phone })
+    .from(brands)
+    .where(eq(brands.id, input.brandId));
+  if (!brand) throw new Error("No such brand.");
+
+  const existing = await listBrandCollectionAccounts(input.brandId);
+  if (existing.length >= MAX_BRAND_BRANCHES) {
+    throw new Error(`A brand can have at most ${MAX_BRAND_BRANCHES} premises.`);
+  }
+  /*
+   * Two premises with the same name are indistinguishable on a captain's
+   * list and on the console map, where the name is all there is to go on.
+   * Compared case-insensitively because "Clifton" and "clifton" are the same
+   * place to everyone except a string comparison.
+   */
+  if (existing.some((a) => a.name.trim().toLowerCase() === name.toLowerCase())) {
+    throw new Error("You already have a branch with that name.");
+  }
+
+  const accountId = newObjectId();
+  const identity = syntheticIdentity(accountId);
+
+  await getDb().insert(users).values({
+    id: accountId,
+    userName: name,
+    email: identity.email,
+    password: "",
+    mintId: identity.mintId,
+    phone: brand.phone ?? "",
+    address: "",
+    // Verified by construction: the brand authenticated to ask for this, and
+    // the directory will not list an unverified account at all.
+    emailVerified: true,
+    accountType: "BRAND",
+    brandId: input.brandId,
+  });
+
+  return listBrandCollectionAccounts(input.brandId);
+}
+
+/**
+ * Renames a premises.
+ *
+ * The name is what an operator and a captain see on the map and in a stop
+ * list, so it is worth being able to correct. Scoped to the brand that asked,
+ * for the same reason the pin is: an account id alone must not be enough to
+ * touch somebody else's row.
+ */
+export async function renameBrandCollectionBranch(input: {
+  brandId: string;
+  accountId: string;
+  name: string;
+}): Promise<BrandCollectionAccount[]> {
+  const name = input.name.trim();
+  if (!name) throw new Error("A branch needs a name.");
+
+  const existing = await listBrandCollectionAccounts(input.brandId);
+  if (
+    existing.some(
+      (a) => a.id !== input.accountId && a.name.trim().toLowerCase() === name.toLowerCase(),
+    )
+  ) {
+    throw new Error("You already have a branch with that name.");
+  }
+
+  const updated = await getDb()
+    .update(users)
+    .set({ userName: name })
+    .where(
+      and(
+        eq(users.id, input.accountId),
+        eq(users.brandId, input.brandId),
+        eq(users.accountType, "BRAND"),
+      ),
+    )
+    .returning({ id: users.id });
+
+  if (updated.length === 0) throw new Error("No such collection account for this brand.");
+  return listBrandCollectionAccounts(input.brandId);
+}
+
+/**
  * Switches the brand's opt-in, creating the account the first time.
  *
  * Idempotent on the way in: a brand toggling on twice has one account, not
@@ -100,14 +233,16 @@ export async function setBrandWantsCollections(input: {
   if (input.wants) {
     const existing = await listBrandCollectionAccounts(input.brandId);
     if (existing.length === 0) {
+      const accountId = newObjectId();
+      const identity = syntheticIdentity(accountId);
       await getDb().insert(users).values({
-        id: newObjectId(),
+        id: accountId,
         userName: brand.brandName || brand.companyName || "Brand",
         // Suffixed so it cannot collide with the brand's own BrandHub login
         // or with a person who signed up with the same address.
-        email: `collections+${input.brandId}@brands.mintrewards.app`,
+        email: identity.email,
         password: "",
-        mintId: `BRAND-${input.brandId.slice(-8).toUpperCase()}`,
+        mintId: identity.mintId,
         phone: brand.phone ?? "",
         address: brand.address ?? "",
         // Verified by construction: the brand authenticated to ask for this,

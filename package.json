@@ -19,6 +19,7 @@
     "db:backfill:brandhub": "node --experimental-strip-types --env-file=.env scripts/backfill-brandhub.ts",
     "db:backfill:deals": "node --experimental-strip-types --env-file=.env scripts/backfill-deals.ts",
     "db:backfill:users": "node --experimental-strip-types --env-file=.env scripts/backfill-users.ts",
+    "db:drop-superseded": "node --experimental-strip-types --env-file=.env scripts/drop-superseded-duplicates.ts",
     "seed:brand-collections": "node --experimental-strip-types --env-file=.env scripts/seed-brand-collections.ts"
   },
   "dependencies": {

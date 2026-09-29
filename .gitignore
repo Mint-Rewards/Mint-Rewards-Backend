@@ -28,3 +28,6 @@ graphify-out/
 # run) — real (hashed, but per-run) data, never committed.
 scripts/out/
 .env*
+
+# Supabase CLI scratch, not project configuration.
+supabase/.temp/

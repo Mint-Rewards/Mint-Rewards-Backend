@@ -9,8 +9,8 @@
  * Deliberately dependency-free: this is a flat map of ~16 string keys, and
  * keeping it hand-rolled means no schema library ends up in the bundle.
  *
- * NOTE FOR middleware.ts: do not import this file. It throws at module load,
- * which in the middleware bundle would take down the entire /api/:path*
+ * NOTE FOR proxy.ts: do not import this file. It throws at module load,
+ * which in the proxy bundle would take down the entire /api/:path*
  * matcher on a single missing key. Middleware uses lib/edgeEnv.ts, which reads
  * the same variables but fails closed instead of throwing.
  */
@@ -249,6 +249,25 @@ function optionalPositiveInt(key: string, fallback: number): number {
  * treat an unset key as "resolve nothing" rather than refuse to boot the
  * whole deployment over one unprovisioned third-party credential.
  */
+/**
+ * Optional, but malformed-if-present. A blank DATABASE_URL means "Postgres is
+ * not configured here" and the app carries on; a DATABASE_URL pointing at
+ * something that is not Postgres is a misconfiguration and should be caught at
+ * boot, exactly as requiredMatching does for the ones that are mandatory.
+ */
+function optionalMatching(
+  key: string,
+  pattern: RegExp,
+  hint: string,
+): string | null {
+  const value = process.env[key]?.trim();
+  if (!value) return null;
+  if (!pattern.test(value)) {
+    problems.push(`${key} is malformed — expected ${hint}`);
+  }
+  return value;
+}
+
 function optionalString(key: string): string | null {
   const value = process.env[key]?.trim();
   return value || null;
@@ -325,6 +344,19 @@ const parsed = {
     'a connection string starting with "mongodb://" or "mongodb+srv://"',
   ),
 
+  /**
+   * Postgres, during the migration off Mongo.
+   *
+   * Optional on purpose: nothing reads it yet, and a deployment without it must
+   * still boot. Mongo stays authoritative until a model is actually ported, so
+   * an absent DATABASE_URL is a normal state rather than a broken one.
+   */
+  databaseUrl: optionalMatching(
+    "DATABASE_URL",
+    /^postgres(ql)?:\/\//,
+    'a connection string starting with "postgres://" or "postgresql://"',
+  ),
+
   // Consumer-app JWT. Signing algorithm and payload shape are unchanged —
   // this only collapses the previous JWT_SECRET -> NEXTAUTH_SECRET ->
   // NEXT_JWT_SECRET lookup chain down to one key.
@@ -383,6 +415,18 @@ const parsed = {
   // route fails closed instead — unset means it rejects every delivery rather
   // than trusting unsigned input.
   resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET?.trim() || null,
+
+  // The notification service. Both null is a legitimate state, not an error:
+  // push is new, and a backend that refuses to start because notifications are
+  // not wired up is useless. Device registration reports it plainly instead.
+  notificationsUrl: process.env.NOTIFICATIONS_URL?.trim() || null,
+  notificationsToken: process.env.NOTIFICATIONS_TOKEN?.trim() || null,
+
+  // The operations API, which owns collections. Null until it is wired up, and
+  // the invitation endpoints answer "nothing pending" rather than failing —
+  // collections are an admin-side concept the consumer app has never needed.
+  adminApiUrl: process.env.ADMIN_API_URL?.trim() || null,
+  adminApiToken: process.env.ADMIN_API_TOKEN?.trim() || null,
 
   // Physical mailing address for email footers. Required by anti-spam law in
   // most of the jurisdictions this sends into, and until it is set the

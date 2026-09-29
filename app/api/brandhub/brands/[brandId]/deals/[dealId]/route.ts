@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { DealModel } from "@/lib/models";
+import {
+  deleteDealForBrand,
+  findDealForBrand,
+  updateDealForBrand,
+  type DealDoc,
+} from "@/lib/repositories/deals";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { cleanSuppliedCodes, generateDealCodes } from "@/lib/dealCodes";
@@ -67,9 +72,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
           { status: 403 },
         );
       }
-      const current = await DealModel.findOne({ _id: dealId, brand: brandId })
-        .select("status")
-        .lean();
+      const current = await findDealForBrand(dealId, brandId);
       if (!current) {
         return Response.json(
           { success: false, message: "Deal not found" },
@@ -103,16 +106,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     // never be removed through this route.
     let appendCodes: string[] | null = null;
     if (body.addCodes !== undefined) {
-      const existing = await DealModel.findOne({ _id: dealId, brand: brandId })
-        .select("codes")
-        .lean();
+      const existing = await findDealForBrand(dealId, brandId);
       if (!existing) {
         return Response.json(
           { success: false, message: "Deal not found" },
           { status: 404 },
         );
       }
-      const current = existing.codes ?? [];
+      const current = existing.codes;
       const result = Array.isArray(body.addCodes)
         ? cleanSuppliedCodes(body.addCodes, current)
         : generateDealCodes(body.addCodes, current);
@@ -138,9 +139,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       body.status === undefined &&
       (Object.keys(update).length > 0 || appendCodes)
     ) {
-      const current = await DealModel.findOne({ _id: dealId, brand: brandId })
-        .select("status")
-        .lean();
+      const current = await findDealForBrand(dealId, brandId);
       if (!current) {
         return Response.json(
           { success: false, message: "Deal not found" },
@@ -159,17 +158,15 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const mutation: Record<string, unknown> = {};
-    if (Object.keys(update).length > 0) mutation.$set = update;
-    // $addToSet, not $push: `current` is a pre-read snapshot, so two concurrent
-    // addCodes calls would each clean against it and $push the same code twice.
-    // $addToSet makes the de-duplication atomic in the database.
-    if (appendCodes) mutation.$addToSet = { codes: { $each: appendCodes } };
-
-    let deal = await DealModel.findOneAndUpdate(
-      { _id: dealId, brand: brandId },
-      mutation,
-      { new: true, runValidators: true },
+    // The append is a set union inside the UPDATE: `current` above is a
+    // pre-read snapshot, so two concurrent addCodes calls would each clean
+    // against it and add the overlap twice. Doing it in the statement makes
+    // the de-duplication atomic.
+    let deal = await updateDealForBrand(
+      dealId,
+      brandId,
+      update as Partial<DealDoc>,
+      appendCodes ?? undefined,
     );
 
     if (!deal) {
@@ -182,22 +179,18 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     // One code is redeemable exactly once, by one user, so maxUses IS the code
     // count. Derived here from what actually landed rather than trusted from
     // the client, which also repairs deals whose maxUses drifted earlier.
-    const codeCount = (deal.codes ?? []).length;
+    const codeCount = deal.codes.length;
     if (deal.maxUses !== codeCount) {
       deal =
-        (await DealModel.findOneAndUpdate(
-          { _id: dealId, brand: brandId },
-          { $set: { maxUses: codeCount } },
-          { new: true, runValidators: true },
-        )) ?? deal;
+        (await updateDealForBrand(dealId, brandId, { maxUses: codeCount })) ??
+        deal;
     }
 
     return Response.json({
       success: true,
       deal: {
-        ...deal.toObject(),
-        codes: deal.codes ?? [],
-        codeCount: deal.codes?.length ?? 0,
+        ...deal,
+        codeCount: deal.codes.length,
       },
     });
   } catch (error: unknown) {
@@ -223,10 +216,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const deal = await DealModel.findOneAndDelete({
-      _id: dealId,
-      brand: brandId,
-    });
+    const deal = await deleteDealForBrand(dealId, brandId);
 
     if (!deal) {
       return Response.json(

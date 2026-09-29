@@ -1,9 +1,9 @@
 /**
  * Pure helpers shared by lib/env.ts (Node runtime, fail-fast) and
- * lib/edgeEnv.ts (middleware runtime, fail-closed).
+ * lib/edgeEnv.ts (proxy runtime, fail-closed).
  *
  * Nothing in here reads process.env or throws — it exists so the two runtimes
- * parse the same strings the same way without middleware having to import the
+ * parse the same strings the same way without proxy having to import the
  * strict validator, which would take the whole /api matcher down on a single
  * missing key.
  */

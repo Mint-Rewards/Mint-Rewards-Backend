@@ -41,7 +41,12 @@ jest.mock("../lib/auth", () => ({
 }));
 
 import connectToDatabase from "../lib/mongodb";
-import { UserModel } from "../lib/models";
+import {
+  addPoints,
+  createUser,
+  deleteUser,
+  updateUser,
+} from "../lib/repositories/users";
 
 // Required after the mocks so the routes pick them up.
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -87,26 +92,47 @@ const patchUserLocation = (body: unknown) =>
 
 describe("profile-completion bonus — end to end", () => {
   const suffix = new mongoose.Types.ObjectId().toString();
-  const createdIds: mongoose.Types.ObjectId[] = [];
+  const createdIds: string[] = [];
   let seq = 0;
 
-  /** Raw driver read — deliberately bypasses Mongoose and the endpoint echo. */
-  const readRaw = async (id: mongoose.Types.ObjectId) => {
-    const db = mongoose.connection.db;
-    if (!db) throw new Error("not connected");
-    return db.collection("users").findOne({ _id: id });
+  /**
+   * Raw SQL read — deliberately bypasses the repository and the endpoint echo.
+   *
+   * The point of this helper is to see what is actually stored rather than
+   * what a route chose to return, so it must not go through findUserById.
+   */
+  const readRaw = async (id: string) => {
+    const { getPool } = await import("../lib/postgres");
+    const { rows } = await getPool().query(
+      `SELECT points, phone, city,
+              structured_address        AS "structuredAddress",
+              profile_bonus_granted_at  AS "profileBonusGrantedAt",
+              profile_bonus_points      AS "profileBonusPoints",
+              profile_bonus_window_started_at AS "profileBonusWindowStartedAt"
+         FROM consumer.users WHERE id = $1`,
+      [id],
+    );
+    if (!rows[0]) return null;
+    // Null columns are dropped so an unset field reads as absent, which is
+    // what these assertions mean and what the document used to look like.
+    // "Stored as NULL" and "not there" are the same statement here.
+    return Object.fromEntries(
+      Object.entries(rows[0]).filter(([, value]) => value !== null),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ) as any;
   };
 
   const makeUser = async (fields: Record<string, unknown> = {}) => {
-    const user = await UserModel.create({
+    const user = await createUser({
       userName: "Flow Probe",
       email: `bonus-flow-${seq}-${suffix}@example.com`,
       password: "irrelevant",
       mintId: String(20_000_000 + seq++),
-      points: 100,
-      ...fields,
     });
     createdIds.push(user._id);
+    // Points are server-granted; createUser does not accept them.
+    await addPoints(user._id, 100);
+    if (Object.keys(fields).length > 0) await updateUser(user._id, fields);
     authUserId = String(user._id);
     return user;
   };
@@ -125,8 +151,10 @@ describe("profile-completion bonus — end to end", () => {
 
   afterAll(async () => {
     if (createdIds.length) {
-      await UserModel.deleteMany({ _id: { $in: createdIds } });
+      for (const id of createdIds) await deleteUser(id);
     }
+    const { closePostgres } = await import("../lib/postgres");
+    await closePostgres();
     await mongoose.connection.close();
   });
 

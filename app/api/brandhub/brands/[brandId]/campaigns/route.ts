@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, CampaignModel } from "@/lib/models";
+import { findBrandById } from "@/lib/repositories/brandhub";
+import { createCampaign, findCampaigns } from "@/lib/repositories/deals";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import {
@@ -32,9 +33,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const campaigns = await CampaignModel.find({ brand: brandId })
-      .sort({ _id: -1 })
-      .lean();
+    const campaigns = await findCampaigns({ brand: brandId });
 
     return Response.json({ success: true, campaigns, total: campaigns.length });
   } catch (error: unknown) {
@@ -59,7 +58,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const brand = await BrandModel.findById(brandId).lean();
+    const brand = await findBrandById(brandId);
     if (!brand) {
       return Response.json(
         { success: false, message: "Brand not found" },
@@ -162,7 +161,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           ? rawPercentage.trim()
           : "";
 
-    const campaign = await CampaignModel.create({
+    const campaign = await createCampaign({
       discountCodes: codeResult.codes,
       isSingleCode,
       ...(discountPercentage && { discountPercentage }),

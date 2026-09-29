@@ -1,6 +1,9 @@
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel } from "@/lib/models";
+import {
+  createBrand,
+  findBrandByEmailOrRegistration,
+} from "@/lib/repositories/brandhub";
 
 const MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -94,12 +97,10 @@ export async function POST(req: Request) {
 
     const normalizedEmail = payload.contactEmail.toLowerCase();
 
-    const existing = await BrandModel.findOne({
-      $or: [
-        { email: normalizedEmail },
-        { registrationNumber: payload.registrationNumber },
-      ],
-    }).lean();
+    const existing = await findBrandByEmailOrRegistration(
+      normalizedEmail,
+      payload.registrationNumber,
+    );
 
     if (existing) {
       return Response.json(
@@ -112,7 +113,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const brand = await BrandModel.create({
+    const brand = await createBrand({
       companyName: payload.companyName,
       brandName: payload.brandName,
       category: payload.category,

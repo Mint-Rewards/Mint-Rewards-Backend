@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel } from "@/lib/models";
+import {
+  updateBrand,
+  withoutVerificationToken,
+  type BrandDoc,
+} from "@/lib/repositories/brandhub";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 
@@ -58,11 +62,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const brand = await BrandModel.findByIdAndUpdate(
-      id,
-      { $set: update },
-      { new: true, runValidators: true },
-    ).select("-verificationToken");
+    const updated = await updateBrand(id, update as Partial<BrandDoc>);
+    const brand = updated ? withoutVerificationToken(updated) : null;
 
     if (!brand) {
       return Response.json(

@@ -1,6 +1,9 @@
 import { after } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import {
+  findUserByEmailWithOtp,
+  setUserOtp,
+} from "@/lib/repositories/users";
 import sendPasswordResetEmail from "@/emailServices/paswordReset";
 import { generateOtp, hashOtp } from "@/lib/otp";
 import {
@@ -61,8 +64,9 @@ export async function POST(req: Request) {
 
     await connectToDatabase();
 
-    const user = await UserModel.findOne({ email: normalizedEmail }).select(
-      "+passwordReset",
+    const user = await findUserByEmailWithOtp(
+      normalizedEmail,
+      "passwordReset",
     );
 
     if (!user) {
@@ -78,20 +82,22 @@ export async function POST(req: Request) {
       );
     }
 
-    const lastSentAt = user.passwordReset?.lastSentAt;
+    // jsonb gives the timestamp back as an ISO string, not a Date.
+    const lastSentAt = user.otp?.lastSentAt
+      ? new Date(user.otp.lastSentAt)
+      : null;
     if (lastSentAt && Date.now() - lastSentAt.getTime() < RESEND_THROTTLE_MS) {
       return Response.json(GENERIC_RESPONSE);
     }
 
     const otp = generateOtp();
 
-    user.passwordReset = {
+    await setUserOtp(user._id, "passwordReset", {
       otpHash: hashOtp(otp),
-      expiresAt: new Date(Date.now() + OTP_TTL_MS),
+      expiresAt: new Date(Date.now() + OTP_TTL_MS).toISOString(),
       attempts: 0,
-      lastSentAt: new Date(),
-    };
-    await user.save();
+      lastSentAt: new Date().toISOString(),
+    });
 
     const recipientEmail = user.email;
     // Deferred purely so the response doesn't wait on the mail provider. This

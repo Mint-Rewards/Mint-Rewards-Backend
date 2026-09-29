@@ -3,7 +3,12 @@
 import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 import connectToDatabase from "../lib/mongodb";
-import { BrandModel, BrandUserModel, OrganizationModel } from "../lib/models";
+import {
+  createBrand,
+  deleteBrandsByIds,
+  findBrandUserByEmail,
+} from "../lib/repositories/brandhub";
+import { closePostgres, getPool } from "../lib/postgres";
 import { POST as register } from "../app/api/brandhub/auth/register/route";
 
 // Registration creates three documents: Organization, BrandUser and Brand.
@@ -26,15 +31,15 @@ describe("POST /api/brandhub/auth/register", () => {
   const takenEmail = `taken-${suffix}@example.com`;
   const freshEmail = `fresh-${suffix}@example.com`;
 
-  const orgIds: mongoose.Types.ObjectId[] = [];
-  const brandIds: mongoose.Types.ObjectId[] = [];
+  const orgIds: string[] = [];
+  const brandIds: string[] = [];
 
   beforeAll(async () => {
     await connectToDatabase();
 
     // An unrelated Brand already holding the address the signup will use.
     // Brand.email is uniquely indexed, so the Brand insert below must fail.
-    const squatter = await BrandModel.create({
+    const squatter = await createBrand({
       companyName: `Squatter ${suffix}`,
       brandName: `Squatter ${suffix}`,
       email: takenEmail,
@@ -50,13 +55,25 @@ describe("POST /api/brandhub/auth/register", () => {
   });
 
   afterAll(async () => {
-    await Promise.all([
-      BrandModel.deleteMany({ _id: { $in: brandIds } }),
-      BrandModel.deleteMany({ email: { $in: [takenEmail, freshEmail] } }),
-      BrandUserModel.deleteMany({ email: { $in: [takenEmail, freshEmail] } }),
-      OrganizationModel.deleteMany({ _id: { $in: orgIds } }),
-      OrganizationModel.deleteMany({ name: /Rollback Test Org/ }),
+    // Raw SQL for teardown: deleting by email or by a name pattern is not
+    // something a route should be able to do, so the repository does not
+    // offer it.
+    const pool = getPool();
+    await deleteBrandsByIds(brandIds);
+    await pool.query("DELETE FROM consumer.brands WHERE email = ANY($1)", [
+      [takenEmail, freshEmail],
     ]);
+    await pool.query("DELETE FROM consumer.brand_users WHERE email = ANY($1)", [
+      [takenEmail, freshEmail],
+    ]);
+    await pool.query("DELETE FROM consumer.brand_users WHERE org_id = ANY($1)", [
+      orgIds,
+    ]);
+    await pool.query(
+      "DELETE FROM consumer.organizations WHERE id = ANY($1) OR name LIKE 'Rollback Test Org%'",
+      [orgIds],
+    );
+    await closePostgres();
     await mongoose.disconnect();
   });
 
@@ -73,12 +90,12 @@ describe("POST /api/brandhub/auth/register", () => {
     expect(response.status).toBe(409);
 
     // The whole point: nothing survived the failed signup.
-    await expect(
-      OrganizationModel.findOne({ name: `Rollback Test Org ${suffix}` }).lean(),
-    ).resolves.toBeNull();
-    await expect(
-      BrandUserModel.findOne({ email: takenEmail }).lean(),
-    ).resolves.toBeNull();
+    const orgs = await getPool().query(
+      "SELECT 1 FROM consumer.organizations WHERE name = $1",
+      [`Rollback Test Org ${suffix}`],
+    );
+    expect(orgs.rowCount).toBe(0);
+    await expect(findBrandUserByEmail(takenEmail)).resolves.toBeNull();
   });
 
   it("lets the user retry with a different email and get a working account", async () => {
@@ -105,11 +122,11 @@ describe("POST /api/brandhub/auth/register", () => {
     expect(body.brands).toHaveLength(1);
     expect(body.defaultBrandId).toBe(body.brands[0].id);
 
-    orgIds.push(new mongoose.Types.ObjectId(body.orgId));
-    brandIds.push(new mongoose.Types.ObjectId(body.brands[0].id));
+    orgIds.push(body.orgId);
+    brandIds.push(body.brands[0].id);
 
-    await expect(
-      BrandUserModel.findOne({ email: freshEmail }).lean(),
-    ).resolves.toMatchObject({ orgRole: "owner" });
+    await expect(findBrandUserByEmail(freshEmail)).resolves.toMatchObject({
+      orgRole: "owner",
+    });
   });
 });

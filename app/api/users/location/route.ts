@@ -1,6 +1,10 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { UserModel } from "@/lib/models";
+import {
+  findUserById,
+  updateUser,
+  type UserPatch,
+} from "@/lib/repositories/users";
 import {
   evaluateLocation,
   LOCATION_COMPLETION_VERSION,
@@ -99,12 +103,8 @@ export async function PATCH(req: Request) {
 
     const hasUpdate = Object.keys(setFields).length > 0;
     const user = hasUpdate
-      ? await UserModel.findByIdAndUpdate(
-          userId,
-          { $set: setFields },
-          { new: true },
-        )
-      : await UserModel.findById(userId);
+      ? await updateUser(String(userId), setFields as UserPatch)
+      : await findUserById(String(userId));
 
     if (!user) {
       return Response.json(
@@ -124,15 +124,10 @@ export async function PATCH(req: Request) {
       (user.locationVersion ?? 0) < LOCATION_COMPLETION_VERSION;
 
     if (bumpsCompletionVersion) {
-      await UserModel.updateOne(
-        { _id: userId },
-        {
-          $set: {
-            locationVersion: LOCATION_COMPLETION_VERSION,
-            locationCompletedAt: new Date(),
-          },
-        },
-      );
+      await updateUser(String(userId), {
+        locationVersion: LOCATION_COMPLETION_VERSION,
+        locationCompletedAt: new Date(),
+      });
     }
 
     // `evaluation` was computed from the pre-bump `user` document, so its

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, DealModel } from "@/lib/models";
+import { findBrandById } from "@/lib/repositories/brandhub";
+import { createDeal, findDeals } from "@/lib/repositories/deals";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const brand = await BrandModel.findById(id).lean();
+    const brand = await findBrandById(id);
     if (!brand) {
       return Response.json(
         { success: false, message: "Brand not found" },
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const deals = await DealModel.find({ brand: id }).sort({ _id: -1 }).lean();
+    const deals = await findDeals({ brand: id });
 
     return Response.json({ success: true, deals, total: deals.length });
   } catch (error: unknown) {
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const brand = await BrandModel.findById(id).lean();
+    const brand = await findBrandById(id);
     if (!brand) {
       return Response.json(
         { success: false, message: "Brand not found" },
@@ -152,7 +153,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         ? "active"
         : "pending";
 
-    const deal = await DealModel.create({
+    const deal = await createDeal({
       brand: id,
       title: title.trim(),
       status,

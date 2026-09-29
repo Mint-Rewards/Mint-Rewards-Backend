@@ -1,7 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
-import { CampaignModel } from "@/lib/models";
+import {
+  deleteCampaignForBrand,
+  updateCampaignForBrand,
+  type CampaignDoc,
+} from "@/lib/repositories/deals";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
@@ -125,10 +129,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const campaign = await CampaignModel.findOneAndUpdate(
-      { _id: campaignId, brand: id },
-      { $set: update },
-      { new: true, runValidators: true },
+    const campaign = await updateCampaignForBrand(
+      campaignId,
+      id,
+      update as Partial<CampaignDoc>,
     );
 
     if (!campaign) {
@@ -157,10 +161,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const campaign = await CampaignModel.findOneAndDelete({
-      _id: campaignId,
-      brand: id,
-    });
+    const campaign = await deleteCampaignForBrand(campaignId, id);
 
     if (!campaign) {
       return Response.json(

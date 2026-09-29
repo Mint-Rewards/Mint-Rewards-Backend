@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Log } from "@/lib/models";
-import connectToDatabase from "@/lib/mongodb";
+import { createLog, findLogs } from "@/lib/repositories/logs";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 export async function POST(req: NextRequest) {
   try {
-    await connectToDatabase();
     const body = await req.json();
 
     const { event, deviceId, platform, appVersion, buildNumber } = body;
@@ -16,7 +14,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await Log.create({
+    await createLog({
       ...body,
       timestamp: body.timestamp ? new Date(body.timestamp) : new Date(),
     });
@@ -33,32 +31,18 @@ export async function GET(req: NextRequest) {
   const auth = requireAdminAuth(req);
   if (auth instanceof NextResponse) return auth;
   try {
-    await connectToDatabase();
     const { searchParams } = new URL(req.url);
-
-    const filter: Record<string, unknown> = {};
-    const userId = searchParams.get("userId");
-    const event = searchParams.get("event");
-    const route = searchParams.get("route");
-    const level = searchParams.get("level");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
 
-    if (userId) filter.userId = userId;
-    if (event) filter.event = event;
-    if (route) filter.route = route;
-    if (level) filter.level = level;
-    if (from || to) {
-      filter.timestamp = {
-        ...(from ? { $gte: new Date(from) } : {}),
-        ...(to ? { $lte: new Date(to) } : {}),
-      };
-    }
-
-    const logs = await Log.find(filter)
-      .sort({ timestamp: -1 })
-      .limit(100)
-      .lean();
+    const logs = await findLogs({
+      userId: searchParams.get("userId") ?? undefined,
+      event: searchParams.get("event") ?? undefined,
+      route: searchParams.get("route") ?? undefined,
+      level: searchParams.get("level") ?? undefined,
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+    });
 
     return NextResponse.json({ logs, total: logs.length });
   } catch {

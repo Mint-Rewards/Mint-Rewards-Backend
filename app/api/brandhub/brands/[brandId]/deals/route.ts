@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { DealModel } from "@/lib/models";
+import { createDeal, findDeals } from "@/lib/repositories/deals";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { cleanSuppliedCodes, generateDealCodes } from "@/lib/dealCodes";
@@ -21,14 +21,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const deals = await DealModel.find({ brand: brandId })
-      .sort({ _id: -1 })
-      .lean();
+    const deals = await findDeals({ brand: brandId });
 
     const withCounts = deals.map((d) => ({
       ...d,
-      codes: d.codes ?? [],
-      codeCount: d.codes?.length ?? 0,
+      codeCount: d.codes.length,
     }));
 
     return Response.json({
@@ -100,7 +97,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
     const codes = codeResult.codes;
 
-    const deal = await DealModel.create({
+    const deal = await createDeal({
       brand: brandId,
       title: title.trim(),
       codes,

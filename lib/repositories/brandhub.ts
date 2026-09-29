@@ -12,6 +12,7 @@
  * transaction, which is why they could not be ported one at a time — see
  * lib/db/schema/brandhub.ts.
  */
+import { randomBytes } from "node:crypto";
 import { and, desc, eq, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/postgres";
 import { ORG_ROLES, type ModuleAccessEntry, type OrgRole } from "@/lib/modules";
@@ -221,12 +222,22 @@ function toBrand(row: BrandRow): BrandDoc {
  * orgId, so the two stores have to agree on what an id looks like for as long
  * as either of them is authoritative for anything.
  */
-/** Five random bytes, fixed for the life of the process, as Mongo does. */
-const PROCESS_RANDOM = Array.from({ length: 10 }, () =>
-  Math.floor(Math.random() * 16).toString(16),
-).join("");
+/**
+ * Five random bytes, fixed for the life of the process, as Mongo does.
+ *
+ * From `crypto` rather than `Math.random()`. These ids are primary keys, and
+ * `lib/repositories/brandCollections.ts` derives a collection account's
+ * synthetic email and mint id from one — so an id built on a generator that
+ * makes no unguessability promise is guessable in a way nothing here intends.
+ * The driver this shape imitates uses a cryptographic source for the same
+ * five bytes, so this is also the more faithful copy.
+ *
+ * The counter is seeded the same way, for the same reason: starting it at a
+ * predictable number gives away the ids about to be minted.
+ */
+const PROCESS_RANDOM = randomBytes(5).toString("hex");
 
-let counter = Math.floor(Math.random() * 0xffffff);
+let counter = randomBytes(3).readUIntBE(0, 3);
 
 export function newObjectId(): string {
   const seconds = Math.floor(Date.now() / 1000)

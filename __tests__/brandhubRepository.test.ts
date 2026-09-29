@@ -67,9 +67,66 @@ describe("generated ids", () => {
 describe("against a real database", () => {
   const whenLive = process.env.DATABASE_URL ? describe : describe.skip;
 
+  /**
+   * A brand that certainly exists.
+   *
+   * These reads used to assume the database already held one. That was true
+   * of the shared dev instance they were written against and false of an
+   * empty one, so they proved nothing about a fresh database and failed the
+   * first time CI was given a container of its own. A suite that depends on
+   * ambient data is a suite that only passes where that data happens to be.
+   *
+   * Named `roundtrip-` so the teardown below already covers it.
+   */
+  async function seedBrand(marker: string): Promise<void> {
+    await repo.inTransaction(async (tx) => {
+      const org = await repo.createOrganization({ name: marker }, tx);
+      await repo.createBrand(
+        {
+          orgId: org._id,
+          companyName: marker,
+          brandName: marker,
+          email: `${marker}@example.invalid`,
+          category: "test",
+          webLink: "https://example.invalid",
+          contactName: marker,
+          phone: "0",
+          registrationNumber: marker,
+        },
+        tx,
+      );
+    });
+  }
+
+  async function removeSeeded(): Promise<void> {
+    const { getPool } = await import("@/lib/postgres");
+    const pool = getPool();
+    // Children before parents: deleting organizations first trips
+    // brands_org_id_fkey and leaves rows that make the next run fail
+    // differently.
+    await pool.query(
+      `DELETE FROM consumer.brands WHERE org_id IN
+         (SELECT id FROM consumer.organizations WHERE name LIKE 'roundtrip-%')
+       OR email LIKE 'roundtrip-%'`,
+    );
+    await pool.query(
+      `DELETE FROM consumer.brand_users WHERE org_id IN
+         (SELECT id FROM consumer.organizations WHERE name LIKE 'roundtrip-%')
+       OR email LIKE 'roundtrip-%'`,
+    );
+    await pool.query(
+      "DELETE FROM consumer.organizations WHERE name LIKE 'roundtrip-%'",
+    );
+  }
+
   whenLive("reads", () => {
+    beforeAll(async () => {
+      await seedBrand(`roundtrip-read-${Date.now()}`);
+    });
+
     afterAll(async () => {
       const { closePostgres } = await import("@/lib/postgres");
+      await removeSeeded();
       await closePostgres();
     });
 
@@ -111,6 +168,12 @@ describe("against a real database", () => {
   });
 
   whenLive("writes", () => {
+    // The rollback test needs an email a brand already holds, to collide
+    // with. On a fresh database there is none until one is made.
+    beforeAll(async () => {
+      await seedBrand(`roundtrip-write-${Date.now()}`);
+    });
+
     afterAll(async () => {
       const { getPool, closePostgres } = await import("@/lib/postgres");
       const pool = getPool();

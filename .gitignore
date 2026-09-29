@@ -31,3 +31,7 @@ scripts/out/
 
 # Supabase CLI scratch, not project configuration.
 supabase/.temp/
+
+# Production credentials. Never committed: these open the live database,
+# the operations console and every brand account.
+secrets/

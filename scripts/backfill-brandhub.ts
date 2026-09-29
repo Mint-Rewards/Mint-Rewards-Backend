@@ -52,6 +52,31 @@ interface Counts {
   skipped: string[];
 }
 
+/**
+ * A brand's email address, or a stand-in that cannot collide.
+ *
+ * `consumer.brands.email` is NOT NULL and uniquely indexed, and fourteen of
+ * production's thirty brands predate the field entirely — they carry no email
+ * at all, so every one of them lowercases to "" and the second one inserted
+ * violates the constraint. Dropping them would lose two thirds of the brands;
+ * relaxing the column would leave production's schema different from dev's.
+ *
+ * So the emailless get an address derived from their own id, which is unique
+ * by construction and stable across re-runs, so a second pass updates the
+ * same row rather than adding another. It follows the pattern already used
+ * for brand collection accounts in lib/repositories/brandCollections.ts.
+ *
+ * `.invalid` is reserved by RFC 2606 and can never resolve, which is the
+ * point: this is not an address, it is the absence of one, and it must not be
+ * mistaken for somewhere a password reset could be sent. A brand in this
+ * state cannot sign in to BrandHub — it could not before the migration
+ * either, since there was nothing to sign in with.
+ */
+function brandEmail(doc: Document): string {
+  const given = text(doc.email).trim().toLowerCase();
+  return given || `legacy-${id(doc._id)}@brands.invalid`;
+}
+
 async function main(): Promise<void> {
   const dryRun = process.argv.includes("--dry-run");
   const mongoUri = process.env.MONGODB_URI?.trim();
@@ -189,7 +214,7 @@ async function main(): Promise<void> {
           doc.legacyBrandId ? id(doc.legacyBrandId) : null,
           text(doc.companyName, "Unknown"),
           text(doc.brandName, "Unknown"),
-          text(doc.email).toLowerCase(),
+          brandEmail(doc),
           doc.logo ? text(doc.logo) : null,
           doc.themeImage ? text(doc.themeImage) : null,
           text(doc.category, "uncategorised"),

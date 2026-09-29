@@ -33,6 +33,22 @@ import pg from "pg";
 
 const BATCH = 250;
 
+/**
+ * How many inserts are in flight at once.
+ *
+ * Every row is its own statement, and the cost of one is almost entirely the
+ * round trip to the database — around 250ms from here to Tokyo through the
+ * pooler. Sent one at a time that is half an hour for 7,576 users, which is
+ * long enough that a migration gets killed halfway and has to be reasoned
+ * about rather than simply repeated.
+ *
+ * Safe to overlap because order does not matter here: duplicate emails are
+ * resolved before the first write, and every statement upserts on its own
+ * primary key, so two rows in flight together cannot interact. Kept well
+ * under Supabase's pooler limit, since this is not the only client.
+ */
+const CONCURRENCY = 10;
+
 const PRECISIONS = new Set(["building", "block", "area", "city", "unknown"]);
 const SOURCES = new Set([
   "map_pin",
@@ -97,6 +113,49 @@ interface Counts {
   withPasswordReset: number;
   withEmailVerification: number;
   bonusGranted: number;
+  /** Accounts skipped because another shares their email, case aside. */
+  duplicates: number;
+}
+
+/**
+ * Which documents lose their email to another, and why.
+ *
+ * Keyed on exactly what the insert stores — `String(email).toLowerCase()`,
+ * no trim — so this sees precisely the collisions Postgres will see, and not
+ * a near-miss either side of it.
+ */
+function resolveDuplicateEmails(
+  docs: Document[],
+  notes: string[],
+): Set<string> {
+  const evidence = (d: Document): number =>
+    (coordinates(d) ? 4 : 0) + (d.created || d.createdAt ? 2 : 0);
+
+  const byEmail = new Map<string, Document[]>();
+  for (const doc of docs) {
+    const key = String(doc.email ?? "").toLowerCase();
+    if (!key) continue;
+    const group = byEmail.get(key);
+    if (group) group.push(doc);
+    else byEmail.set(key, [doc]);
+  }
+
+  const losers = new Set<string>();
+  for (const [key, group] of byEmail) {
+    if (group.length < 2) continue;
+    const ranked = [...group].sort(
+      (a, b) => evidence(b) - evidence(a) || id(b._id).localeCompare(id(a._id)),
+    );
+    const [winner, ...rest] = ranked;
+    for (const loser of rest) {
+      losers.add(id(loser._id));
+      notes.push(
+        `duplicate email ${key} — kept ${id(winner._id)}, ` +
+          `skipped ${id(loser._id)} (${loser.userName ?? "no name"})`,
+      );
+    }
+  }
+  return losers;
 }
 
 async function main(): Promise<void> {
@@ -109,7 +168,7 @@ async function main(): Promise<void> {
   }
 
   const mongo = new MongoClient(mongoUri, { serverSelectionTimeoutMS: 15_000 });
-  const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
+  const pool = new pg.Pool({ connectionString: databaseUrl, max: CONCURRENCY });
   const notes: string[] = [];
   const counts: Counts = {
     scanned: 0,
@@ -118,6 +177,7 @@ async function main(): Promise<void> {
     withPasswordReset: 0,
     withEmailVerification: 0,
     bonusGranted: 0,
+    duplicates: 0,
   };
 
   try {
@@ -135,7 +195,11 @@ async function main(): Promise<void> {
     const flush = async () => {
       if (batch.length === 0) return;
       if (!dryRun) {
-        for (const doc of batch) {
+        const write = async (doc: Document) => {
+          // Wrapped so a constraint violation names the account that caused
+          // it. "duplicate key violates users_email_key" over 7,576 rows is
+          // a fact you cannot act on; the email and the id are.
+          try {
           const coords = coordinates(doc);
           const precision = doc.location?.precision;
           const source = doc.location?.source;
@@ -240,6 +304,16 @@ async function main(): Promise<void> {
             ],
           );
           counts.written += 1;
+          } catch (error) {
+            const why = error instanceof Error ? error.message : String(error);
+            throw new Error(
+              `${why}\n  row: ${id(doc._id)}  email: ${JSON.stringify(doc.email)}`,
+            );
+          }
+        };
+
+        for (let i = 0; i < batch.length; i += CONCURRENCY) {
+          await Promise.all(batch.slice(i, i + CONCURRENCY).map(write));
         }
       }
       process.stdout.write(`\r  scanned ${counts.scanned}/${total}...`);
@@ -253,6 +327,37 @@ async function main(): Promise<void> {
     // notion and returns the documents whole.
     const cursor = db.collection("users").find({});
 
+    /*
+     * Two accounts whose emails differ only in capitalisation.
+     *
+     * Mongo's unique index is case-SENSITIVE and Postgres's is not, so a pair
+     * like "Umama_hussain@yahoo.com" and "umama_hussain@yahoo.com" lives
+     * happily in one and collides in the other. Production holds two such
+     * pairs, each of them plainly the same person signed up twice.
+     *
+     * Resolved here rather than in Mongo, because this script is read-only
+     * against Mongo and must stay that way — a migration that edits its own
+     * source cannot be re-run against a known state, and cannot be trusted
+     * after it half-fails.
+     *
+     * The winner is the record carrying the most evidence of use: a
+     * coordinate first, then a creation date, then the later ObjectId. The
+     * loser is skipped and NAMED in the output, because a silently dropped
+     * account is somebody who cannot log in and nobody knows why.
+     *
+     * Settled in one pass over every document BEFORE a single row is
+     * written, and not as the write goes. Deciding a winner mid-stream can
+     * only un-queue a loser still sitting in the batch — once its batch has
+     * flushed, the loser is in Postgres and the winner arrives to find the
+     * email taken. Resolving up front also makes the dry run honest: it
+     * reports the same decisions the write will make, which is the entire
+     * reason for having one.
+     */
+    const losers = resolveDuplicateEmails(await db
+      .collection("users")
+      .find({}, { projection: { email: 1, userName: 1, location: 1, created: 1, createdAt: 1 } })
+      .toArray(), notes);
+
     for await (const doc of cursor) {
       counts.scanned += 1;
       if (coordinates(doc)) counts.withCoordinate += 1;
@@ -262,6 +367,11 @@ async function main(): Promise<void> {
       if (!doc.email) {
         notes.push(`user ${id(doc._id)} — no email; it is a NOT NULL column`);
       }
+      if (losers.has(id(doc._id))) {
+        counts.duplicates += 1;
+        continue;
+      }
+
       batch.push(doc);
       if (batch.length >= BATCH) await flush();
     }
@@ -270,6 +380,7 @@ async function main(): Promise<void> {
     console.log(`\n\nscanned                 ${counts.scanned}`);
     console.log(`written                 ${dryRun ? "(none — dry run)" : counts.written}`);
     console.log(`with a coordinate       ${counts.withCoordinate}`);
+    console.log(`duplicate emails        ${counts.duplicates}`);
     console.log(`with a password reset   ${counts.withPasswordReset}`);
     console.log(`with an email OTP       ${counts.withEmailVerification}`);
     console.log(`profile bonus granted   ${counts.bonusGranted}`);

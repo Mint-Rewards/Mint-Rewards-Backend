@@ -32,6 +32,7 @@ import {
 
 describe("a brand's premises", () => {
   let brandId: string;
+  let neighbourBrandId: string | null = null;
 
   beforeAll(async () => {
     await connectToDatabase();
@@ -69,7 +70,9 @@ describe("a brand's premises", () => {
   });
 
   afterAll(async () => {
-    await getPool().query("DELETE FROM consumer.users WHERE brand_id = $1", [brandId]);
+    await getPool().query("DELETE FROM consumer.users WHERE brand_id = ANY($1)", [
+      [brandId, neighbourBrandId].filter(Boolean),
+    ]);
     await closePostgres();
   });
 
@@ -140,12 +143,72 @@ describe("a brand's premises", () => {
     expect(rows[0].precision).toBe("building");
   });
 
-  it("refuses two premises with the same name, whatever the casing", async () => {
-    // Two doors called the same thing are indistinguishable on a captain's
-    // list and on the console map, where the name is all there is.
+  it("allows two premises with the same name", async () => {
+    /*
+     * What a branch is called is the brand's own business — two of their
+     * shops may well both be "Clifton", and it is not this system's place to
+     * argue. What must not repeat is the PIN.
+     */
+    const accounts = await addBrandCollectionBranch({ brandId, name: "Clifton" });
+    expect(accounts.filter((a) => a.name === "Clifton")).toHaveLength(2);
+  });
+
+  it("refuses a second premises pinned to the same spot", async () => {
+    /*
+     * Two accounts at one gate is two stops on one round at the same door:
+     * a captain drives there, is told to collect twice, and the brand reads
+     * it as two collections.
+     */
+    const accounts = await listBrandCollectionAccounts(brandId);
+    const pinned = accounts.find((a) => a.hasPin)!;
+    const other = accounts.find((a) => !a.hasPin)!;
+
     await expect(
-      addBrandCollectionBranch({ brandId, name: "  clifton " }),
-    ).rejects.toThrow(/already have a branch/i);
+      setBrandCollectionPin({
+        brandId,
+        accountId: other.id,
+        lat: pinned.lat as number,
+        lng: pinned.lng as number,
+      }),
+    ).rejects.toThrow(/same spot/i);
+  });
+
+  it("refuses a pin a few metres away, not just an identical one", async () => {
+    /*
+     * A brand that forgets to move the map produces the identical
+     * coordinate and would be caught either way. One that nudges it a metre
+     * and confirms produces a different number for the same gate, and an
+     * exact test would wave that through.
+     */
+    const accounts = await listBrandCollectionAccounts(brandId);
+    const pinned = accounts.find((a) => a.hasPin)!;
+    const other = accounts.find((a) => !a.hasPin)!;
+
+    await expect(
+      setBrandCollectionPin({
+        brandId,
+        accountId: other.id,
+        // ~3 metres north.
+        lat: (pinned.lat as number) + 0.00003,
+        lng: pinned.lng as number,
+      }),
+    ).rejects.toThrow(/same spot/i);
+  });
+
+  it("allows a pin far enough away to be its own door", async () => {
+    const accounts = await listBrandCollectionAccounts(brandId);
+    const pinned = accounts.find((a) => a.hasPin)!;
+    const other = accounts.find((a) => !a.hasPin)!;
+
+    // ~100 metres north — a different building.
+    await setBrandCollectionPin({
+      brandId,
+      accountId: other.id,
+      lat: (pinned.lat as number) + 0.0009,
+      lng: pinned.lng as number,
+    });
+    const after = await listBrandCollectionAccounts(brandId);
+    expect(after.filter((a) => a.hasPin).length).toBeGreaterThanOrEqual(2);
   });
 
   it("refuses a nameless premises", async () => {
@@ -163,6 +226,55 @@ describe("a brand's premises", () => {
     });
     expect(after.find((a) => a.id === clifton.id)!.name).toBe("Clifton Depot");
     expect(after).toHaveLength(before.length);
+  });
+
+  it("lets a DIFFERENT brand pin the same coordinates", async () => {
+    /*
+     * The rule is per brand, deliberately. Two brands in one building — a
+     * mall, an office tower — are two genuine doors that happen to share a
+     * roof, and refusing the second would make the vertical case
+     * unrepresentable.
+     */
+    const suffix = new mongoose.Types.ObjectId().toString();
+    const org = await createOrganization({
+      name: `Neighbour Org ${suffix}`,
+      moduleSubscriptions: [
+        { module: "consumer-reporting", status: "active", activatedAt: new Date(), expiresAt: null },
+      ],
+    });
+    const neighbour = await createBrand({
+      orgId: org._id,
+      brandName: `Neighbour Brand ${suffix}`,
+      companyName: "Neighbour Co",
+      email: `neighbour-${suffix}@example.com`,
+      category: "general",
+      description: "Same building, different brand",
+      address: "1 Test Street",
+      webLink: "https://example.com",
+      appLink: "",
+      contactName: "Test Owner",
+      phone: "03007654321",
+      registrationNumber: `NB-${suffix}`,
+      domain: "",
+      status: "APPROVED",
+      emailVerified: true,
+    });
+    neighbourBrandId = neighbour._id;
+    await setBrandWantsCollections({ brandId: neighbourBrandId, wants: true });
+
+    const ours = (await listBrandCollectionAccounts(brandId)).find((a) => a.hasPin)!;
+    const theirs = (await listBrandCollectionAccounts(neighbourBrandId))[0];
+
+    await setBrandCollectionPin({
+      brandId: neighbourBrandId,
+      accountId: theirs.id,
+      lat: ours.lat as number,
+      lng: ours.lng as number,
+    });
+
+    const after = await listBrandCollectionAccounts(neighbourBrandId);
+    expect(after[0].hasPin).toBe(true);
+    expect(after[0].lat).toBeCloseTo(ours.lat as number, 5);
   });
 
   it("will not let one brand touch another's premises", async () => {

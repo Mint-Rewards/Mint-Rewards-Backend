@@ -122,16 +122,6 @@ export async function addBrandCollectionBranch(input: {
   if (existing.length >= MAX_BRAND_BRANCHES) {
     throw new Error(`A brand can have at most ${MAX_BRAND_BRANCHES} premises.`);
   }
-  /*
-   * Two premises with the same name are indistinguishable on a captain's
-   * list and on the console map, where the name is all there is to go on.
-   * Compared case-insensitively because "Clifton" and "clifton" are the same
-   * place to everyone except a string comparison.
-   */
-  if (existing.some((a) => a.name.trim().toLowerCase() === name.toLowerCase())) {
-    throw new Error("You already have a branch with that name.");
-  }
-
   const accountId = newObjectId();
   const identity = syntheticIdentity(accountId);
 
@@ -157,9 +147,13 @@ export async function addBrandCollectionBranch(input: {
  * Renames a premises.
  *
  * The name is what an operator and a captain see on the map and in a stop
- * list, so it is worth being able to correct. Scoped to the brand that asked,
- * for the same reason the pin is: an account id alone must not be enough to
- * touch somebody else's row.
+ * list, so it is worth being able to correct. What it says is the brand's
+ * own business — two of their shops may well both be called "Clifton", and
+ * it is not this system's place to argue. What must not repeat is the PIN;
+ * see `setBrandCollectionPin`.
+ *
+ * Scoped to the brand that asked, for the same reason the pin is: an account
+ * id alone must not be enough to touch somebody else's row.
  */
 export async function renameBrandCollectionBranch(input: {
   brandId: string;
@@ -168,15 +162,6 @@ export async function renameBrandCollectionBranch(input: {
 }): Promise<BrandCollectionAccount[]> {
   const name = input.name.trim();
   if (!name) throw new Error("A branch needs a name.");
-
-  const existing = await listBrandCollectionAccounts(input.brandId);
-  if (
-    existing.some(
-      (a) => a.id !== input.accountId && a.name.trim().toLowerCase() === name.toLowerCase(),
-    )
-  ) {
-    throw new Error("You already have a branch with that name.");
-  }
 
   const updated = await getDb()
     .update(users)
@@ -261,6 +246,20 @@ export async function setBrandWantsCollections(input: {
 }
 
 /**
+ * How close two premises may be pinned before they are treated as one door.
+ *
+ * Not exact equality. A brand that forgets to move the map produces the
+ * IDENTICAL coordinate and would be caught either way — but one that nudges
+ * it a metre and confirms produces a different number for the same gate, and
+ * an exact test would wave that through. Ten metres is inside one building
+ * and outside two.
+ *
+ * The cost of getting this wrong is a captain driving to one door and being
+ * told to collect from it twice.
+ */
+export const MIN_PIN_SEPARATION_METRES = 10;
+
+/**
  * Where the van should actually go.
  *
  * Recorded as `map_pin` at `building` precision, which is what makes the
@@ -278,6 +277,38 @@ export async function setBrandCollectionPin(input: {
   lat: number;
   lng: number;
 }): Promise<{ accountId: string; lat: number; lng: number }> {
+  /*
+   * Two premises may share a name — that is the brand's business — but they
+   * may not share a place. A second account pinned to the same gate is a
+   * second stop on the same round at the same door, which costs a captain a
+   * wasted visit and tells the brand it was collected from twice.
+   *
+   * Asked of the database in metres via ST_DWithin on geography, the same
+   * predicate zone containment uses, rather than comparing the text
+   * latitude/longitude columns — those are a decimal rendering of the point,
+   * and two renderings of one place need not be the same string.
+   */
+  const clash = await getDb().execute(sql`
+    SELECT user_name AS name
+      FROM consumer.users
+     WHERE brand_id = ${input.brandId}
+       AND account_type = 'BRAND'
+       AND id <> ${input.accountId}
+       AND geog IS NOT NULL
+       AND ST_DWithin(
+             geog,
+             ST_SetSRID(ST_MakePoint(${input.lng}, ${input.lat}), 4326)::geography,
+             ${MIN_PIN_SEPARATION_METRES}
+           )
+     LIMIT 1
+  `);
+  const clashing = (clash as unknown as { rows?: { name: string }[] }).rows?.[0];
+  if (clashing) {
+    throw new Error(
+      `That is the same spot as "${clashing.name}". Each branch needs its own collection point.`,
+    );
+  }
+
   const updated = await getDb()
     .update(users)
     .set({

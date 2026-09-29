@@ -26,7 +26,10 @@ export async function GET(req: Request) {
      * available in your area", which is a specific claim we cannot make when
      * we could not ask. `unavailable` lets it say the truthful thing instead.
      */
-    console.warn("[collections/slots] operations API unavailable:", result.error);
+    console.warn(
+      "[collections/slots] operations API unavailable:",
+      result.error,
+    );
     return Response.json({
       Status: "Success",
       eligible: false,

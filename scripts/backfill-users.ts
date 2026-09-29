@@ -187,7 +187,9 @@ async function main(): Promise<void> {
 
     console.log(`source     ${dbName}.users`);
     console.log(`target     ${new URL(databaseUrl).host}/consumer.users`);
-    console.log(`mode       ${dryRun ? "DRY RUN — nothing will be written" : "WRITE"}\n`);
+    console.log(
+      `mode       ${dryRun ? "DRY RUN — nothing will be written" : "WRITE"}\n`,
+    );
 
     const total = await db.collection("users").countDocuments();
     let batch: Document[] = [];
@@ -200,11 +202,11 @@ async function main(): Promise<void> {
           // it. "duplicate key violates users_email_key" over 7,576 rows is
           // a fact you cannot act on; the email and the id are.
           try {
-          const coords = coordinates(doc);
-          const precision = doc.location?.precision;
-          const source = doc.location?.source;
-          await pool.query(
-            `INSERT INTO consumer.users (
+            const coords = coordinates(doc);
+            const precision = doc.location?.precision;
+            const source = doc.location?.source;
+            await pool.query(
+              `INSERT INTO consumer.users (
                id, user_name, email, password, mint_id, role, phone, avatar,
                address, province, city, town, town_other, sub_area,
                sub_area_other, latitude, longitude, device_token, points,
@@ -255,55 +257,55 @@ async function main(): Promise<void> {
                email_verification = EXCLUDED.email_verification,
                email_verified = EXCLUDED.email_verified,
                apple_id = EXCLUDED.apple_id`,
-            [
-              id(doc._id),
-              text(doc.userName, "Unnamed"),
-              text(doc.email).toLowerCase(),
-              text(doc.password),
-              text(doc.mintId) || `legacy-${id(doc._id)}`,
-              text(doc.role, "MEMBER") || "MEMBER",
-              text(doc.phone),
-              text(doc.avatar),
-              text(doc.address),
-              text(doc.province),
-              text(doc.city),
-              text(doc.town),
-              text(doc.townOther),
-              text(doc.subArea),
-              text(doc.subAreaOther),
-              text(doc.latitude),
-              text(doc.longitude),
-              text(doc.deviceToken),
-              whole(doc.points) ?? 0,
-              text(doc.totalCollections),
-              text(doc.totalWasteCollected),
-              stringArray(doc.referrals),
-              doc.referralRewardGranted === true,
-              coords ? coords[0] : null,
-              coords ? coords[1] : null,
-              PRECISIONS.has(String(precision)) ? String(precision) : null,
-              SOURCES.has(String(source)) ? String(source) : null,
-              real(doc.location?.accuracyMeters),
-              when(doc.location?.capturedAt),
-              json(doc.structuredAddress),
-              json(doc.locationVerification),
-              whole(doc.locationVersion) ?? 0,
-              when(doc.locationCompletedAt),
-              when(doc.profileBonusWindowStartedAt),
-              // Copied as-is. Absent means unpaid; inventing a value marks
-              // everyone paid and dropping one pays somebody twice.
-              when(doc.profileBonusGrantedAt),
-              whole(doc.profileBonusPoints),
-              json(doc.pickupHistory) ?? "[]",
-              when(doc.created) ?? new Date(),
-              doc.firstTimeLogin !== false,
-              json(doc.passwordReset),
-              json(doc.emailVerification),
-              doc.emailVerified === true,
-              doc.appleId ? text(doc.appleId) : null,
-            ],
-          );
-          counts.written += 1;
+              [
+                id(doc._id),
+                text(doc.userName, "Unnamed"),
+                text(doc.email).toLowerCase(),
+                text(doc.password),
+                text(doc.mintId) || `legacy-${id(doc._id)}`,
+                text(doc.role, "MEMBER") || "MEMBER",
+                text(doc.phone),
+                text(doc.avatar),
+                text(doc.address),
+                text(doc.province),
+                text(doc.city),
+                text(doc.town),
+                text(doc.townOther),
+                text(doc.subArea),
+                text(doc.subAreaOther),
+                text(doc.latitude),
+                text(doc.longitude),
+                text(doc.deviceToken),
+                whole(doc.points) ?? 0,
+                text(doc.totalCollections),
+                text(doc.totalWasteCollected),
+                stringArray(doc.referrals),
+                doc.referralRewardGranted === true,
+                coords ? coords[0] : null,
+                coords ? coords[1] : null,
+                PRECISIONS.has(String(precision)) ? String(precision) : null,
+                SOURCES.has(String(source)) ? String(source) : null,
+                real(doc.location?.accuracyMeters),
+                when(doc.location?.capturedAt),
+                json(doc.structuredAddress),
+                json(doc.locationVerification),
+                whole(doc.locationVersion) ?? 0,
+                when(doc.locationCompletedAt),
+                when(doc.profileBonusWindowStartedAt),
+                // Copied as-is. Absent means unpaid; inventing a value marks
+                // everyone paid and dropping one pays somebody twice.
+                when(doc.profileBonusGrantedAt),
+                whole(doc.profileBonusPoints),
+                json(doc.pickupHistory) ?? "[]",
+                when(doc.created) ?? new Date(),
+                doc.firstTimeLogin !== false,
+                json(doc.passwordReset),
+                json(doc.emailVerification),
+                doc.emailVerified === true,
+                doc.appleId ? text(doc.appleId) : null,
+              ],
+            );
+            counts.written += 1;
           } catch (error) {
             const why = error instanceof Error ? error.message : String(error);
             throw new Error(
@@ -353,10 +355,24 @@ async function main(): Promise<void> {
      * reports the same decisions the write will make, which is the entire
      * reason for having one.
      */
-    const losers = resolveDuplicateEmails(await db
-      .collection("users")
-      .find({}, { projection: { email: 1, userName: 1, location: 1, created: 1, createdAt: 1 } })
-      .toArray(), notes);
+    const losers = resolveDuplicateEmails(
+      await db
+        .collection("users")
+        .find(
+          {},
+          {
+            projection: {
+              email: 1,
+              userName: 1,
+              location: 1,
+              created: 1,
+              createdAt: 1,
+            },
+          },
+        )
+        .toArray(),
+      notes,
+    );
 
     for await (const doc of cursor) {
       counts.scanned += 1;
@@ -378,7 +394,9 @@ async function main(): Promise<void> {
     await flush();
 
     console.log(`\n\nscanned                 ${counts.scanned}`);
-    console.log(`written                 ${dryRun ? "(none — dry run)" : counts.written}`);
+    console.log(
+      `written                 ${dryRun ? "(none — dry run)" : counts.written}`,
+    );
     console.log(`with a coordinate       ${counts.withCoordinate}`);
     console.log(`duplicate emails        ${counts.duplicates}`);
     console.log(`with a password reset   ${counts.withPasswordReset}`);
@@ -388,7 +406,8 @@ async function main(): Promise<void> {
     if (notes.length > 0) {
       console.log(`\n  ${notes.length} row(s) needing attention:`);
       for (const line of notes.slice(0, 20)) console.log(`    ${line}`);
-      if (notes.length > 20) console.log(`    ... and ${notes.length - 20} more`);
+      if (notes.length > 20)
+        console.log(`    ... and ${notes.length - 20} more`);
     }
 
     if (!dryRun) {
@@ -398,7 +417,9 @@ async function main(): Promise<void> {
       console.log(`\nrows now                ${after.rows[0].n}`);
     }
 
-    console.log(`\n${dryRun ? "Dry run complete. Nothing was written." : "Done."}`);
+    console.log(
+      `\n${dryRun ? "Dry run complete. Nothing was written." : "Done."}`,
+    );
   } finally {
     await mongo.close().catch(() => {});
     await pool.end().catch(() => {});

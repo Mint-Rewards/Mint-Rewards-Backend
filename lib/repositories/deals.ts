@@ -13,7 +13,12 @@
  */
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/lib/postgres";
-import { campaigns, deals, type CampaignRow, type DealRow } from "@/lib/db/schema";
+import {
+  campaigns,
+  deals,
+  type CampaignRow,
+  type DealRow,
+} from "@/lib/db/schema";
 import type { Executor } from "@/lib/repositories/brandhub";
 
 const exec = (tx?: Executor): Executor => tx ?? getDb();

@@ -40,11 +40,17 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "name is required." }, { status: 400 });
   }
   if (body.name.trim().length > 80) {
-    return NextResponse.json({ error: "That name is too long." }, { status: 400 });
+    return NextResponse.json(
+      { error: "That name is too long." },
+      { status: 400 },
+    );
   }
 
   try {
-    const accounts = await addBrandCollectionBranch({ brandId, name: body.name });
+    const accounts = await addBrandCollectionBranch({
+      brandId,
+      name: body.name,
+    });
     return NextResponse.json({ accounts }, { status: 201 });
   } catch (error) {
     /*
@@ -53,7 +59,10 @@ export async function POST(req: NextRequest, { params }: Ctx) {
      * flattened into "something went wrong".
      */
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not add that branch." },
+      {
+        error:
+          error instanceof Error ? error.message : "Could not add that branch.",
+      },
       { status: 400 },
     );
   }

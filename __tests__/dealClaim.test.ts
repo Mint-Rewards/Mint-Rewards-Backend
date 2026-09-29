@@ -9,7 +9,12 @@
  * Skipped unless DATABASE_URL_TEST is set; jest.setup.js unsets DATABASE_URL
  * otherwise so a default run never reaches Supabase.
  */
-import { claimDealCode, createDeal, deleteDeal, findDealById } from "@/lib/repositories/deals";
+import {
+  claimDealCode,
+  createDeal,
+  deleteDeal,
+  findDealById,
+} from "@/lib/repositories/deals";
 import { newObjectId } from "@/lib/repositories/brandhub";
 
 const LIVE = Boolean(process.env.DATABASE_URL);

@@ -1,9 +1,6 @@
 import { after } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import {
-  findUserByEmailWithOtp,
-  setUserOtp,
-} from "@/lib/repositories/users";
+import { findUserByEmailWithOtp, setUserOtp } from "@/lib/repositories/users";
 import sendSignupEmail from "@/emailServices/signupConfirmation";
 import { generateOtp, hashOtp } from "@/lib/otp";
 import {

@@ -104,14 +104,19 @@ async function main(): Promise<void> {
 
     console.log(`source     ${dbName}`);
     console.log(`target     ${new URL(databaseUrl).host}/consumer`);
-    console.log(`mode       ${dryRun ? "DRY RUN — nothing will be written" : "WRITE"}\n`);
+    console.log(
+      `mode       ${dryRun ? "DRY RUN — nothing will be written" : "WRITE"}\n`,
+    );
 
     const run = async (sql: string, values: unknown[]) => {
       if (!dryRun) await pool.query(sql, values);
     };
 
     // 1. Organizations. Must land before anything referencing them.
-    const orgs = await db.collection<Document>("organizations").find().toArray();
+    const orgs = await db
+      .collection<Document>("organizations")
+      .find()
+      .toArray();
     const orgIds = new Set<string>();
     for (const doc of orgs) {
       const plan = text(doc.plan, "starter");
@@ -143,7 +148,9 @@ async function main(): Promise<void> {
     for (const doc of users) {
       const orgId = id(doc.orgId);
       if (!orgIds.has(orgId)) {
-        counts.skipped.push(`brand_user ${id(doc._id)} — org ${orgId} not migrated`);
+        counts.skipped.push(
+          `brand_user ${id(doc._id)} — org ${orgId} not migrated`,
+        );
         continue;
       }
       await run(
@@ -180,7 +187,9 @@ async function main(): Promise<void> {
       const orgId = doc.orgId ? id(doc.orgId) : null;
       const resolved = orgId && orgIds.has(orgId) ? orgId : null;
       if (orgId && !resolved) {
-        counts.skipped.push(`brand ${id(doc._id)} — org ${orgId} not migrated, org_id set null`);
+        counts.skipped.push(
+          `brand ${id(doc._id)} — org ${orgId} not migrated, org_id set null`,
+        );
       }
       const status = text(doc.status, "PENDING");
       await run(
@@ -232,7 +241,9 @@ async function main(): Promise<void> {
           doc.emailVerified === true,
           doc.verificationToken ? text(doc.verificationToken) : null,
           doc.environmentalStats ? json(doc.environmentalStats, "null") : null,
-          doc.environmentalPeriods ? json(doc.environmentalPeriods, "null") : null,
+          doc.environmentalPeriods
+            ? json(doc.environmentalPeriods, "null")
+            : null,
           when(doc.createdAt),
           when(doc.updatedAt),
         ],
@@ -244,7 +255,8 @@ async function main(): Promise<void> {
 
     if (counts.skipped.length > 0) {
       console.log(`\n  ${counts.skipped.length} row(s) needed attention:`);
-      for (const line of counts.skipped.slice(0, 20)) console.log(`    ${line}`);
+      for (const line of counts.skipped.slice(0, 20))
+        console.log(`    ${line}`);
       if (counts.skipped.length > 20) {
         console.log(`    ... and ${counts.skipped.length - 20} more`);
       }
@@ -256,10 +268,13 @@ async function main(): Promise<void> {
         UNION ALL SELECT 'brand_users', count(*)::text FROM consumer.brand_users
         UNION ALL SELECT 'brands', count(*)::text FROM consumer.brands`);
       console.log("\n  rows now:");
-      for (const row of after.rows) console.log(`    ${row.t.padEnd(15)} ${row.n}`);
+      for (const row of after.rows)
+        console.log(`    ${row.t.padEnd(15)} ${row.n}`);
     }
 
-    console.log(`\n${dryRun ? "Dry run complete. Nothing was written." : "Done."}`);
+    console.log(
+      `\n${dryRun ? "Dry run complete. Nothing was written." : "Done."}`,
+    );
   } finally {
     await mongo.close().catch(() => {});
     await pool.end().catch(() => {});

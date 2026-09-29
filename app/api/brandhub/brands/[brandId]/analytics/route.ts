@@ -133,18 +133,20 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const to = parseBound(searchParams.get("to"), "end");
     const periodApplied = Boolean(from || to);
 
-    const [allCampaigns, allDeals, brand, collectionImpact] = await Promise.all([
-      findCampaigns({ brand: brandId }),
-      findDeals({ brand: brandId }),
-      findBrandById(brandId),
-      // What we actually collected FROM this brand, over the window the
-      // picker asked for. Fetched alongside rather than after, because it is
-      // a network call to operations and nothing below depends on it.
-      brandImpact(brandId, {
-        from: req.nextUrl.searchParams.get("from") ?? undefined,
-        to: req.nextUrl.searchParams.get("to") ?? undefined,
-      }),
-    ]);
+    const [allCampaigns, allDeals, brand, collectionImpact] = await Promise.all(
+      [
+        findCampaigns({ brand: brandId }),
+        findDeals({ brand: brandId }),
+        findBrandById(brandId),
+        // What we actually collected FROM this brand, over the window the
+        // picker asked for. Fetched alongside rather than after, because it is
+        // a network call to operations and nothing below depends on it.
+        brandImpact(brandId, {
+          from: req.nextUrl.searchParams.get("from") ?? undefined,
+          to: req.nextUrl.searchParams.get("to") ?? undefined,
+        }),
+      ],
+    );
 
     const campaigns = periodApplied
       ? allCampaigns.filter((c) => overlapsPeriod(c, from, to))

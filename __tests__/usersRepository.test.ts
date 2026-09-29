@@ -63,9 +63,10 @@ whenLive("consumer accounts", () => {
         otpHash: "secret-hash",
         attempts: 0,
       });
-      const read = (await repo.findUserById(
-        user._id,
-      )) as unknown as Record<string, unknown>;
+      const read = (await repo.findUserById(user._id)) as unknown as Record<
+        string,
+        unknown
+      >;
       expect(read).not.toHaveProperty("passwordReset");
       expect(read).not.toHaveProperty("password_reset");
       expect(JSON.stringify(read)).not.toContain("secret-hash");
@@ -133,9 +134,7 @@ whenLive("consumer accounts", () => {
     it("credits the referee once under concurrency", async () => {
       const user = await makeUser();
       const results = await Promise.all(
-        Array.from({ length: 8 }, () =>
-          repo.claimReferralReward(user._id, 25),
-        ),
+        Array.from({ length: 8 }, () => repo.claimReferralReward(user._id, 25)),
       );
       expect(results.filter(Boolean)).toHaveLength(1);
       const after = await repo.findUserById(user._id);
@@ -152,7 +151,9 @@ whenLive("consumer accounts", () => {
 
     it("finds a referrer by a referred address", async () => {
       const user = await makeUser();
-      await repo.updateUser(user._id, { referrals: ["friend@example.invalid"] });
+      await repo.updateUser(user._id, {
+        referrals: ["friend@example.invalid"],
+      });
       const found = await repo.findUserByReferral("FRIEND@example.invalid");
       expect(found?._id).toBe(user._id);
     });
@@ -256,17 +257,24 @@ whenLive("consumer accounts", () => {
     it("clears a coordinate when given null", async () => {
       const user = await makeUser();
       await repo.updateUser(user._id, {
-        location: { type: "Point", coordinates: [67, 24], precision: "building" },
+        location: {
+          type: "Point",
+          coordinates: [67, 24],
+          precision: "building",
+        },
       });
       await repo.updateUser(user._id, { location: null });
       const after = await repo.findUserById(user._id);
       expect(after?.location).toBeUndefined();
       // And the precision with it — a stale "building" would put the row back
       // in the routable set with no pin to route to.
-      const raw = await (await import("@/lib/postgres")).getPool().query(
-        "SELECT precision, source FROM consumer.users WHERE id = $1",
-        [user._id],
-      );
+      const raw = await (
+        await import("@/lib/postgres")
+      )
+        .getPool()
+        .query("SELECT precision, source FROM consumer.users WHERE id = $1", [
+          user._id,
+        ]);
       expect(raw.rows[0]).toEqual({ precision: null, source: null });
     });
 

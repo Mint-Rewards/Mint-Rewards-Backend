@@ -23,7 +23,12 @@ export async function POST(
 
   // Per user, for the same reason device registration is: an IP bucket is
   // shared by everyone behind a carrier's NAT.
-  const limit = await checkRateLimit("collection-response:user", userId, 40, 15 * 60 * 1000);
+  const limit = await checkRateLimit(
+    "collection-response:user",
+    userId,
+    40,
+    15 * 60 * 1000,
+  );
   if (limit.limited) return rateLimitResponse(limit.retryAfterSeconds);
 
   const collectionId = Number((await params).collectionId);
@@ -40,14 +45,18 @@ export async function POST(
 
   const response = String(body.response ?? "").toUpperCase();
   if (response !== "ACCEPTED" && response !== "DECLINED") {
-    return Response.json({ error: "response must be ACCEPTED or DECLINED." }, { status: 400 });
+    return Response.json(
+      { error: "response must be ACCEPTED or DECLINED." },
+      { status: 400 },
+    );
   }
 
   const result = await respondToInvitation(userId, collectionId, response);
   if (!result.ok) {
     // 409 and 404 are meaningful to the person — the window closed, or this is
     // not their collection — so they are passed through rather than flattened.
-    const status = result.status === 404 || result.status === 409 ? result.status : 503;
+    const status =
+      result.status === 404 || result.status === 409 ? result.status : 503;
     return Response.json({ error: result.error }, { status });
   }
 

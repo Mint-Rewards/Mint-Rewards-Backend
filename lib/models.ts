@@ -1,6 +1,5 @@
 import mongoose, { Model, Schema } from "mongoose";
-import {
-} from "@/lib/types";
+import {} from "@/lib/types";
 
 // INVARIANT: this module never opens the DB connection at import time.
 // The driver runs with bufferCommands:false (see lib/mongodb.ts), so every
@@ -34,7 +33,6 @@ export interface ILog extends mongoose.Document {
   // Arbitrary extra data
   extra?: Record<string, unknown>;
 }
-
 
 // Provisional brand-level impact snapshot pending the brand↔collection data
 // pipeline. Once collections are brand-scoped, these figures can be derived.
@@ -85,8 +83,6 @@ const getModel = <T extends mongoose.Document>(
   (mongoose.models[name] as Model<T>) ||
   mongoose.model<T>(name, schema, collection);
 
-
-
 // Compound index for the most common dashboard queries
 LogSchema.index({ userId: 1, timestamp: -1 });
 LogSchema.index({ event: 1, timestamp: -1 });
@@ -95,5 +91,3 @@ LogSchema.index({ deviceId: 1, timestamp: -1 });
 LogSchema.index({ timestamp: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });
 
 export const Log = getModel<ILog>("Log", LogSchema);
-
-

@@ -66,9 +66,10 @@ describe("POST /api/brandhub/auth/register", () => {
     await pool.query("DELETE FROM consumer.brand_users WHERE email = ANY($1)", [
       [takenEmail, freshEmail],
     ]);
-    await pool.query("DELETE FROM consumer.brand_users WHERE org_id = ANY($1)", [
-      orgIds,
-    ]);
+    await pool.query(
+      "DELETE FROM consumer.brand_users WHERE org_id = ANY($1)",
+      [orgIds],
+    );
     await pool.query(
       "DELETE FROM consumer.organizations WHERE id = ANY($1) OR name LIKE 'Rollback Test Org%'",
       [orgIds],

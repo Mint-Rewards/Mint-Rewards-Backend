@@ -34,15 +34,27 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "name is required." }, { status: 400 });
   }
   if (body.name.trim().length > 80) {
-    return NextResponse.json({ error: "That name is too long." }, { status: 400 });
+    return NextResponse.json(
+      { error: "That name is too long." },
+      { status: 400 },
+    );
   }
 
   try {
-    const accounts = await renameBrandCollectionBranch({ brandId, accountId, name: body.name });
+    const accounts = await renameBrandCollectionBranch({
+      brandId,
+      accountId,
+      name: body.name,
+    });
     return NextResponse.json({ accounts });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not rename that branch." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not rename that branch.",
+      },
       { status: 400 },
     );
   }

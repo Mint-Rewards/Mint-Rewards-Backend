@@ -48,8 +48,7 @@ export interface PastCollection {
 }
 
 export type AdminApiResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; status?: number; error: string };
+  { ok: true; data: T } | { ok: false; status?: number; error: string };
 
 function configured(): { url: string; token: string } | null {
   const { adminApiUrl, adminApiToken } = serverEnv;
@@ -59,7 +58,9 @@ function configured(): { url: string; token: string } | null {
 
 async function call<T>(
   path: string,
-  init: { method: "GET" | "POST" | "DELETE"; body?: unknown } = { method: "GET" },
+  init: { method: "GET" | "POST" | "DELETE"; body?: unknown } = {
+    method: "GET",
+  },
 ): Promise<AdminApiResult<T>> {
   const target = configured();
   if (!target) return { ok: false, error: "operations API not configured" };
@@ -84,16 +85,24 @@ async function call<T>(
       return {
         ok: false,
         status: res.status,
-        error: parsed?.error ?? parsed?.message ?? `operations API returned ${res.status}`,
+        error:
+          parsed?.error ??
+          parsed?.message ??
+          `operations API returned ${res.status}`,
       };
     }
     return { ok: true, data: parsed as T };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
-export function listInvitations(userId: string): Promise<AdminApiResult<{ invitations: Invitation[] }>> {
+export function listInvitations(
+  userId: string,
+): Promise<AdminApiResult<{ invitations: Invitation[] }>> {
   return call(`/household/${encodeURIComponent(userId)}/invitations`);
 }
 
@@ -101,7 +110,9 @@ export function listPastCollections(
   userId: string,
   limit = 20,
 ): Promise<AdminApiResult<{ collections: PastCollection[] }>> {
-  return call(`/household/${encodeURIComponent(userId)}/collections?limit=${limit}`);
+  return call(
+    `/household/${encodeURIComponent(userId)}/collections?limit=${limit}`,
+  );
 }
 
 /**
@@ -194,10 +205,13 @@ export function respondToInvitation(
   collectionId: number,
   response: "ACCEPTED" | "DECLINED",
 ): Promise<AdminApiResult<{ collectionId: number; status: string }>> {
-  return call(`/household/${encodeURIComponent(userId)}/collections/${collectionId}/response`, {
-    method: "POST",
-    body: { response },
-  });
+  return call(
+    `/household/${encodeURIComponent(userId)}/collections/${collectionId}/response`,
+    {
+      method: "POST",
+      body: { response },
+    },
+  );
 }
 
 export interface InboxNotification {
@@ -244,6 +258,10 @@ export function markNotificationsRead(
 ): Promise<AdminApiResult<{ read: number }>> {
   return call("/notifications/read", {
     method: "POST",
-    body: { audience: "USER", subjectId: userId, ...(ids?.length ? { ids } : {}) },
+    body: {
+      audience: "USER",
+      subjectId: userId,
+      ...(ids?.length ? { ids } : {}),
+    },
   });
 }

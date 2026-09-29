@@ -173,10 +173,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     let brand: Omit<BrandDoc, "verificationToken"> | null;
     try {
-      const updated = await updateBrand(
-        id,
-        update as Partial<BrandDoc>,
-      );
+      const updated = await updateBrand(id, update as Partial<BrandDoc>);
       brand = updated ? withoutVerificationToken(updated) : null;
     } catch (error: unknown) {
       // Duplicate key on the unique `email` index — surface as a clean 409

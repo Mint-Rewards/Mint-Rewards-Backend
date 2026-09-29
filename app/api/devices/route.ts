@@ -12,7 +12,11 @@
  * else's notifications.
  */
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { registerDevice, unregisterDevice, type Platform } from "@/lib/notifications";
+import {
+  registerDevice,
+  unregisterDevice,
+  type Platform,
+} from "@/lib/notifications";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 const PLATFORMS: readonly Platform[] = ["IOS", "ANDROID", "WEB"];
@@ -37,7 +41,12 @@ export async function POST(req: Request) {
   // "unknown" when no proxy header is present, which is one global bucket for
   // everyone. Per-user is the meaningful unit: registration is authenticated
   // and idempotent, so the only thing worth bounding is one account looping.
-  const limit = await checkRateLimit("devices:user", userId, 30, 15 * 60 * 1000);
+  const limit = await checkRateLimit(
+    "devices:user",
+    userId,
+    30,
+    15 * 60 * 1000,
+  );
   if (limit.limited) return rateLimitResponse(limit.retryAfterSeconds);
 
   let body: { token?: unknown; platform?: unknown; appVersion?: unknown };
@@ -49,7 +58,10 @@ export async function POST(req: Request) {
 
   const token = typeof body.token === "string" ? body.token.trim() : "";
   if (token.length < 8 || token.length > 4096) {
-    return Response.json({ error: "A push token is required." }, { status: 400 });
+    return Response.json(
+      { error: "A push token is required." },
+      { status: 400 },
+    );
   }
 
   const platform = String(body.platform ?? "").toUpperCase() as Platform;
@@ -102,7 +114,10 @@ export async function DELETE(req: Request) {
 
   const token = typeof body.token === "string" ? body.token.trim() : "";
   if (!token) {
-    return Response.json({ error: "A push token is required." }, { status: 400 });
+    return Response.json(
+      { error: "A push token is required." },
+      { status: 400 },
+    );
   }
 
   const result = await unregisterDevice(token);

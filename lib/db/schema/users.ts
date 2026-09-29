@@ -46,7 +46,10 @@ const geography = customType<{ data: string; driverData: string }>({
   dataType: () => "geography(Point,4326)",
 });
 
-export const accountType = consumer.enum("account_type", ["HOUSEHOLD", "BRAND"]);
+export const accountType = consumer.enum("account_type", [
+  "HOUSEHOLD",
+  "BRAND",
+]);
 
 export const users = consumer.table(
   "users",
@@ -112,7 +115,10 @@ export const users = consumer.table(
      * does not here — a text[] column has no such ceiling — so the caveat in
      * the old schema no longer applies, though the data is still never pruned.
      */
-    referrals: text("referrals").array().notNull().default(sql`'{}'`),
+    referrals: text("referrals")
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
     referralRewardGranted: boolean("referral_reward_granted")
       .notNull()
       .default(false),
@@ -165,7 +171,9 @@ export const users = consumer.table(
     profileBonusPoints: integer("profile_bonus_points"),
 
     /** Address snapshots frozen at pickup creation. Read whole. */
-    pickupHistory: jsonb("pickup_history").notNull().default(sql`'[]'::jsonb`),
+    pickupHistory: jsonb("pickup_history")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
 
     created: timestamp("created", { withTimezone: true })
       .notNull()

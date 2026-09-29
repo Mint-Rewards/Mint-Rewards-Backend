@@ -1,10 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
 import { findBrands, type BrandDoc } from "@/lib/repositories/brandhub";
-import {
-  findCampaigns,
-  type CampaignDoc,
-} from "@/lib/repositories/deals";
+import { findCampaigns, type CampaignDoc } from "@/lib/repositories/deals";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 export async function GET(req: NextRequest) {

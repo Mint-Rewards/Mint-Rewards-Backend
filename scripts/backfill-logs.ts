@@ -79,8 +79,12 @@ async function main(): Promise<void> {
     const total = await collection.countDocuments(filter);
     console.log(`source     ${dbName}.logs`);
     console.log(`target     ${new URL(databaseUrl).host}/consumer.logs`);
-    console.log(`mode       ${dryRun ? "DRY RUN — nothing will be written" : "WRITE"}`);
-    console.log(`watermark  ${watermark ? watermark.toISOString() : "none — copying everything"}`);
+    console.log(
+      `mode       ${dryRun ? "DRY RUN — nothing will be written" : "WRITE"}`,
+    );
+    console.log(
+      `watermark  ${watermark ? watermark.toISOString() : "none — copying everything"}`,
+    );
     console.log(`to copy    ${total}\n`);
 
     if (total === 0) {
@@ -149,7 +153,9 @@ async function main(): Promise<void> {
       `skipped    ${skipped}${skipped ? " (missing event, deviceId or timestamp)" : ""}`,
     );
     console.log(`rows now   ${after.rows[0].n}`);
-    console.log(`\n${dryRun ? "Dry run complete. Nothing was written." : "Done."}`);
+    console.log(
+      `\n${dryRun ? "Dry run complete. Nothing was written." : "Done."}`,
+    );
   } finally {
     await mongo.close().catch(() => {});
     await pool.end().catch(() => {});

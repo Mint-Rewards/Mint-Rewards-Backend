@@ -77,7 +77,9 @@ export async function GET(req: NextRequest) {
         lat: Number(p.lat),
         lng: Number(p.lon),
       }))
-      .filter((p) => p.label && Number.isFinite(p.lat) && Number.isFinite(p.lng));
+      .filter(
+        (p) => p.label && Number.isFinite(p.lat) && Number.isFinite(p.lng),
+      );
 
     return NextResponse.json({ places });
   } catch {

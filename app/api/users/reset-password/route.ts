@@ -1,9 +1,6 @@
 import { after } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import {
-  findUserByEmailWithOtp,
-  setUserOtp,
-} from "@/lib/repositories/users";
+import { findUserByEmailWithOtp, setUserOtp } from "@/lib/repositories/users";
 import sendPasswordResetEmail from "@/emailServices/paswordReset";
 import { generateOtp, hashOtp } from "@/lib/otp";
 import {
@@ -64,10 +61,7 @@ export async function POST(req: Request) {
 
     await connectToDatabase();
 
-    const user = await findUserByEmailWithOtp(
-      normalizedEmail,
-      "passwordReset",
-    );
+    const user = await findUserByEmailWithOtp(normalizedEmail, "passwordReset");
 
     if (!user) {
       return Response.json(

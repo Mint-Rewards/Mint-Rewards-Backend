@@ -189,7 +189,9 @@ function toUser(row: PublicRow): UserDoc {
               ? { source: row.locationSource as UserLocation["source"] }
               : {}),
             ...(row.locationPrecision
-              ? { precision: row.locationPrecision as UserLocation["precision"] }
+              ? {
+                  precision: row.locationPrecision as UserLocation["precision"],
+                }
               : {}),
             ...(row.locationAccuracyMeters !== null
               ? { accuracyMeters: row.locationAccuracyMeters as number }
@@ -580,7 +582,8 @@ export async function setUserOtp(
   tx?: Executor,
 ): Promise<boolean> {
   if (!OBJECT_ID.test(id)) return false;
-  const column = which === "passwordReset" ? "passwordReset" : "emailVerification";
+  const column =
+    which === "passwordReset" ? "passwordReset" : "emailVerification";
   const rows = await exec(tx)
     .update(users)
     .set({ [column]: block })
@@ -623,9 +626,7 @@ export async function startBonusWindow(
   const rows = await exec(tx)
     .update(users)
     .set({ profileBonusWindowStartedAt: startedAt })
-    .where(
-      and(eq(users.id, userId), isNull(users.profileBonusWindowStartedAt)),
-    )
+    .where(and(eq(users.id, userId), isNull(users.profileBonusWindowStartedAt)))
     .returning({ id: users.id });
   return rows.length === 1 ? startedAt : null;
 }
@@ -712,7 +713,8 @@ export async function recordOtpAttempt(
   tx?: Executor,
 ): Promise<boolean> {
   if (!OBJECT_ID.test(userId)) return false;
-  const column = which === "passwordReset" ? "password_reset" : "email_verification";
+  const column =
+    which === "passwordReset" ? "password_reset" : "email_verification";
   const result = await exec(tx).execute(sql`
     UPDATE consumer.users
        SET ${sql.raw(column)} = jsonb_set(
@@ -739,7 +741,8 @@ export async function consumeOtp(
   tx?: Executor,
 ): Promise<boolean> {
   if (!OBJECT_ID.test(userId)) return false;
-  const column = which === "passwordReset" ? "password_reset" : "email_verification";
+  const column =
+    which === "passwordReset" ? "password_reset" : "email_verification";
   const result = await exec(tx).execute(sql`
     UPDATE consumer.users
        SET ${sql.raw(column)} = NULL

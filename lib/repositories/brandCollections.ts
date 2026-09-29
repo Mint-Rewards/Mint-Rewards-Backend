@@ -74,7 +74,10 @@ export async function listBrandCollectionAccounts(
  * constraint written for people, and the `+` suffix keeps it from colliding
  * with the brand's real BrandHub login.
  */
-function syntheticIdentity(accountId: string): { email: string; mintId: string } {
+function syntheticIdentity(accountId: string): {
+  email: string;
+  mintId: string;
+} {
   return {
     email: `collections+${accountId}@brands.mintrewards.app`,
     mintId: `BRAND-${accountId.slice(-8).toUpperCase()}`,
@@ -125,20 +128,22 @@ export async function addBrandCollectionBranch(input: {
   const accountId = newObjectId();
   const identity = syntheticIdentity(accountId);
 
-  await getDb().insert(users).values({
-    id: accountId,
-    userName: name,
-    email: identity.email,
-    password: "",
-    mintId: identity.mintId,
-    phone: brand.phone ?? "",
-    address: "",
-    // Verified by construction: the brand authenticated to ask for this, and
-    // the directory will not list an unverified account at all.
-    emailVerified: true,
-    accountType: "BRAND",
-    brandId: input.brandId,
-  });
+  await getDb()
+    .insert(users)
+    .values({
+      id: accountId,
+      userName: name,
+      email: identity.email,
+      password: "",
+      mintId: identity.mintId,
+      phone: brand.phone ?? "",
+      address: "",
+      // Verified by construction: the brand authenticated to ask for this, and
+      // the directory will not list an unverified account at all.
+      emailVerified: true,
+      accountType: "BRAND",
+      brandId: input.brandId,
+    });
 
   return listBrandCollectionAccounts(input.brandId);
 }
@@ -175,7 +180,8 @@ export async function renameBrandCollectionBranch(input: {
     )
     .returning({ id: users.id });
 
-  if (updated.length === 0) throw new Error("No such collection account for this brand.");
+  if (updated.length === 0)
+    throw new Error("No such collection account for this brand.");
   return listBrandCollectionAccounts(input.brandId);
 }
 
@@ -276,7 +282,8 @@ export async function setBrandCollectionPin(input: {
            )
      LIMIT 1
   `);
-  const clashing = (clash as unknown as { rows?: { name: string }[] }).rows?.[0];
+  const clashing = (clash as unknown as { rows?: { name: string }[] })
+    .rows?.[0];
   if (clashing) {
     throw new Error(
       `That is the same spot as "${clashing.name}". Each branch needs its own collection point.`,
@@ -305,6 +312,7 @@ export async function setBrandCollectionPin(input: {
     )
     .returning({ id: users.id });
 
-  if (updated.length === 0) throw new Error("No such collection account for this brand.");
+  if (updated.length === 0)
+    throw new Error("No such collection account for this brand.");
   return { accountId: input.accountId, lat: input.lat, lng: input.lng };
 }

@@ -4,10 +4,7 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 import connectToDatabase from "../lib/mongodb";
-import {
-  createDeal,
-  findDealById,
-} from "../lib/repositories/deals";
+import { createDeal, findDealById } from "../lib/repositories/deals";
 import {
   createBrand,
   deleteBrandsByIds,
@@ -256,9 +253,7 @@ describe("BrandHub brand + deals -> app visibility and redemption", () => {
       { params: Promise.resolve({ id: brandId, dealId: approvedDealId }) },
     );
     expect(response.status).toBe(200);
-    await expect(
-      findDealById(approvedDealId),
-    ).resolves.toMatchObject({
+    await expect(findDealById(approvedDealId)).resolves.toMatchObject({
       status: "active",
     });
   });

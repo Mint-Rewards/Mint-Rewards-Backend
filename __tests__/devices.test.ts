@@ -33,7 +33,10 @@ function req(body: unknown, token?: string): Request {
   });
 }
 
-const VALID = { token: "fRQpnQ0-nUmGiQh6FMDYRZ:APA91bExample", platform: "IOS" };
+const VALID = {
+  token: "fRQpnQ0-nUmGiQh6FMDYRZ:APA91bExample",
+  platform: "IOS",
+};
 
 describe("POST /api/devices", () => {
   let register: jest.SpyInstance;
@@ -50,7 +53,10 @@ describe("POST /api/devices", () => {
     // subjectId could subscribe itself to someone else's notifications.
     const someoneElse = new mongoose.Types.ObjectId().toString();
     const res = await POST(
-      req({ ...VALID, subjectId: someoneElse, audience: "ADMIN" }, tokenFor(userId)),
+      req(
+        { ...VALID, subjectId: someoneElse, audience: "ADMIN" },
+        tokenFor(userId),
+      ),
     );
 
     expect(res.status).toBe(201);
@@ -71,7 +77,9 @@ describe("POST /api/devices", () => {
   it("refuses a token scoped to another purpose", async () => {
     // Password-reset tokens carry `purpose` and must never authenticate a
     // general request — getAuthenticatedUserId rejects them.
-    const res = await POST(req(VALID, tokenFor(userId, { purpose: "password-reset" })));
+    const res = await POST(
+      req(VALID, tokenFor(userId, { purpose: "password-reset" })),
+    );
     expect(res.status).toBe(401);
     expect(register).not.toHaveBeenCalled();
   });
@@ -85,15 +93,21 @@ describe("POST /api/devices", () => {
   });
 
   it("rejects an unknown platform", async () => {
-    const res = await POST(req({ ...VALID, platform: "BLACKBERRY" }, tokenFor(userId)));
+    const res = await POST(
+      req({ ...VALID, platform: "BLACKBERRY" }, tokenFor(userId)),
+    );
     expect(res.status).toBe(400);
     expect(register).not.toHaveBeenCalled();
   });
 
   it("accepts a lowercase platform", async () => {
-    const res = await POST(req({ ...VALID, platform: "ios" }, tokenFor(userId)));
+    const res = await POST(
+      req({ ...VALID, platform: "ios" }, tokenFor(userId)),
+    );
     expect(res.status).toBe(201);
-    expect(register).toHaveBeenCalledWith(expect.objectContaining({ platform: "IOS" }));
+    expect(register).toHaveBeenCalledWith(
+      expect.objectContaining({ platform: "IOS" }),
+    );
   });
 
   it("reports a downstream outage without pretending it worked", async () => {

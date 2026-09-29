@@ -19,7 +19,8 @@ const JWT_SECRET =
   "";
 
 const userId = new mongoose.Types.ObjectId().toString();
-const tokenFor = (id: string) => jwt.sign({ id }, JWT_SECRET, { expiresIn: "1h" });
+const tokenFor = (id: string) =>
+  jwt.sign({ id }, JWT_SECRET, { expiresIn: "1h" });
 
 const INVITATION = {
   collectionId: 25,
@@ -75,7 +76,9 @@ describe("GET /api/collections/invitations", () => {
     // A household with nothing pending and a backend that cannot reach
     // operations look identical from the app, and neither is something the
     // person can act on — so the app is not shown an error it cannot use.
-    jest.spyOn(adminApi, "listInvitations").mockResolvedValue({ ok: false, error: "ECONNREFUSED" });
+    jest
+      .spyOn(adminApi, "listInvitations")
+      .mockResolvedValue({ ok: false, error: "ECONNREFUSED" });
     jest.spyOn(console, "warn").mockImplementation(() => {});
 
     const res = await invitationsGet(get(tokenFor(userId)));
@@ -90,7 +93,10 @@ describe("POST /api/collections/[collectionId]/respond", () => {
   it("records the answer against the user in the JWT", async () => {
     const respond = jest
       .spyOn(adminApi, "respondToInvitation")
-      .mockResolvedValue({ ok: true, data: { collectionId: 25, status: "ACCEPTED" } });
+      .mockResolvedValue({
+        ok: true,
+        data: { collectionId: 25, status: "ACCEPTED" },
+      });
 
     const { req, ctx } = post(tokenFor(userId), { response: "ACCEPTED" });
     const res = await respondPost(req, ctx);
@@ -102,7 +108,10 @@ describe("POST /api/collections/[collectionId]/respond", () => {
   it("accepts a lowercase answer", async () => {
     const respond = jest
       .spyOn(adminApi, "respondToInvitation")
-      .mockResolvedValue({ ok: true, data: { collectionId: 25, status: "DECLINED" } });
+      .mockResolvedValue({
+        ok: true,
+        data: { collectionId: 25, status: "DECLINED" },
+      });
     const { req, ctx } = post(tokenFor(userId), { response: "declined" });
     expect((await respondPost(req, ctx)).status).toBe(200);
     expect(respond).toHaveBeenCalledWith(userId, 25, "DECLINED");

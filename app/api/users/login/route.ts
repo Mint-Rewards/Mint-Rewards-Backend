@@ -2,10 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
-import {
-  countUsers,
-  findUserByEmailForLogin,
-} from "@/lib/repositories/users";
+import { countUsers, findUserByEmailForLogin } from "@/lib/repositories/users";
 import {
   checkRateLimit,
   clientIp,

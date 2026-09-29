@@ -33,15 +33,15 @@ const post = (body: unknown) =>
 
 describe("mapping a log into a row", () => {
   it("keeps a level the constraint accepts", () => {
-    expect(toRow({ ...VALID, level: "error", timestamp: new Date() }).level).toBe(
-      "error",
-    );
+    expect(
+      toRow({ ...VALID, level: "error", timestamp: new Date() }).level,
+    ).toBe("error");
   });
 
   it("lowercases before judging", () => {
-    expect(toRow({ ...VALID, level: "WARN", timestamp: new Date() }).level).toBe(
-      "warn",
-    );
+    expect(
+      toRow({ ...VALID, level: "WARN", timestamp: new Date() }).level,
+    ).toBe("warn");
   });
 
   it("coerces a level Mongo accepted but the CHECK would reject", () => {
@@ -92,7 +92,10 @@ describe("building the filter", () => {
 
   it("treats a date range as two bounds", () => {
     expect(
-      buildConditions({ from: new Date("2026-01-01"), to: new Date("2026-02-01") }),
+      buildConditions({
+        from: new Date("2026-01-01"),
+        to: new Date("2026-02-01"),
+      }),
     ).toHaveLength(2);
   });
 

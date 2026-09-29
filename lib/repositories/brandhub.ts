@@ -63,7 +63,8 @@ function driverError(error: unknown): { code?: string; constraint?: string } {
   let current = error;
   for (let depth = 0; depth < 5; depth += 1) {
     if (typeof current !== "object" || current === null) break;
-    if ("code" in current) return current as { code?: string; constraint?: string };
+    if ("code" in current)
+      return current as { code?: string; constraint?: string };
     if (!("cause" in current)) break;
     current = (current as { cause?: unknown }).cause;
   }
@@ -147,7 +148,7 @@ export interface BrandDoc {
  * and a column holding something other than an array yields an empty one
  * rather than throwing inside a response.
  */
-const asArray = <T,>(value: unknown): T[] =>
+const asArray = <T>(value: unknown): T[] =>
   Array.isArray(value) ? (value as T[]) : [];
 
 function toOrganization(row: OrganizationRow): OrganizationDoc {
@@ -253,9 +254,7 @@ export function newObjectId(): string {
 export async function inTransaction<T>(
   work: (tx: Executor) => Promise<T>,
 ): Promise<T> {
-  return translating(() =>
-    getDb().transaction((tx) => work(tx as Executor)),
-  );
+  return translating(() => getDb().transaction((tx) => work(tx as Executor)));
 }
 
 const exec = (tx?: Executor): Executor => tx ?? getDb();

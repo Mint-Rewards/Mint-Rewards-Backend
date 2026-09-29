@@ -113,15 +113,24 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   const lat = Number(body.lat);
   const lng = Number(body.lng);
   if (typeof body.accountId !== "string" || !body.accountId) {
-    return NextResponse.json({ error: "accountId is required." }, { status: 400 });
+    return NextResponse.json(
+      { error: "accountId is required." },
+      { status: 400 },
+    );
   }
   // Range-checked here rather than left to PostGIS: ST_MakePoint accepts any
   // pair of numbers quite happily, and a transposed lat/lng lands in the sea.
   if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
-    return NextResponse.json({ error: "lat must be between -90 and 90." }, { status: 400 });
+    return NextResponse.json(
+      { error: "lat must be between -90 and 90." },
+      { status: 400 },
+    );
   }
   if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
-    return NextResponse.json({ error: "lng must be between -180 and 180." }, { status: 400 });
+    return NextResponse.json(
+      { error: "lng must be between -180 and 180." },
+      { status: 400 },
+    );
   }
 
   try {

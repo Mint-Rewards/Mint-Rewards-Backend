@@ -33,7 +33,10 @@ export interface NotificationsResult {
 function configured(): { url: string; token: string } | null {
   const { notificationsUrl, notificationsToken } = serverEnv;
   if (!notificationsUrl || !notificationsToken) return null;
-  return { url: notificationsUrl.replace(/\/+$/, ""), token: notificationsToken };
+  return {
+    url: notificationsUrl.replace(/\/+$/, ""),
+    token: notificationsToken,
+  };
 }
 
 async function call(
@@ -67,7 +70,10 @@ async function call(
     const text = await res.text().catch(() => "");
     return { ok: false, status: res.status, error: text.slice(0, 300) };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 

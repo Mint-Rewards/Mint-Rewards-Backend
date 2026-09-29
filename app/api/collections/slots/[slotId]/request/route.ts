@@ -21,7 +21,10 @@ export async function POST(
 
   const slotId = Number((await params).slotId);
   if (!Number.isInteger(slotId) || slotId <= 0) {
-    return Response.json({ error: "Unknown collection date." }, { status: 400 });
+    return Response.json(
+      { error: "Unknown collection date." },
+      { status: 400 },
+    );
   }
 
   const result = await requestCollectionSlot(userId, slotId);

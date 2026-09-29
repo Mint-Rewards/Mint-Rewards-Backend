@@ -51,7 +51,10 @@ if (!brand) {
 }
 console.log(`brand        ${brand.brand_name} (${brand.id})`);
 
-await db.query("UPDATE consumer.brands SET wants_collections = true WHERE id = $1", [brand.id]);
+await db.query(
+  "UPDATE consumer.brands SET wants_collections = true WHERE id = $1",
+  [brand.id],
+);
 
 const { rows: existing } = await db.query<{ id: string }>(
   "SELECT id FROM consumer.users WHERE brand_id = $1 AND account_type = 'BRAND' LIMIT 1",
@@ -105,7 +108,9 @@ if (pinned.rowCount) {
        FROM consumer.users WHERE id = $1`,
     [accountId],
   );
-  console.log(`pin          kept existing ${at[0]?.lat?.toFixed(5)}, ${at[0]?.lng?.toFixed(5)}`);
+  console.log(
+    `pin          kept existing ${at[0]?.lat?.toFixed(5)}, ${at[0]?.lng?.toFixed(5)}`,
+  );
 }
 
 if (reset) {
@@ -145,7 +150,13 @@ for (const round of HISTORY) {
         status, completed_at, captain_answer, captain_responded_at)
      VALUES ($1, $2, 'Karachi', $3, 'MORNING', $4, 'COMPLETED', $5, 'ACCEPTED', $5)
      RETURNING id`,
-    [`Demo: ${brand.brand_name} pickup ${day}`, zone[0]!.id, day, captain[0]!.id, when],
+    [
+      `Demo: ${brand.brand_name} pickup ${day}`,
+      zone[0]!.id,
+      day,
+      captain[0]!.id,
+      when,
+    ],
   );
 
   await db.query(
@@ -191,7 +202,9 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 const periods = [3, 2, 1, 0].map((back) => {
   const start = monthStart(back);
-  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0));
+  const end = new Date(
+    Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0),
+  );
   // Rising month on month, so the picker shows a trend rather than a flat line.
   const kg = Math.round((140 + (3 - back) * 55) * 100) / 100;
   return {
@@ -231,11 +244,15 @@ await db.query(
   ],
 );
 
-console.log(`\nesg buckets  ${periods.length} months, ${curatedTotal.toFixed(2)} kg attributed`);
+console.log(
+  `\nesg buckets  ${periods.length} months, ${curatedTotal.toFixed(2)} kg attributed`,
+);
 for (const p of periods) {
   console.log(`  ${p.periodStart} → ${p.periodEnd}  ${p.totalWasteKg} kg`);
 }
 
 console.log(`\ntotal        ${total.toFixed(2)} kg`);
-console.log(`co2 avoided  ${(Math.round(total * 0.21 * 100) / 100).toFixed(2)} kg`);
+console.log(
+  `co2 avoided  ${(Math.round(total * 0.21 * 100) / 100).toFixed(2)} kg`,
+);
 await db.end();

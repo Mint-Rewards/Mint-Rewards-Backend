@@ -245,9 +245,7 @@ describe("BrandHub demo features", () => {
     const body = (await response.json()) as { campaign: { status: string } };
     expect(response.status).toBe(200);
     expect(body.campaign.status).toBe("PENDING");
-    await expect(
-      findCampaignById(campaign._id),
-    ).resolves.toMatchObject({
+    await expect(findCampaignById(campaign._id)).resolves.toMatchObject({
       status: "PENDING",
     });
   });
@@ -323,9 +321,9 @@ describe("BrandHub demo features", () => {
     expect(response.status).toBe(200);
     expect(body.campaign.status).toBe("APPROVED");
     expect(body.campaign.discountCodes).toEqual(["ONLY1", "TOPUP1", "TOPUP2"]);
-    await expect(
-      findCampaignById(campaign._id),
-    ).resolves.toMatchObject({ status: "APPROVED" });
+    await expect(findCampaignById(campaign._id)).resolves.toMatchObject({
+      status: "APPROVED",
+    });
   });
 
   // A content edit still re-moderates, even when it arrives alongside addCodes.

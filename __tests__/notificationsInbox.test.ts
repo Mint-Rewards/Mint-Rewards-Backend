@@ -18,7 +18,8 @@ const JWT_SECRET =
   "";
 
 const userId = new mongoose.Types.ObjectId().toString();
-const tokenFor = (id: string) => jwt.sign({ id }, JWT_SECRET, { expiresIn: "1h" });
+const tokenFor = (id: string) =>
+  jwt.sign({ id }, JWT_SECRET, { expiresIn: "1h" });
 
 const INBOX = {
   notifications: [
@@ -55,24 +56,33 @@ describe("GET /api/notifications", () => {
   afterEach(() => jest.restoreAllMocks());
 
   it("asks for the household in the JWT", async () => {
-    const list = jest.spyOn(adminApi, "listNotifications").mockResolvedValue({ ok: true, data: INBOX });
+    const list = jest
+      .spyOn(adminApi, "listNotifications")
+      .mockResolvedValue({ ok: true, data: INBOX });
     const res = await inboxGet(get(tokenFor(userId)));
 
     expect(res.status).toBe(200);
-    expect(list).toHaveBeenCalledWith(userId, expect.objectContaining({ limit: 30 }));
+    expect(list).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({ limit: 30 }),
+    );
     const body = await res.json();
     expect(body.notifications).toHaveLength(1);
     expect(body.unread).toBe(1);
   });
 
   it("passes a page cursor through", async () => {
-    const list = jest.spyOn(adminApi, "listNotifications").mockResolvedValue({ ok: true, data: INBOX });
+    const list = jest
+      .spyOn(adminApi, "listNotifications")
+      .mockResolvedValue({ ok: true, data: INBOX });
     await inboxGet(get(tokenFor(userId), "?limit=10&before=42"));
     expect(list).toHaveBeenCalledWith(userId, { limit: 10, before: 42 });
   });
 
   it("ignores an implausible limit rather than forwarding it", async () => {
-    const list = jest.spyOn(adminApi, "listNotifications").mockResolvedValue({ ok: true, data: INBOX });
+    const list = jest
+      .spyOn(adminApi, "listNotifications")
+      .mockResolvedValue({ ok: true, data: INBOX });
     await inboxGet(get(tokenFor(userId), "?limit=9999"));
     expect(list).toHaveBeenCalledWith(userId, { limit: 30 });
   });
@@ -86,7 +96,9 @@ describe("GET /api/notifications", () => {
   it("shows an empty inbox when operations is unreachable", async () => {
     // Indistinguishable from having no messages, and neither is something the
     // person can act on — so the app is not shown an error it cannot use.
-    jest.spyOn(adminApi, "listNotifications").mockResolvedValue({ ok: false, error: "ECONNREFUSED" });
+    jest
+      .spyOn(adminApi, "listNotifications")
+      .mockResolvedValue({ ok: false, error: "ECONNREFUSED" });
     jest.spyOn(console, "warn").mockImplementation(() => {});
 
     const res = await inboxGet(get(tokenFor(userId)));
@@ -101,7 +113,9 @@ describe("POST /api/notifications/read", () => {
   afterEach(() => jest.restoreAllMocks());
 
   it("marks everything read when no ids are given", async () => {
-    const mark = jest.spyOn(adminApi, "markNotificationsRead").mockResolvedValue({ ok: true, data: { read: 3 } });
+    const mark = jest
+      .spyOn(adminApi, "markNotificationsRead")
+      .mockResolvedValue({ ok: true, data: { read: 3 } });
     const res = await readPost(post(tokenFor(userId), {}));
     expect(res.status).toBe(200);
     expect(mark).toHaveBeenCalledWith(userId, undefined);
@@ -109,20 +123,26 @@ describe("POST /api/notifications/read", () => {
   });
 
   it("marks only the ids it was given", async () => {
-    const mark = jest.spyOn(adminApi, "markNotificationsRead").mockResolvedValue({ ok: true, data: { read: 2 } });
+    const mark = jest
+      .spyOn(adminApi, "markNotificationsRead")
+      .mockResolvedValue({ ok: true, data: { read: 2 } });
     await readPost(post(tokenFor(userId), { ids: [9, 10] }));
     expect(mark).toHaveBeenCalledWith(userId, [9, 10]);
   });
 
   it("drops ids that are not ids", async () => {
-    const mark = jest.spyOn(adminApi, "markNotificationsRead").mockResolvedValue({ ok: true, data: { read: 1 } });
+    const mark = jest
+      .spyOn(adminApi, "markNotificationsRead")
+      .mockResolvedValue({ ok: true, data: { read: 1 } });
     await readPost(post(tokenFor(userId), { ids: [9, "nine", -1, null, 1.5] }));
     expect(mark).toHaveBeenCalledWith(userId, [9]);
   });
 
   it("treats an empty body as mark-everything", async () => {
     // The ordinary case: opening the tab clears the badge.
-    const mark = jest.spyOn(adminApi, "markNotificationsRead").mockResolvedValue({ ok: true, data: { read: 0 } });
+    const mark = jest
+      .spyOn(adminApi, "markNotificationsRead")
+      .mockResolvedValue({ ok: true, data: { read: 0 } });
     const res = await readPost(post(tokenFor(userId)));
     expect(res.status).toBe(200);
     expect(mark).toHaveBeenCalledWith(userId, undefined);
@@ -136,7 +156,9 @@ describe("POST /api/notifications/read", () => {
 
   it("does not report a failure the person cannot act on", async () => {
     // The badge corrects itself on the next load; an error here is noise.
-    jest.spyOn(adminApi, "markNotificationsRead").mockResolvedValue({ ok: false, error: "timeout" });
+    jest
+      .spyOn(adminApi, "markNotificationsRead")
+      .mockResolvedValue({ ok: false, error: "timeout" });
     jest.spyOn(console, "warn").mockImplementation(() => {});
     const res = await readPost(post(tokenFor(userId), {}));
     expect(res.status).toBe(200);

@@ -80,12 +80,17 @@ describe("a brand's premises", () => {
      * Brand <objectid>" rows had to be found and removed by hand.
      */
     const ids = [brandId, neighbourBrandId].filter(Boolean) as string[];
-    await getPool().query("DELETE FROM consumer.users WHERE brand_id = ANY($1)", [ids]);
+    await getPool().query(
+      "DELETE FROM consumer.users WHERE brand_id = ANY($1)",
+      [ids],
+    );
     const { rows } = await getPool().query(
       "DELETE FROM consumer.brands WHERE id = ANY($1) RETURNING org_id",
       [ids],
     );
-    const orgIds = [...new Set(rows.map((r: { org_id: string }) => r.org_id).filter(Boolean))];
+    const orgIds = [
+      ...new Set(rows.map((r: { org_id: string }) => r.org_id).filter(Boolean)),
+    ];
     if (orgIds.length > 0) {
       // Only if nothing else is left pointing at them.
       await getPool().query(
@@ -117,7 +122,10 @@ describe("a brand's premises", () => {
      * warehouse as much as to a house.
      */
     await addBrandCollectionBranch({ brandId, name: "Head office" });
-    const accounts = await addBrandCollectionBranch({ brandId, name: "Clifton" });
+    const accounts = await addBrandCollectionBranch({
+      brandId,
+      name: "Clifton",
+    });
     expect(accounts).toHaveLength(2);
     const clifton = accounts.find((a) => a.name === "Clifton");
     expect(clifton).toBeDefined();
@@ -136,15 +144,24 @@ describe("a brand's premises", () => {
       [brandId],
     );
     expect(rows.length).toBeGreaterThanOrEqual(2);
-    expect(new Set(rows.map((r: { email: string }) => r.email)).size).toBe(rows.length);
-    expect(new Set(rows.map((r: { mint_id: string }) => r.mint_id)).size).toBe(rows.length);
+    expect(new Set(rows.map((r: { email: string }) => r.email)).size).toBe(
+      rows.length,
+    );
+    expect(new Set(rows.map((r: { mint_id: string }) => r.mint_id)).size).toBe(
+      rows.length,
+    );
   });
 
   it("pins each premises separately", async () => {
     const before = await listBrandCollectionAccounts(brandId);
     const clifton = before.find((a) => a.name === "Clifton")!;
 
-    await setBrandCollectionPin({ brandId, accountId: clifton.id, lat: 24.81, lng: 67.03 });
+    await setBrandCollectionPin({
+      brandId,
+      accountId: clifton.id,
+      lat: 24.81,
+      lng: 67.03,
+    });
 
     const after = await listBrandCollectionAccounts(brandId);
     const pinned = after.find((a) => a.id === clifton.id)!;
@@ -177,7 +194,10 @@ describe("a brand's premises", () => {
      * shops may well both be "Clifton", and it is not this system's place to
      * argue. What must not repeat is the PIN.
      */
-    const accounts = await addBrandCollectionBranch({ brandId, name: "Clifton" });
+    const accounts = await addBrandCollectionBranch({
+      brandId,
+      name: "Clifton",
+    });
     expect(accounts.filter((a) => a.name === "Clifton")).toHaveLength(2);
   });
 
@@ -240,7 +260,9 @@ describe("a brand's premises", () => {
   });
 
   it("refuses a nameless premises", async () => {
-    await expect(addBrandCollectionBranch({ brandId, name: "   " })).rejects.toThrow();
+    await expect(
+      addBrandCollectionBranch({ brandId, name: "   " }),
+    ).rejects.toThrow();
   });
 
   it("renames one without touching the others", async () => {
@@ -267,7 +289,12 @@ describe("a brand's premises", () => {
     const org = await createOrganization({
       name: `Neighbour Org ${suffix}`,
       moduleSubscriptions: [
-        { module: "consumer-reporting", status: "active", activatedAt: new Date(), expiresAt: null },
+        {
+          module: "consumer-reporting",
+          status: "active",
+          activatedAt: new Date(),
+          expiresAt: null,
+        },
       ],
     });
     const neighbour = await createBrand({
@@ -289,9 +316,14 @@ describe("a brand's premises", () => {
     });
     neighbourBrandId = neighbour._id;
     await setBrandWantsCollections({ brandId: neighbourBrandId, wants: true });
-    await addBrandCollectionBranch({ brandId: neighbourBrandId, name: "Unit 4" });
+    await addBrandCollectionBranch({
+      brandId: neighbourBrandId,
+      name: "Unit 4",
+    });
 
-    const ours = (await listBrandCollectionAccounts(brandId)).find((a) => a.hasPin)!;
+    const ours = (await listBrandCollectionAccounts(brandId)).find(
+      (a) => a.hasPin,
+    )!;
     const theirs = (await listBrandCollectionAccounts(neighbourBrandId))[0];
 
     await setBrandCollectionPin({

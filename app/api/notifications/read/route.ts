@@ -24,7 +24,9 @@ export async function POST(req: Request) {
   }
 
   const ids = Array.isArray(body.ids)
-    ? body.ids.filter((id): id is number => Number.isInteger(id) && id > 0).slice(0, 200)
+    ? body.ids
+        .filter((id): id is number => Number.isInteger(id) && id > 0)
+        .slice(0, 200)
     : undefined;
 
   const result = await markNotificationsRead(userId, ids);

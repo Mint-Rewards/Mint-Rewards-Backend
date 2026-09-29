@@ -25,7 +25,8 @@ const JWT_SECRET =
   "";
 
 const userId = new mongoose.Types.ObjectId().toString();
-const tokenFor = (id: string) => jwt.sign({ id }, JWT_SECRET, { expiresIn: "1h" });
+const tokenFor = (id: string) =>
+  jwt.sign({ id }, JWT_SECRET, { expiresIn: "1h" });
 
 const SLOT = {
   id: 7,
@@ -54,10 +55,13 @@ const postReq = (token: string | undefined, slotId = "7") => ({
 });
 
 const deleteReq = (token: string | undefined, requestId = "11") => ({
-  req: new Request(`http://localhost/api/collections/slot-requests/${requestId}`, {
-    method: "DELETE",
-    headers: token ? { authorization: `Bearer ${token}` } : {},
-  }),
+  req: new Request(
+    `http://localhost/api/collections/slot-requests/${requestId}`,
+    {
+      method: "DELETE",
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    },
+  ),
   ctx: { params: Promise.resolve({ requestId }) },
 });
 
@@ -122,7 +126,10 @@ describe("POST /api/collections/slots/:slotId/request", () => {
   it("asks on behalf of the JWT's household, not a named one", async () => {
     const ask = jest
       .spyOn(adminApi, "requestCollectionSlot")
-      .mockResolvedValue({ ok: true, data: { request: { id: 11, status: "PENDING" } } });
+      .mockResolvedValue({
+        ok: true,
+        data: { request: { id: 11, status: "PENDING" } },
+      });
 
     const { req, ctx } = postReq(tokenFor(userId));
     const res = await requestPost(req, ctx);

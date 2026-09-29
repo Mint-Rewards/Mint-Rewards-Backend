@@ -48,8 +48,12 @@ async function main(): Promise<void> {
     const pending = files.filter((f) => !applied.has(f));
     const host = new URL(url).host;
     console.log(`target   ${host}`);
-    console.log(`mode     ${dryRun ? "DRY RUN — nothing will be applied" : "APPLY"}`);
-    console.log(`found    ${files.length} migration(s), ${pending.length} pending\n`);
+    console.log(
+      `mode     ${dryRun ? "DRY RUN — nothing will be applied" : "APPLY"}`,
+    );
+    console.log(
+      `found    ${files.length} migration(s), ${pending.length} pending\n`,
+    );
 
     if (pending.length === 0) {
       console.log("Nothing to do.");

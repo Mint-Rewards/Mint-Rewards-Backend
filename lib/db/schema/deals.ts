@@ -14,7 +14,14 @@
  * `claims` stays jsonb: it is an append-only log of objects, never searched by
  * element, and a child table would buy a join for nothing.
  */
-import { boolean, index, integer, jsonb, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { consumer } from "./logs";
 
@@ -35,17 +42,25 @@ export const campaigns = consumer.table(
     startDate: text("start_date"),
     endDate: text("end_date"),
 
-    discountCodes: text("discount_codes").array().notNull().default(sql`'{}'`),
+    discountCodes: text("discount_codes")
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
     isSingleCode: boolean("is_single_code").notNull().default(false),
     discountPercentage: text("discount_percentage"),
 
     /** `[{ province, city, town }]` — read whole, never queried by element. */
-    addresses: jsonb("addresses").notNull().default(sql`'[]'::jsonb`),
+    addresses: jsonb("addresses")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
 
     status: text("status").notNull().default("PENDING"),
 
     /** Consumer ids. Still Mongo ObjectIds — User has not moved yet. */
-    users: text("users").array().notNull().default(sql`'{}'`),
+    users: text("users")
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
 
     /**
      * The owning brand. Not a foreign key to consumer.brands on purpose:
@@ -94,7 +109,10 @@ export const deals = consumer.table(
     discountAmount: integer("discount_amount"),
 
     /** Inventory of codes; promoCode mirrors codes[0] for legacy readers. */
-    codes: text("codes").array().notNull().default(sql`'{}'`),
+    codes: text("codes")
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
     promoCode: text("promo_code"),
 
     startDate: text("start_date"),
@@ -107,9 +125,14 @@ export const deals = consumer.table(
 
     status: text("status").notNull().default("pending"),
 
-    users: text("users").array().notNull().default(sql`'{}'`),
+    users: text("users")
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
     /** `[{ user, code, claimedAt }]` — append-only, never searched. */
-    claims: jsonb("claims").notNull().default(sql`'[]'::jsonb`),
+    claims: jsonb("claims")
+      .notNull()
+      .default(sql`'[]'::jsonb`),
 
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

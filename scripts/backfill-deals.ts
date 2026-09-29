@@ -79,14 +79,19 @@ async function main(): Promise<void> {
 
     console.log(`source     ${dbName}`);
     console.log(`target     ${new URL(databaseUrl).host}/consumer`);
-    console.log(`mode       ${dryRun ? "DRY RUN — nothing will be written" : "WRITE"}\n`);
+    console.log(
+      `mode       ${dryRun ? "DRY RUN — nothing will be written" : "WRITE"}\n`,
+    );
 
     const run = async (sql: string, values: unknown[]) => {
       if (!dryRun) await pool.query(sql, values);
     };
 
     // --- Campaigns ---------------------------------------------------------
-    const campaigns = await db.collection<Document>("campaigns").find().toArray();
+    const campaigns = await db
+      .collection<Document>("campaigns")
+      .find()
+      .toArray();
     let campaignCount = 0;
     for (const doc of campaigns) {
       const status = String(doc.status ?? "PENDING");
@@ -219,7 +224,8 @@ async function main(): Promise<void> {
     if (notes.length > 0) {
       console.log(`\n  ${notes.length} row(s) worth a look:`);
       for (const line of notes.slice(0, 20)) console.log(`    ${line}`);
-      if (notes.length > 20) console.log(`    ... and ${notes.length - 20} more`);
+      if (notes.length > 20)
+        console.log(`    ... and ${notes.length - 20} more`);
     }
 
     if (!dryRun) {
@@ -227,10 +233,13 @@ async function main(): Promise<void> {
         SELECT 'campaigns' AS t, count(*)::text AS n FROM consumer.campaigns
         UNION ALL SELECT 'deals', count(*)::text FROM consumer.deals`);
       console.log("\n  rows now:");
-      for (const row of after.rows) console.log(`    ${row.t.padEnd(12)} ${row.n}`);
+      for (const row of after.rows)
+        console.log(`    ${row.t.padEnd(12)} ${row.n}`);
     }
 
-    console.log(`\n${dryRun ? "Dry run complete. Nothing was written." : "Done."}`);
+    console.log(
+      `\n${dryRun ? "Dry run complete. Nothing was written." : "Done."}`,
+    );
   } finally {
     await mongo.close().catch(() => {});
     await pool.end().catch(() => {});

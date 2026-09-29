@@ -24,9 +24,15 @@ export async function GET(req: Request) {
     // with no history and a backend that cannot reach operations look
     // identical from the app, and neither is something the person can act
     // on. Logged so it is not invisible to us.
-    console.warn("[collections/history] operations API unavailable:", result.error);
+    console.warn(
+      "[collections/history] operations API unavailable:",
+      result.error,
+    );
     return Response.json({ Status: "Success", collections: [] });
   }
 
-  return Response.json({ Status: "Success", collections: result.data.collections });
+  return Response.json({
+    Status: "Success",
+    collections: result.data.collections,
+  });
 }

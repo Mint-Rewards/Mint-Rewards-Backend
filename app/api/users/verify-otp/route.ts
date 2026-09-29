@@ -56,10 +56,7 @@ export async function POST(req: Request) {
 
     await connectToDatabase();
 
-    const user = await findUserByEmailWithOtp(
-      normalizedEmail,
-      "passwordReset",
-    );
+    const user = await findUserByEmailWithOtp(normalizedEmail, "passwordReset");
 
     const reset = user?.otp;
     // jsonb returns the timestamp as an ISO string, not a Date.
@@ -94,11 +91,7 @@ export async function POST(req: Request) {
     // Single use: burn the OTP the moment it verifies, but only if it's
     // still the OTP we just checked — guards against a concurrent request
     // already having consumed or rotated it.
-    const consumed = await consumeOtp(
-      user._id,
-      "passwordReset",
-      reset.otpHash,
-    );
+    const consumed = await consumeOtp(user._id, "passwordReset", reset.otpHash);
     if (!consumed) {
       return genericFailure();
     }

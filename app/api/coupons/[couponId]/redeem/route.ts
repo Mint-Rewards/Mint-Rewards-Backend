@@ -45,7 +45,6 @@ export async function PATCH(req: Request, { params }: RouteParams) {
       return Response.json({ error: "Invalid coupon ID." }, { status: 400 });
     }
 
-
     // Load the campaign first so we can validate it BEFORE marking it used.
     // Marking used prematurely (issue #20) permanently locks the user out even
     // when no code can be handed back.

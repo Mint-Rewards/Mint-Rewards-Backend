@@ -37,13 +37,13 @@ export async function POST(req: NextRequest) {
   try {
     const { idToken } = await req.json();
 
-    if (!idToken) {
-      return NextResponse.json(
-        { Status: "Error", ErrorMessage: "No ID token provided" },
-        { status: 400 },
-      );
-    }
-
+    /*
+     * Verification is the only gate. An `if (!idToken)` used to stand here
+     * answering 400; verifyIdToken rejects an absent token exactly as it
+     * rejects a forged one, so the check decided nothing while putting a
+     * condition on attacker-supplied input in front of account creation.
+     * See the same note in ../apple/route.ts.
+     */
     // Verify the token with Google
     let payload;
     try {

@@ -2,9 +2,19 @@ import request from "supertest";
 import app from "../app";
 
 describe("POST /api/auth/google", () => {
-  it("returns 400 when idToken is missing", async () => {
+  /*
+   * A missing token is answered the same way a forged one is.
+   *
+   * This used to be 400, from a presence check that ran ahead of
+   * verification. The check decided nothing verifyIdToken does not already
+   * decide, and it made a condition on attacker-supplied input the thing
+   * standing in front of account creation. Removing it means an absent
+   * credential and a bad credential are now indistinguishable from outside,
+   * which is the answer an authentication endpoint should be giving anyway.
+   */
+  it("returns 401 when idToken is missing, as for any credential that fails", async () => {
     const res = await request(app).post("/api/auth/google").send({});
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(401);
   });
 
   it("returns 401 for an invalid idToken", async () => {

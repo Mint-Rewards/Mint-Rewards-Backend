@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import dbConnect from "@/lib/mongodb";
 import {
   addPoints,
@@ -36,19 +36,39 @@ export async function POST(req: NextRequest) {
   try {
     const { identityToken, fullName } = await req.json();
 
-    if (!identityToken) {
+    /*
+     * Verification is the only gate.
+     *
+     * An `if (!identityToken)` used to stand here answering 400. It decided
+     * nothing jwtVerify does not already decide — an absent token fails
+     * verification exactly as a forged one does — while putting a condition
+     * on attacker-supplied input in front of account creation. That is the
+     * shape CodeQL's user-controlled-bypass rule objects to, and it is worth
+     * not having even when the check itself is harmless.
+     *
+     * Verification gets its own catch because the outer one answers 500. An
+     * expired or forged token is not a server error: reporting it as one
+     * tells the client to retry something that will never work, and buries
+     * real failures among routine bad credentials.
+     */
+    let payload: JWTPayload;
+    try {
+      // Apple's public keys.
+      const JWKS = createRemoteJWKSet(new URL(APPLE_JWKS_URL));
+      ({ payload } = await jwtVerify(identityToken, JWKS, {
+        issuer: APPLE_ISSUER,
+        audience: serverEnv.appleBundleId,
+      }));
+    } catch (error) {
+      console.error(
+        "Apple auth: token verification failed:",
+        error instanceof Error ? error.message : String(error),
+      );
       return NextResponse.json(
-        { Status: "Error", ErrorMessage: "No identity token provided" },
-        { status: 400 },
+        { Status: "Error", ErrorMessage: "Invalid token" },
+        { status: 401 },
       );
     }
-
-    // Verify the identity token against Apple's public keys
-    const JWKS = createRemoteJWKSet(new URL(APPLE_JWKS_URL));
-    const { payload } = await jwtVerify(identityToken, JWKS, {
-      issuer: APPLE_ISSUER,
-      audience: serverEnv.appleBundleId,
-    });
 
     const sub = payload.sub as string;
     const email = payload.email as string | undefined;

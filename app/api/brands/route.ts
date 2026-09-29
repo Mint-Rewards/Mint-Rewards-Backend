@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, CampaignModel } from "@/lib/models";
-import { Brand, Campaign } from "@/lib/types";
+import { findBrands, type BrandDoc } from "@/lib/repositories/brandhub";
+import { findCampaigns, type CampaignDoc } from "@/lib/repositories/deals";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 
 export async function GET(req: NextRequest) {
@@ -15,12 +15,10 @@ export async function GET(req: NextRequest) {
         .trim()
         .toLowerCase();
 
-    const brands = await BrandModel.find({}).lean<Brand[]>();
-    const campaigns = await CampaignModel.find({
-      status: { $ne: "EXPIRED" },
-    }).lean<Campaign[]>();
+    const brands = await findBrands();
+    const campaigns = await findCampaigns({ notExpired: true });
 
-    const campaignByRegistration = new Map<string, Campaign[]>();
+    const campaignByRegistration = new Map<string, CampaignDoc[]>();
 
     for (const campaign of campaigns) {
       const key = normalizeRegistration(campaign.brandRegistration);
@@ -36,7 +34,7 @@ export async function GET(req: NextRequest) {
       campaignByRegistration.get(key)!.push(campaign);
     }
 
-    const brandsWithCampaigns: (Brand & { campaigns: Campaign[] })[] =
+    const brandsWithCampaigns: (BrandDoc & { campaigns: CampaignDoc[] })[] =
       brands.map((brand) => {
         const key = normalizeRegistration(brand.registrationNumber);
         const campaigns = key ? campaignByRegistration.get(key) : undefined;

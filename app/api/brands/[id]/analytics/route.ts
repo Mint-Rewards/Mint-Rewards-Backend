@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, CampaignModel } from "@/lib/models";
-import type { CampaignDocument } from "@/lib/types";
+import { findBrandById } from "@/lib/repositories/brandhub";
+import { findCampaigns } from "@/lib/repositories/deals";
+import type { CampaignDoc } from "@/lib/repositories/deals";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
 import { isCampaignActive } from "@/lib/campaignDates";
@@ -10,7 +11,7 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
-function isActive(campaign: CampaignDocument): boolean {
+function isActive(campaign: CampaignDoc): boolean {
   if (campaign.status !== "APPROVED") return false;
   return isCampaignActive(campaign);
 }
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const brand = await BrandModel.findById(id).lean();
+    const brand = await findBrandById(id);
     if (!brand) {
       return Response.json(
         { success: false, message: "Brand not found" },
@@ -35,9 +36,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const campaigns = await CampaignModel.find({ brand: id })
-      .sort({ _id: -1 })
-      .lean<CampaignDocument[]>();
+    const campaigns = await findCampaigns({ brand: id });
 
     // Campaign status breakdown
     const byStatus: Record<string, number> = {};

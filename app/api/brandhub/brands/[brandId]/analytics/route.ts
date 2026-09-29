@@ -1,20 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, CampaignModel, DealModel } from "@/lib/models";
-import type {
-  CampaignDocument,
-  DealDocument,
-  EnvironmentalPeriod,
-} from "@/lib/types";
+import { findBrandById } from "@/lib/repositories/brandhub";
+import {
+  findCampaigns,
+  findDeals,
+  type CampaignDoc,
+} from "@/lib/repositories/deals";
+import type { EnvironmentalPeriod } from "@/lib/types";
 import { requireModuleAccess } from "@/lib/requireModuleAccess";
 import { requireBrandScope } from "@/lib/requireBrandScope";
+import { brandImpact } from "@/lib/adminApi";
 import { isCampaignActive } from "@/lib/campaignDates";
 
 interface RouteParams {
   params: Promise<{ brandId: string }>;
 }
 
-function isActive(campaign: CampaignDocument): boolean {
+function isActive(campaign: CampaignDoc): boolean {
   if (campaign.status !== "APPROVED") return false;
   return isCampaignActive(campaign);
 }
@@ -131,17 +133,20 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const to = parseBound(searchParams.get("to"), "end");
     const periodApplied = Boolean(from || to);
 
-    const [allCampaigns, allDeals, brand] = await Promise.all([
-      CampaignModel.find({ brand: brandId })
-        .sort({ _id: -1 })
-        .lean<CampaignDocument[]>(),
-      DealModel.find({ brand: brandId })
-        .select("status startDate endDate")
-        .lean<DealDocument[]>(),
-      BrandModel.findById(brandId)
-        .select("environmentalStats environmentalPeriods")
-        .lean(),
-    ]);
+    const [allCampaigns, allDeals, brand, collectionImpact] = await Promise.all(
+      [
+        findCampaigns({ brand: brandId }),
+        findDeals({ brand: brandId }),
+        findBrandById(brandId),
+        // What we actually collected FROM this brand, over the window the
+        // picker asked for. Fetched alongside rather than after, because it is
+        // a network call to operations and nothing below depends on it.
+        brandImpact(brandId, {
+          from: req.nextUrl.searchParams.get("from") ?? undefined,
+          to: req.nextUrl.searchParams.get("to") ?? undefined,
+        }),
+      ],
+    );
 
     const campaigns = periodApplied
       ? allCampaigns.filter((c) => overlapsPeriod(c, from, to))
@@ -219,6 +224,22 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           list: campaignList,
         },
         dealStats,
+        /*
+         * What we actually collected FROM this brand, over the same window.
+         *
+         * Derived from the stops on every request rather than written into
+         * `environmental_periods`, which is admin-curated ESG data: a second
+         * copy beside the stops would disagree the first time an outcome was
+         * corrected. Reported separately from the curated figures so a reader
+         * can always tell which number came from where, and summed into the
+         * ESG headline below.
+         *
+         * Null, not zero, when operations could not be reached. A brand
+         * reading "0 kg" would believe it.
+         */
+        collections: collectionImpact.ok
+          ? { ...collectionImpact.data, unavailable: false }
+          : { unavailable: true },
         // Dated buckets win when present; otherwise fall back to the legacy
         // cumulative snapshot, flagged periodScoped:false so the client can
         // label it all-time rather than implying it followed the picker.

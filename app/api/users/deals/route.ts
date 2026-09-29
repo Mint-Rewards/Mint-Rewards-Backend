@@ -1,6 +1,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { BrandModel, DealModel } from "@/lib/models";
+import { findBrands } from "@/lib/repositories/brandhub";
+import { findDeals } from "@/lib/repositories/deals";
 
 /**
  * GET /api/users/deals
@@ -29,16 +30,12 @@ export async function GET(req: Request) {
 
     // "active" is the approved state for a deal; "pending" is awaiting review
     // and "inactive" is a brand pausing its own deal.
-    const deals = await DealModel.find({ status: "active" })
-      .sort({ _id: -1 })
-      .lean();
+    const deals = await findDeals({ status: "active" });
 
     // Only surface deals whose brand is itself approved, so brand moderation
     // and deal moderation cannot disagree.
-    const approvedBrands = await BrandModel.find({ status: "APPROVED" })
-      .select("_id companyName brandName logo themeColor category")
-      .lean();
-    const brandById = new Map(approvedBrands.map((b) => [b._id.toString(), b]));
+    const approvedBrands = await findBrands({ status: "APPROVED" });
+    const brandById = new Map(approvedBrands.map((b) => [b._id, b]));
 
     const now = Date.now();
     const isLive = (deal: {
@@ -55,13 +52,11 @@ export async function GET(req: Request) {
     const visible = deals
       .filter(isLive)
       .map((deal) => {
-        const brand = brandById.get(String(deal.brand));
+        const brand = brandById.get(deal.brand);
         if (!brand) return null;
 
-        const claim = (deal.claims ?? []).find(
-          (c) => c.user?.toString() === userId,
-        );
-        const codesLeft = (deal.codes ?? []).length - (deal.currentUses ?? 0);
+        const claim = deal.claims.find((c) => c.user === userId);
+        const codesLeft = deal.codes.length - deal.currentUses;
 
         return {
           _id: deal._id,

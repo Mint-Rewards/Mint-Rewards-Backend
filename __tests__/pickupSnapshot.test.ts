@@ -14,7 +14,12 @@
  */
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import {
+  createUser,
+  deleteUser,
+  findUserById,
+  updateUser,
+} from "@/lib/repositories/users";
 import { buildPickupAddressSnapshot } from "@/lib/pickupSnapshot";
 
 const TEST_EMAIL = `p04a-pickup-snapshot-${Date.now()}@example.invalid`;
@@ -104,37 +109,52 @@ describe("buildPickupAddressSnapshot", () => {
 });
 
 describe("pickupHistory.addressSnapshot persistence", () => {
-  let userId: mongoose.Types.ObjectId;
+  let userId: string;
 
   beforeAll(async () => {
     await connectToDatabase();
-    const user = await UserModel.create({
+    const user = await createUser({
       userName: "P04a Probe",
       email: TEST_EMAIL,
       password: "irrelevant-hash",
       mintId: `p04a-${Date.now()}`,
-      ...fullUser,
     });
-    userId = user._id as mongoose.Types.ObjectId;
+    userId = user._id;
+    await updateUser(userId, fullUser);
   });
 
   afterAll(async () => {
-    await UserModel.deleteOne({ _id: userId });
+    await deleteUser(userId);
+    const { closePostgres } = await import("@/lib/postgres");
+    await closePostgres();
     await mongoose.connection.close();
   });
 
+  /**
+   * Read back through the repository, not the raw collection.
+   *
+   * pickupHistory is jsonb now, so what comes out is plain JSON — which means
+   * `snapshotAt` is an ISO string rather than a Date. That is a real change to
+   * the stored shape and the assertions below say so rather than hiding it.
+   */
   const readRaw = async () => {
-    const db = mongoose.connection.db;
-    if (!db) throw new Error("not connected");
-    return db.collection("users").findOne({ _id: userId });
+    const user = await findUserById(userId);
+    if (!user) return null;
+    return {
+      // Loosely typed on purpose: the assertions below walk into the frozen
+      // snapshot, which is deliberately not a live type.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pickupHistory: user.pickupHistory as any[],
+    };
   };
 
   it("persists the snapshot on a pickup entry and leaves snapshot-less entries valid", async () => {
-    const user = await UserModel.findById(userId);
+    const user = await findUserById(userId);
     if (!user) throw new Error("probe user missing");
 
     const snapshot = buildPickupAddressSnapshot(user);
-    user.pickupHistory.push(
+    const history: unknown[] = [...user.pickupHistory];
+    history.push(
       // Legacy-shaped entry with no snapshot — must remain valid.
       {
         collectionId: new mongoose.Types.ObjectId(),
@@ -150,7 +170,7 @@ describe("pickupHistory.addressSnapshot persistence", () => {
         addressSnapshot: snapshot,
       } as never,
     );
-    await user.save();
+    await updateUser(userId, { pickupHistory: history });
 
     const raw = await readRaw();
     expect(raw).not.toBeNull();
@@ -170,14 +190,18 @@ describe("pickupHistory.addressSnapshot persistence", () => {
     expect(snapped.addressSnapshot.location.source).toBe("map_pin");
     expect(snapped.addressSnapshot.location.precision).toBe("building");
     expect(snapped.addressSnapshot.snapshotSource).toBe("creation");
-    expect(snapped.addressSnapshot.snapshotAt).toBeInstanceOf(Date);
+    // jsonb round-trips a Date as an ISO string. The snapshot is a frozen
+    // record, never compared as a Date, so this is the shape it now has.
+    expect(typeof snapped.addressSnapshot.snapshotAt).toBe("string");
+    expect(Date.parse(snapped.addressSnapshot.snapshotAt)).not.toBeNaN();
   });
 
   it("does not re-point the snapshot when the user's address later changes", async () => {
-    await UserModel.updateOne(
-      { _id: userId },
-      { $set: { town: "Landhi", "structuredAddress.areaId": "Landhi" } },
-    );
+    const before = (await findUserById(userId))!;
+    await updateUser(userId, {
+      town: "Landhi",
+      structuredAddress: { ...before.structuredAddress, areaId: "Landhi" },
+    });
     const raw = await readRaw();
     const snapped = raw!.pickupHistory[1];
     expect(snapped.addressSnapshot.town).toBe("Korangi");

@@ -24,6 +24,30 @@ jobs:
     name: Test & Audit
     runs-on: ubuntu-latest
 
+    # A real Postgres, not the dev Supabase.
+    #
+    # Thirteen suites talk to Postgres and CI had no DATABASE_URL, so they had
+    # never actually run here — they passed locally only because .env points at
+    # the shared dev database. Pointing CI there too would have every run write
+    # brands and users into the instance the deployed admin API reads.
+    #
+    # postgis/postgis rather than plain postgres: consumer.users stores a
+    # geography column and the migrations assume the extension exists, the way
+    # it does on Supabase.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mint_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     # lib/env.ts validates every key below at module load and throws on the
     # first import, so `next build` and any suite that imports app.ts need the
     # full set present — not just the ones a given test actually reads.
@@ -54,6 +78,7 @@ jobs:
       DEV_MAIL_REDIRECT_TO: sink@example.com
       BLOB_PUBLIC_READ_WRITE_TOKEN: vercel_blob_rw_ci_placeholder
       ALLOWED_ORIGINS: http://localhost:3000
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mint_ci
 
     steps:
       - name: Checkout code
@@ -83,6 +108,12 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      # No migration creates the extension — on Supabase it is already there.
+      - name: Prepare the test database
+        run: |
+          psql "$DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS postgis'
+          node --experimental-strip-types scripts/migrate.ts
+
       - name: Run tests
         run: npm test
         env:
@@ -92,6 +123,11 @@ jobs:
           MONGODB_URI_TEST: ${{ secrets.MONGODB_URI_TEST }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           BRANDHUB_JWT_SECRET: ${{ secrets.BRANDHUB_JWT_SECRET }}
+          # By name, for the same reason as MONGODB_URI_TEST above:
+          # jest.setup.js DELETES a plain DATABASE_URL so that a test run can
+          # never reach a live database by accident. The service container is
+          # the throwaway Postgres that guard asks for.
+          DATABASE_URL_TEST: postgresql://postgres:postgres@localhost:5432/mint_ci
           NODE_ENV: test
 
       - name: Build check

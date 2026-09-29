@@ -1,7 +1,12 @@
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import {
+  findUserByEmailWithOtp,
+  markEmailVerified,
+  recordOtpAttempt,
+  setUserOtp,
+} from "@/lib/repositories/users";
 import { verifyOtp } from "@/lib/otp";
 import {
   checkRateLimit,
@@ -52,23 +57,27 @@ export async function POST(req: Request) {
 
     await connectToDatabase();
 
-    const user = await UserModel.findOne({ email: normalizedEmail }).select(
-      "+emailVerification",
+    const user = await findUserByEmailWithOtp(
+      normalizedEmail,
+      "emailVerification",
     );
 
-    const verification = user?.emailVerification;
+    const verification = user?.otp;
+    // jsonb returns the timestamp as an ISO string, not a Date.
+    const expiresAt = verification?.expiresAt
+      ? new Date(verification.expiresAt)
+      : null;
     if (
       !user ||
       !verification?.otpHash ||
-      !verification.expiresAt ||
-      verification.expiresAt.getTime() < Date.now()
+      !expiresAt ||
+      expiresAt.getTime() < Date.now()
     ) {
       return genericFailure();
     }
 
     if ((verification.attempts ?? 0) >= MAX_ATTEMPTS) {
-      user.emailVerification = undefined;
-      await user.save();
+      await setUserOtp(user._id, "emailVerification", null);
       return Response.json(
         { error: "Too many attempts. Request a new code." },
         { status: 429 },
@@ -81,9 +90,10 @@ export async function POST(req: Request) {
       // Atomic $inc guarded by the OTP hash we just read, so parallel wrong
       // guesses can't race each other into under-counting attempts, and a
       // concurrent resend/consume can't have its state clobbered.
-      await UserModel.updateOne(
-        { _id: user._id, "emailVerification.otpHash": verification.otpHash },
-        { $inc: { "emailVerification.attempts": 1 } },
+      await recordOtpAttempt(
+        user._id,
+        "emailVerification",
+        verification.otpHash,
       );
       return genericFailure();
     }
@@ -91,15 +101,12 @@ export async function POST(req: Request) {
     // Single use: burn the OTP the moment it verifies, but only if it's
     // still the OTP we just checked — guards against a concurrent request
     // already having consumed or rotated it.
-    const consumed = await UserModel.findOneAndUpdate(
-      { _id: user._id, "emailVerification.otpHash": verification.otpHash },
-      { $unset: { emailVerification: "" }, $set: { emailVerified: true } },
-    );
+    const consumed = await markEmailVerified(user._id, verification.otpHash);
     if (!consumed) {
       return genericFailure();
     }
 
-    const token = jwt.sign({ id: user.id }, JWT_SECRET, {
+    const token = jwt.sign({ id: user._id }, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
     });
 

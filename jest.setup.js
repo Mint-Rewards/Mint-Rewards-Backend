@@ -10,3 +10,19 @@ if (process.env.MONGODB_URI_TEST) {
       "Define MONGODB_URI_TEST in .env (a separate test database).",
   );
 }
+
+// Postgres, during the migration off Mongo. Same rule as above: a test run
+// must never reach the live database, so the default is to unset it entirely,
+// which makes lib/postgres report "not configured". Point DATABASE_URL_TEST at
+// a throwaway Postgres to exercise the real thing — CI now runs a postgis
+// service container for exactly this, and a local .env should point at
+// something disposable rather than the shared dev instance.
+if (process.env.DATABASE_URL_TEST) {
+  process.env.DATABASE_URL = process.env.DATABASE_URL_TEST;
+} else {
+  // BrandHub moved to Postgres, so its suites need one the way the rest need
+  // MONGODB_URI_TEST. Unsetting rather than throwing: suites that touch
+  // neither still run, and the ones that do fail loudly on their first query
+  // rather than silently passing against nothing.
+  delete process.env.DATABASE_URL;
+}

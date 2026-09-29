@@ -1,7 +1,7 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
 import { isProfileCompleteForBonus } from "@/lib/evaluateProfileCompletion";
-import { UserModel } from "@/lib/models";
+import { findUserById } from "@/lib/repositories/users";
 import { isCampaignLive, startProfileBonusWindow } from "@/lib/profileBonus";
 
 export async function GET(req: Request) {
@@ -18,7 +18,9 @@ export async function GET(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await UserModel.findById(userId).select("-password");
+    // The repository's default projection already excludes the password and
+    // both OTP blocks, so this hands back exactly what a client may see.
+    const user = await findUserById(String(userId));
 
     if (!user) {
       return Response.json({ error: "User not found" }, { status: 404 });

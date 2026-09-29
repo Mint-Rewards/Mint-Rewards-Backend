@@ -28,7 +28,14 @@ jest.mock("../lib/env", () => {
 });
 
 import connectToDatabase from "../lib/mongodb";
-import { UserModel } from "../lib/models";
+import {
+  addPoints,
+  createUser,
+  deleteUser,
+  findUserById,
+  startBonusWindow,
+  updateUser,
+} from "../lib/repositories/users";
 import {
   awardProfileBonusIfEligible,
   isCampaignLive,
@@ -48,7 +55,7 @@ function resetConfig(): void {
 
 describe("profile-completion bonus", () => {
   const suffix = new mongoose.Types.ObjectId().toString();
-  const createdIds: mongoose.Types.ObjectId[] = [];
+  const createdIds: string[] = [];
   let mintSeq = 0;
 
   /**
@@ -56,30 +63,53 @@ describe("profile-completion bonus", () => {
    * tier A with a towns list, so the requirement set is cityId/areaId/houseNo
    * and no pin is demanded) and whose window opened `windowAgeMs` ago.
    */
+  /**
+   * Seeded through the repository's real API, not a raw insert. `points` and
+   * the bonus stamps are server-stamped — createUser does not accept them and
+   * must not, since a user who can set profileBonusGrantedAt decides whether
+   * they have been paid. So the points arrive through addPoints and the
+   * window through startBonusWindow, which is what production does too.
+   */
   const makeUser = async (overrides: Record<string, unknown> = {}) => {
-    const user = await UserModel.create({
+    const { profileBonusWindowStartedAt, points, ...profile } = overrides as {
+      profileBonusWindowStartedAt?: Date | null;
+      points?: number;
+      [key: string]: unknown;
+    };
+
+    const user = await createUser({
       userName: "Ayesha",
       email: `bonus-${createdIds.length}-${suffix}@example.com`,
       password: "hashed-placeholder",
       phone: "03001234567",
-      // 8-digit, unique per document — mintId is a unique index.
+      // 8-digit, unique per row — mintId is a unique index.
       mintId: String(10_000_000 + mintSeq++),
-      points: 100,
+    });
+    createdIds.push(user._id);
+
+    await updateUser(user._id, {
       city: "Karachi",
       town: "DHA",
       structuredAddress: { cityId: "Karachi", areaId: "DHA", houseNo: "12-C" },
-      profileBonusWindowStartedAt: new Date(Date.now() - HOUR),
-      ...overrides,
+      ...profile,
     });
-    createdIds.push(user._id);
-    return user;
+    await addPoints(user._id, points ?? 100);
+
+    // Passing the key explicitly — even as undefined — means "leave the
+    // window unstamped". Only its absence asks for the default, which is a
+    // window opened an hour ago.
+    const stampWindow = !("profileBonusWindowStartedAt" in overrides)
+      ? new Date(Date.now() - HOUR)
+      : (profileBonusWindowStartedAt ?? null);
+    if (stampWindow) await startBonusWindow(user._id, stampWindow);
+
+    const seeded = await findUserById(user._id);
+    return seeded!;
   };
 
-  const pointsOf = async (id: mongoose.Types.ObjectId) =>
-    (await UserModel.findById(id).select("points").lean())?.points;
+  const pointsOf = async (id: string) => (await findUserById(id))?.points;
 
-  const docOf = async (id: mongoose.Types.ObjectId) =>
-    await UserModel.findById(id).lean();
+  const docOf = async (id: string) => await findUserById(id);
 
   beforeAll(async () => {
     await connectToDatabase();
@@ -90,9 +120,9 @@ describe("profile-completion bonus", () => {
   });
 
   afterAll(async () => {
-    if (createdIds.length) {
-      await UserModel.deleteMany({ _id: { $in: createdIds } });
-    }
+    for (const id of createdIds) await deleteUser(id);
+    const { closePostgres } = await import("../lib/postgres");
+    await closePostgres();
     await mongoose.connection.close();
   });
 
@@ -266,10 +296,12 @@ describe("profile-completion bonus", () => {
       expect(await pointsOf(user._id)).toBe(100);
 
       // The house number arrives on the second of the client's two requests.
-      await UserModel.updateOne(
-        { _id: user._id },
-        { $set: { "structuredAddress.houseNo": "12-C" } },
-      );
+      await updateUser(user._id, {
+        structuredAddress: {
+          ...(await findUserById(user._id))!.structuredAddress,
+          houseNo: "12-C",
+        },
+      });
       await awardProfileBonusIfEligible(user._id);
 
       expect(await pointsOf(user._id)).toBe(200);

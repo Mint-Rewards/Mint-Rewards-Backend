@@ -1,4 +1,8 @@
-import { UserModel } from "@/lib/models";
+import {
+  addPoints,
+  claimReferralReward,
+  findUserByReferral,
+} from "@/lib/repositories/users";
 
 export const REFERRAL_REWARD_POINTS = 50;
 
@@ -28,27 +32,19 @@ export async function awardReferralIfApplicable(
     // Matches the old signup lookup, which took referralUsers[0]. Send-time
     // dedup means one referrer per address; findOne keeps the same tiebreak
     // for any historical rows that predate that check.
-    const referrer = await UserModel.findOne({ referrals: normalizedEmail })
-      .select("_id email")
-      .lean();
+    const referrer = await findUserByReferral(normalizedEmail);
 
     if (!referrer || String(referrer._id) === String(userId)) return;
 
-    const claimed = await UserModel.findOneAndUpdate(
-      { _id: userId, referralRewardGranted: { $ne: true } },
-      {
-        $set: { referralRewardGranted: true },
-        $inc: { points: REFERRAL_REWARD_POINTS },
-      },
+    const claimed = await claimReferralReward(
+      String(userId),
+      REFERRAL_REWARD_POINTS,
     );
 
     // Already granted, or no such user. Do not pay the referrer either.
     if (!claimed) return;
 
-    const paid = await UserModel.findOneAndUpdate(
-      { _id: referrer._id },
-      { $inc: { points: REFERRAL_REWARD_POINTS } },
-    );
+    const paid = await addPoints(referrer._id, REFERRAL_REWARD_POINTS);
 
     if (!paid) {
       console.error(

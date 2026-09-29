@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/mongodb";
-import { DealModel } from "@/lib/models";
+import {
+  deleteDealForBrand,
+  updateDealForBrand,
+  type DealDoc,
+} from "@/lib/repositories/deals";
 import { requireAdminAuth } from "@/lib/requireAdminAuth";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 import { requireBrandScope } from "@/lib/requireBrandScope";
@@ -68,10 +72,10 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const deal = await DealModel.findOneAndUpdate(
-      { _id: dealId, brand: id },
-      { $set: update },
-      { new: true, runValidators: true },
+    const deal = await updateDealForBrand(
+      dealId,
+      id,
+      update as Partial<DealDoc>,
     );
 
     if (!deal) {
@@ -100,7 +104,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     await connectToDatabase();
 
-    const deal = await DealModel.findOneAndDelete({ _id: dealId, brand: id });
+    const deal = await deleteDealForBrand(dealId, id);
 
     if (!deal) {
       return Response.json(

@@ -1,6 +1,6 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { UserModel } from "@/lib/models";
+import { deleteUser } from "@/lib/repositories/users";
 
 export async function DELETE(req: Request) {
   try {
@@ -16,9 +16,9 @@ export async function DELETE(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await UserModel.findByIdAndDelete(userId);
+    const deleted = await deleteUser(String(userId));
 
-    if (!user) {
+    if (!deleted) {
       return Response.json({ error: "User not found" }, { status: 404 });
     }
 

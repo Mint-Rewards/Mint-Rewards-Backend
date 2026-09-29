@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, BrandUserModel, OrganizationModel } from "@/lib/models";
+import {
+  findBrandUserByEmail,
+  findBrands,
+  findOrganizationById,
+} from "@/lib/repositories/brandhub";
 import { signBrandToken } from "@/lib/brandJwt";
 import { MODULE_CATALOGUE, hasActiveSubscription } from "@/lib/modules";
 
@@ -30,10 +33,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  await connectToDatabase();
-
   const normalizedEmail = email.toLowerCase().trim();
-  const user = await BrandUserModel.findOne({ email: normalizedEmail });
+  const user = await findBrandUserByEmail(normalizedEmail);
 
   // Run bcrypt.compare regardless of whether a user was found so that
   // response timing stays constant and prevents email enumeration.
@@ -49,30 +50,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const token = signBrandToken({
-    sub: user._id.toString(),
-    orgId: user.orgId.toString(),
+    sub: user._id,
+    orgId: user.orgId,
     orgRole: user.orgRole,
     moduleAccess: user.moduleAccess,
   });
 
-  const brands = await BrandModel.find({ orgId: user.orgId })
-    .select("_id brandName companyName logo")
-    .lean();
+  const brands = await findBrands({ orgId: user.orgId });
 
   // Derived fresh at login like `brands` — the frontend's source of truth
   // for subscription-level tab gating. Deliberately not in the JWT.
-  const org = await OrganizationModel.findById(user.orgId)
-    .select("moduleSubscriptions")
-    .lean();
+  const org = await findOrganizationById(user.orgId);
   const subscribedModules = MODULE_CATALOGUE.filter((m) =>
     hasActiveSubscription(org?.moduleSubscriptions ?? [], m.id),
   ).map((m) => m.id);
 
   return NextResponse.json({
     token,
-    orgId: user.orgId.toString(),
+    orgId: user.orgId,
     brands: brands.map((b) => ({
-      id: b._id.toString(),
+      id: b._id,
       brandName: b.brandName,
       companyName: b.companyName,
       logo: b.logo ?? null,

@@ -3,7 +3,15 @@
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import connectToDatabase from "../lib/mongodb";
-import { BrandModel, CampaignModel } from "../lib/models";
+import {
+  createBrand,
+  deleteBrandsByIds,
+  newObjectId,
+} from "../lib/repositories/brandhub";
+import {
+  createCampaign,
+  deleteCampaignsByIds,
+} from "../lib/repositories/deals";
 import {
   GET as getMyDiscounts,
   PATCH as patchMyDiscounts,
@@ -35,8 +43,8 @@ describe("/api/users/my-discounts", () => {
   const userId = new mongoose.Types.ObjectId().toString();
   const approvedReg = `approved-reg-${suffix}`;
   const unapprovedBrandReg = `unapproved-brand-reg-${suffix}`;
-  const brandIds: mongoose.Types.ObjectId[] = [];
-  const campaignIds: mongoose.Types.ObjectId[] = [];
+  const brandIds: string[] = [];
+  const campaignIds: string[] = [];
 
   let approvedCampaignId: string;
   let pendingCampaignId: string;
@@ -48,7 +56,7 @@ describe("/api/users/my-discounts", () => {
   type CampaignStatus = BrandStatus | "EXPIRED";
 
   const makeBrand = async (registrationNumber: string, status: BrandStatus) => {
-    const brand = await BrandModel.create({
+    const brand = await createBrand({
       companyName: `Brand ${registrationNumber}`,
       brandName: `Brand ${registrationNumber}`,
       email: `${registrationNumber}@example.com`,
@@ -74,7 +82,7 @@ describe("/api/users/my-discounts", () => {
     options: { endDate?: string; claimedBy?: string } = {},
   ) => {
     const { endDate = "2099-12-31", claimedBy } = options;
-    const campaign = await CampaignModel.create({
+    const campaign = await createCampaign({
       name: `Campaign ${status} ${endDate} ${suffix}`,
       startDate: "2025-02-04",
       endDate,
@@ -82,10 +90,10 @@ describe("/api/users/my-discounts", () => {
       discountCodes: ["SAVE20", "SAVE20-B"],
       isSingleCode: false,
       status,
-      brand: new mongoose.Types.ObjectId(),
+      brand: newObjectId(),
       brandRegistration: registrationNumber,
       addresses: [],
-      ...(claimedBy ? { users: [new mongoose.Types.ObjectId(claimedBy)] } : {}),
+      ...(claimedBy ? { users: [claimedBy] } : {}),
     });
     campaignIds.push(campaign._id);
     return campaign;
@@ -121,8 +129,8 @@ describe("/api/users/my-discounts", () => {
   });
 
   afterAll(async () => {
-    await CampaignModel.deleteMany({ _id: { $in: campaignIds } });
-    await BrandModel.deleteMany({ _id: { $in: brandIds } });
+    await deleteCampaignsByIds(campaignIds);
+    await deleteBrandsByIds(brandIds);
     await mongoose.disconnect();
   });
 

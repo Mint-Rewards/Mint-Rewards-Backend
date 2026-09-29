@@ -1,6 +1,6 @@
 import connectToDatabase from "@/lib/mongodb";
 import { getAuthenticatedUserId } from "@/lib/auth";
-import { UserModel } from "@/lib/models";
+import { updateUser, type UserPatch } from "@/lib/repositories/users";
 import { awardProfileBonusIfEligible } from "@/lib/profileBonus";
 import { awardReferralIfApplicable } from "@/lib/referrals";
 
@@ -112,9 +112,12 @@ export async function PUT(req: Request) {
       if (longitude === undefined) updateData.longitude = String(lng);
     }
 
-    const updatedUser = await UserModel.findByIdAndUpdate(userId, updateData, {
-      new: true,
-    }).select("-password");
+    // The default projection already excludes the password and both OTP
+    // blocks, so there is nothing left to strip on the way out.
+    const updatedUser = await updateUser(
+      String(userId),
+      updateData as UserPatch,
+    );
 
     if (!updatedUser) {
       return Response.json(

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Types } from "mongoose";
-import connectToDatabase from "@/lib/mongodb";
-import { BrandModel, BrandUserModel } from "@/lib/models";
+import {
+  createBrand,
+  findBrandUserById,
+  findBrands,
+  isDuplicateKeyError,
+  newObjectId,
+} from "@/lib/repositories/brandhub";
 import { requireBrandAuth } from "@/lib/requireBrandAuth";
 
 /**
@@ -13,19 +17,15 @@ export async function GET(req: NextRequest) {
   const auth = requireBrandAuth(req);
   if (auth instanceof NextResponse) return auth;
 
-  await connectToDatabase();
-
-  const brands = await BrandModel.find({ orgId: auth.brandUser.orgId })
-    .select("_id brandName companyName logo createdAt")
-    .lean();
+  const brands = await findBrands({ orgId: auth.brandUser.orgId });
 
   return NextResponse.json({
     brands: brands.map((b) => ({
-      id: b._id.toString(),
+      id: b._id,
       brandName: b.brandName,
       companyName: b.companyName,
       logo: b.logo ?? null,
-      createdAt: b.createdAt ?? b._id.getTimestamp(),
+      createdAt: b.createdAt,
     })),
   });
 }
@@ -77,25 +77,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await connectToDatabase();
-
   // The JWT carries no email, so read the creating user's address for
   // contactName. A token whose user has since been deleted is not a session
   // we should mint records for.
-  const creator = await BrandUserModel.findById(sub).select("email").lean();
+  const creator = await findBrandUserById(sub);
   if (!creator) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const brandId = new Types.ObjectId();
+  const brandId = newObjectId();
   let brand;
   try {
-    brand = await BrandModel.create({
+    brand = await createBrand({
       _id: brandId,
       orgId,
       brandName,
       companyName: companyName || brandName,
-      email: `brand-${brandId.toString()}@brandhub.local`,
+      email: `brand-${brandId}@brandhub.local`,
       category: "general",
       webLink: "https://example.com",
       appLink: "",
@@ -103,17 +101,12 @@ export async function POST(req: NextRequest) {
       description: "",
       contactName: creator.email,
       phone: "N/A",
-      registrationNumber: `BH-${brandId.toString()}`,
+      registrationNumber: `BH-${brandId}`,
     });
   } catch (error: unknown) {
-    // Both synthesized keys derive from a fresh ObjectId, so a duplicate here
-    // is not something the caller can correct by retrying with other input.
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error as { code?: number }).code === 11000
-    ) {
+    // Both synthesized keys derive from a fresh id, so a duplicate here is not
+    // something the caller can correct by retrying with other input.
+    if (isDuplicateKeyError(error)) {
       return NextResponse.json(
         { error: "Could not allocate a unique brand record. Please retry." },
         { status: 409 },
@@ -125,11 +118,11 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(
     {
       brand: {
-        id: brand._id.toString(),
+        id: brand._id,
         brandName: brand.brandName,
         companyName: brand.companyName,
         logo: brand.logo ?? null,
-        createdAt: brand.createdAt ?? brand._id.getTimestamp(),
+        createdAt: brand.createdAt,
       },
     },
     { status: 201 },

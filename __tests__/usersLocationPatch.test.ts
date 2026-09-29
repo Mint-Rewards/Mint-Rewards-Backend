@@ -13,7 +13,7 @@
  */
 import mongoose from "mongoose";
 import connectToDatabase from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import { createUser, deleteUser } from "@/lib/repositories/users";
 
 const TEST_EMAIL = `p1-location-patch-probe-${Date.now()}@example.invalid`;
 let userId: string;
@@ -43,17 +43,54 @@ const patch = (body: unknown) =>
   );
 
 /** Raw driver read — deliberately bypasses Mongoose and the endpoint echo. */
+/**
+ * Raw read — deliberately bypasses the route's echo to see what was stored.
+ *
+ * Postgres now, so the location comes back out of a geography column via
+ * ST_X/ST_Y rather than as a GeoJSON subdocument. Reassembled here into the
+ * shape the assertions below already describe, since that shape is the
+ * domain's, not the storage layer's.
+ */
 const readRaw = async () => {
-  const db = mongoose.connection.db;
-  if (!db) throw new Error("not connected");
-  return db
-    .collection("users")
-    .findOne({ _id: new mongoose.Types.ObjectId(userId) });
+  const { getPool } = await import("@/lib/postgres");
+  const { rows } = await getPool().query(
+    `SELECT user_name AS "userName", email, phone,
+            city, province, town, town_other AS "townOther",
+            sub_area AS "subArea", sub_area_other AS "subAreaOther",
+            address, latitude, longitude,
+            structured_address AS "structuredAddress",
+            location_verification AS "locationVerification",
+            location_version AS "locationVersion",
+            location_completed_at AS "locationCompletedAt",
+            precision, source, accuracy_meters AS "accuracyMeters",
+            captured_at AS "capturedAt",
+            ST_X(geog::geometry) AS lng, ST_Y(geog::geometry) AS lat
+       FROM consumer.users WHERE id = $1`,
+    [userId],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  const { lng, lat, precision, source, accuracyMeters, capturedAt, ...rest } =
+    row;
+  return {
+    ...rest,
+    location:
+      lng === null || lat === null
+        ? undefined
+        : {
+            type: "Point",
+            coordinates: [lng, lat],
+            ...(source ? { source } : {}),
+            ...(precision ? { precision } : {}),
+            ...(accuracyMeters !== null ? { accuracyMeters } : {}),
+            ...(capturedAt ? { capturedAt } : {}),
+          },
+  };
 };
 
 beforeAll(async () => {
   await connectToDatabase();
-  const user = await UserModel.create({
+  const user = await createUser({
     userName: "P1 Location Patch Probe",
     email: TEST_EMAIL,
     password: "irrelevant",
@@ -70,7 +107,9 @@ afterAll(async () => {
   if (mongoose.connection.readyState === 0) {
     await mongoose.connect(process.env.MONGODB_URI as string);
   }
-  if (userId) await UserModel.deleteOne({ _id: userId });
+  if (userId) await deleteUser(userId);
+  const { closePostgres } = await import("@/lib/postgres");
+  await closePostgres();
   await mongoose.disconnect();
 });
 
@@ -266,7 +305,7 @@ describe("PATCH /api/users/location", () => {
     // Fresh probe user isolated to this test, so evaluateLocation's
     // requirement set (Karachi/DHA is tier A + hasTowns => cityId/areaId/houseNo)
     // starts from a clean slate.
-    const completingUser = await UserModel.create({
+    const completingUser = await createUser({
       userName: "P1 Location Completion Probe",
       email: `p1-location-complete-${Date.now()}@example.invalid`,
       password: "irrelevant",
@@ -317,7 +356,7 @@ describe("PATCH /api/users/location", () => {
     } finally {
       userId = originalUserId;
       authUserId = originalAuthUserId;
-      await UserModel.deleteOne({ _id: completingUserId });
+      await deleteUser(completingUserId);
     }
   });
 });

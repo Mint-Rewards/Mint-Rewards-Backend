@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import dbConnect from "@/lib/mongodb";
-import { UserModel } from "@/lib/models";
+import {
+  addPoints,
+  createUser,
+  findUserByAppleId,
+  findUserByEmail,
+  findUserByMintId,
+  updateUser,
+} from "@/lib/repositories/users";
 import { SignOptions } from "jsonwebtoken";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
@@ -17,7 +24,7 @@ const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
 async function generateMintId(): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt++) {
     const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
-    const existing = await UserModel.findOne({ mintId });
+    const existing = await findUserByMintId(mintId);
     if (!existing) {
       return mintId;
     }
@@ -29,19 +36,39 @@ export async function POST(req: NextRequest) {
   try {
     const { identityToken, fullName } = await req.json();
 
-    if (!identityToken) {
+    /*
+     * Verification is the only gate.
+     *
+     * An `if (!identityToken)` used to stand here answering 400. It decided
+     * nothing jwtVerify does not already decide — an absent token fails
+     * verification exactly as a forged one does — while putting a condition
+     * on attacker-supplied input in front of account creation. That is the
+     * shape CodeQL's user-controlled-bypass rule objects to, and it is worth
+     * not having even when the check itself is harmless.
+     *
+     * Verification gets its own catch because the outer one answers 500. An
+     * expired or forged token is not a server error: reporting it as one
+     * tells the client to retry something that will never work, and buries
+     * real failures among routine bad credentials.
+     */
+    let payload: JWTPayload;
+    try {
+      // Apple's public keys.
+      const JWKS = createRemoteJWKSet(new URL(APPLE_JWKS_URL));
+      ({ payload } = await jwtVerify(identityToken, JWKS, {
+        issuer: APPLE_ISSUER,
+        audience: serverEnv.appleBundleId,
+      }));
+    } catch (error) {
+      console.error(
+        "Apple auth: token verification failed:",
+        error instanceof Error ? error.message : String(error),
+      );
       return NextResponse.json(
-        { Status: "Error", ErrorMessage: "No identity token provided" },
-        { status: 400 },
+        { Status: "Error", ErrorMessage: "Invalid token" },
+        { status: 401 },
       );
     }
-
-    // Verify the identity token against Apple's public keys
-    const JWKS = createRemoteJWKSet(new URL(APPLE_JWKS_URL));
-    const { payload } = await jwtVerify(identityToken, JWKS, {
-      issuer: APPLE_ISSUER,
-      audience: serverEnv.appleBundleId,
-    });
 
     const sub = payload.sub as string;
     const email = payload.email as string | undefined;
@@ -56,16 +83,13 @@ export async function POST(req: NextRequest) {
     await dbConnect();
 
     // 1. Try to find by Apple's stable user ID first
-    let user = await UserModel.findOne({ appleId: sub });
+    let user = await findUserByAppleId(sub);
 
     // 2. Fall back to email match (covers Google/email users signing in with Apple
     //    for the first time using the same email)
     if (!user && email) {
-      user = await UserModel.findOne({ email: email.toLowerCase() });
-      if (user) {
-        user.appleId = sub;
-        await user.save();
-      }
+      user = await findUserByEmail(email);
+      if (user) user = await updateUser(user._id, { appleId: sub });
     }
 
     // 3. Create a new user if none found
@@ -82,28 +106,29 @@ export async function POST(req: NextRequest) {
         10,
       );
 
-      user = await UserModel.create({
+      user = await createUser({
         userName: displayName,
         email: email?.toLowerCase() ?? `${sub}@privaterelay.appleid.com`,
         password: randomPassword,
-        avatar: "",
         appleId: sub,
         mintId,
-        // Baseline signup grant for ALL new Apple users, referred or not —
-        // matches the `points: 100` in users/signup/route.ts. Without it these
-        // accounts fell through to the schema default of 0.
-        points: 100,
         emailVerified: true,
-        firstTimeLogin: true,
       });
+      // Baseline signup grant for ALL new Apple users, referred or not —
+      // matches the 100 points in users/signup/route.ts. Granted rather than
+      // set at creation: createUser does not accept points, because a signup
+      // that can set them is a signup that can mint them.
+      await addPoints(user._id, 100);
+      user = (await findUserByAppleId(sub)) ?? user;
     }
 
-    const jwtPayload = { id: user.id };
+    const jwtPayload = { id: user._id };
     const token = jwt.sign(jwtPayload, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"],
     });
 
-    const { password: _password, ...userResponse } = user.toObject();
+    // The repository's default projection already excludes the password.
+    const userResponse = user;
 
     return NextResponse.json({
       Status: "Success",

@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import { Types } from "mongoose";
-import connectToDatabase from "@/lib/mongodb";
-import { BrandModel } from "@/lib/models";
+import { findBrandById, type BrandDoc } from "@/lib/repositories/brandhub";
 import type { BrandJwtPayload } from "@/lib/modules";
-import type { BrandDocument } from "@/lib/types";
 
-type ScopeOk = { brand: Pick<BrandDocument, "_id" | "orgId"> };
+type ScopeOk = { brand: BrandDoc };
 
 /**
  * Call after requireBrandAuth in any route scoped to a single brand:
@@ -29,13 +27,11 @@ export async function requireBrandScope(
     return notFound;
   }
 
-  await connectToDatabase();
-
-  const brand = await BrandModel.findById(brandId).select("orgId").lean();
+  const brand = await findBrandById(brandId);
   if (!brand) {
     return notFound;
   }
-  if (!brand.orgId || brand.orgId.toString() !== payload.orgId) {
+  if (!brand.orgId || brand.orgId !== payload.orgId) {
     // Legacy brands with no orgId are not accessible via brandhub auth —
     // they must be adopted into an org first. 404 (not 403) to avoid
     // confirming the brand exists to callers outside its org.

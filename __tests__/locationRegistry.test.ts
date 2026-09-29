@@ -67,7 +67,10 @@ describe("cityHasTowns", () => {
   });
 
   it("defaults to false for cities without one, and unknown cities", () => {
-    expect(cityHasTowns("Abbottabad")).toBe(false);
+    // Abbaspur, not Abbottabad: the OpenStreetMap import gave Abbottabad a
+    // town list. 644 of the 872 cities still have none, which is the case
+    // this covers.
+    expect(cityHasTowns("Abbaspur")).toBe(false);
     expect(cityHasTowns("Nonexistent City")).toBe(false);
   });
 

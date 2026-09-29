@@ -70,9 +70,30 @@ describe("a brand's premises", () => {
   });
 
   afterAll(async () => {
-    await getPool().query("DELETE FROM consumer.users WHERE brand_id = ANY($1)", [
-      [brandId, neighbourBrandId].filter(Boolean),
-    ]);
+    /*
+     * Everything this suite created, including the brands and their orgs.
+     *
+     * `.env` points at the shared dev database — there is no separate test
+     * one here — so a suite that leaves rows behind leaves them in the
+     * console, in BrandHub's brand list, and on the map. An earlier run of
+     * this file deleted its accounts but not its brands, and ten "Branches
+     * Brand <objectid>" rows had to be found and removed by hand.
+     */
+    const ids = [brandId, neighbourBrandId].filter(Boolean) as string[];
+    await getPool().query("DELETE FROM consumer.users WHERE brand_id = ANY($1)", [ids]);
+    const { rows } = await getPool().query(
+      "DELETE FROM consumer.brands WHERE id = ANY($1) RETURNING org_id",
+      [ids],
+    );
+    const orgIds = [...new Set(rows.map((r: { org_id: string }) => r.org_id).filter(Boolean))];
+    if (orgIds.length > 0) {
+      // Only if nothing else is left pointing at them.
+      await getPool().query(
+        `DELETE FROM consumer.organizations o WHERE o.id = ANY($1)
+           AND NOT EXISTS (SELECT 1 FROM consumer.brands b WHERE b.org_id = o.id)`,
+        [orgIds],
+      );
+    }
     await closePostgres();
   });
 

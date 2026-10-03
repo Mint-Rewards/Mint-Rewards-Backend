@@ -41,6 +41,15 @@ export interface PastCollection {
   status: string;
   outcome: "collected" | "missed" | "declined" | "cancelled" | "not_collected";
   weightKg: number;
+  /**
+   * What that weight saved, decided by operations.
+   *
+   * Sent rather than derived, because the client that derived it multiplied
+   * by a car's per-kilometre emissions and showed a tenth of the truth. When
+   * the warehouse portal records material, this changes there and nowhere
+   * else.
+   */
+  co2Kg: number;
   noCollectionReason: string | null;
   resolvedAt: string | null;
   captainName: string | null;

@@ -40,7 +40,27 @@ export interface PastCollection {
   collectionStatus: string;
   status: string;
   outcome: "collected" | "missed" | "declined" | "cancelled" | "not_collected";
-  weightKg: number;
+  /**
+   * How many bags this household put out, and how many have been weighed.
+   *
+   * Captains carry no scales — weighing happens at the warehouse, against the
+   * code printed on each bag — so between the doorstep and the bench a
+   * household has a bag count and no figures at all.
+   */
+  bagCount: number;
+  bagsWeighed: number;
+  /** True while bags of theirs are still on the way to the scales. */
+  awaitingWeight: boolean;
+  /**
+   * Null, not zero, until every one of their bags has been weighed.
+   *
+   * Zero is a claim — "your recycling saved nothing" — and the wrong one. Null
+   * is the honest answer to a question that cannot be answered yet, and it is
+   * what makes the app show the bag count instead of a number.
+   */
+  weightKg: number | null;
+  /** Summed per material, so paper and aluminium are not priced alike. */
+  co2Kg: number | null;
   noCollectionReason: string | null;
   resolvedAt: string | null;
   captainName: string | null;

@@ -66,6 +66,8 @@ export interface UserDoc {
   points: number;
   totalCollections: string;
   totalWasteCollected: string;
+  /** CO2 avoided, from the bench's per-material sum. Not derived by clients. */
+  totalCo2Kg: number;
   referrals: string[];
   referralRewardGranted: boolean;
   /**
@@ -126,6 +128,7 @@ const PUBLIC = {
   points: users.points,
   totalCollections: users.totalCollections,
   totalWasteCollected: users.totalWasteCollected,
+  totalCo2Kg: users.totalCo2Kg,
   referrals: users.referrals,
   referralRewardGranted: users.referralRewardGranted,
   // geography is not readable as text without help; ST_X/ST_Y give the pair
@@ -178,6 +181,7 @@ function toUser(row: PublicRow): UserDoc {
     points: row.points as number,
     totalCollections: row.totalCollections as string,
     totalWasteCollected: row.totalWasteCollected as string,
+    totalCo2Kg: Number(row.totalCo2Kg ?? 0),
     referrals: (row.referrals as string[]) ?? [],
     referralRewardGranted: row.referralRewardGranted as boolean,
     ...(typeof lng === "number" && typeof lat === "number"
@@ -442,6 +446,7 @@ export type UserPatch = Partial<
     | "points"
     | "totalCollections"
     | "totalWasteCollected"
+    | "totalCo2Kg"
     | "referrals"
     | "locationVersion"
     | "locationCompletedAt"

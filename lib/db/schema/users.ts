@@ -29,6 +29,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   text,
   timestamp,
   uniqueIndex,
@@ -107,6 +108,17 @@ export const users = consumer.table(
     points: integer("points").notNull().default(0),
     totalCollections: text("total_collections").notNull().default(""),
     totalWasteCollected: text("total_waste_collected").notNull().default(""),
+    /**
+     * CO2 avoided, summed per material by the warehouse bench.
+     *
+     * Numeric, and computed by the service that knows what was in each bag.
+     * The app used to derive this itself as waste x 0.21 — a factor matching
+     * nothing else in the system — which is how the same kilo could be worth
+     * three different numbers depending on which screen was asked.
+     */
+    totalCo2Kg: numeric("total_co2_kg", { precision: 12, scale: 3, mode: "number" })
+      .notNull()
+      .default(0),
 
     /**
      * Every address this user has referred.

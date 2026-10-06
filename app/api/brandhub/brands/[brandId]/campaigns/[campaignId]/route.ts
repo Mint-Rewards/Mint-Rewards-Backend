@@ -1,3 +1,4 @@
+import { blobToken } from "@/lib/blob";
 import { type NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
@@ -87,7 +88,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
           {
             access: "public",
             contentType: bannerFile.type || "image/jpeg",
-            token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
+            token: blobToken(),
           },
         );
         bannerUrl = blob.url;

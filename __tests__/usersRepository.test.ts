@@ -40,9 +40,123 @@ async function makeUser(over: Partial<repo.NewUser> = {}) {
 
 whenLive("consumer accounts", () => {
   afterAll(async () => {
-    for (const id of made) await repo.deleteUser(id);
+    for (const id of made) await repo.purgeUser(id);
     const { closePostgres } = await import("@/lib/postgres");
     await closePostgres();
+  });
+
+  describe("leaving, and coming back", () => {
+    /*
+     * Deleting used to destroy the row, and that was being played.
+     *
+     * A deal hands out one code per USER ID — `AND NOT (user_id = ANY(users))`
+     * in claimDealCode — so a new id meant a second code from the same deal.
+     * Delete, sign up with the same address, claim again, repeat until the
+     * brand's whole allocation was gone. The referral reward and the hundred
+     * point signup grant were open the same way, and nothing could notice
+     * because nothing keyed on anything that survived the delete.
+     *
+     * So the row survives and the id with it. What these pin is that the
+     * account is genuinely gone from every reader's point of view, and that
+     * coming back is the SAME person with nothing.
+     */
+    it("keeps the row, so the person keeps their id", async () => {
+      const user = await makeUser();
+      expect(await repo.deleteUser(user._id)).toBe(true);
+
+      // Gone to every reader...
+      expect(await repo.findUserById(user._id)).toBeNull();
+      expect(await repo.findUserByEmail(user.email)).toBeNull();
+      expect(await repo.findUserByEmailForLogin(user.email)).toBeNull();
+
+      // ...and still there underneath, which is the whole point.
+      const back = await repo.reviveUser(user.email, {});
+      expect(back).not.toBeNull();
+      expect(back!._id).toBe(user._id);
+    });
+
+    it("zeroes the points and the record of what they recycled", async () => {
+      const user = await makeUser();
+      await repo.addPoints(user._id, 500);
+      await repo.deleteUser(user._id);
+
+      const back = await repo.reviveUser(user.email, {});
+      expect(back!.points).toBe(0);
+      expect(back!.totalCo2Kg).toBe(0);
+      expect(back!.totalWasteCollected).toBe("");
+      // Coming back must not restore a balance they asked us to destroy.
+    });
+
+    it("cannot be logged into while deleted", async () => {
+      const user = await makeUser();
+      await repo.deleteUser(user._id);
+      expect(await repo.findUserByEmailForLogin(user.email)).toBeNull();
+      expect(
+        await repo.findUserByEmailWithOtp(user.email, "passwordReset"),
+      ).toBeNull();
+    });
+
+    it("refuses to revive an account that was never deleted", async () => {
+      // So a revival cannot be used to take over a live account.
+      const user = await makeUser();
+      expect(await repo.reviveUser(user.email, {})).toBeNull();
+    });
+
+    it("deletes once, not twice", async () => {
+      const user = await makeUser();
+      expect(await repo.deleteUser(user._id)).toBe(true);
+      expect(await repo.deleteUser(user._id)).toBe(false);
+    });
+
+    it("is findable again once revived", async () => {
+      const user = await makeUser();
+      await repo.deleteUser(user._id);
+      await repo.reviveUser(user.email, { userName: "Back Again" });
+
+      const found = await repo.findUserByEmail(user.email);
+      expect(found).not.toBeNull();
+      expect(found!._id).toBe(user._id);
+      expect(found!.userName).toBe("Back Again");
+    });
+  });
+
+  describe("a signup with no pin", () => {
+    /*
+     * The bug this pins, as an operator met it: sign up with only a name,
+     * email and password and the request answers 500 — having already created
+     * the account.
+     *
+     * `latitude` and `longitude` are NOT NULL text columns and the signup
+     * route defaulted both to `null`. updateUser skips `undefined` and passes
+     * `null` straight through, so the write violated the constraint after
+     * createUser had committed. The result was an account with no points, no
+     * verification code, able to log in and unable to verify — and signing up
+     * again said "email already in use", which is how it reached us as a bug
+     * about deleted accounts.
+     */
+    it("refuses a null coordinate, so the route must not send one", async () => {
+      const user = await makeUser();
+      await expect(
+        repo.updateUser(user._id, {
+          latitude: null,
+          longitude: null,
+        } as unknown as Parameters<typeof repo.updateUser>[1]),
+      ).rejects.toThrow();
+    });
+
+    it("leaves the columns empty when the fields are simply absent", async () => {
+      // What the route now sends: the keys are omitted, not nulled, and the
+      // empty string is what "no pin yet" means everywhere else in this table.
+      const user = await makeUser();
+      const updated = await repo.updateUser(user._id, {
+        address: "House 1",
+        city: "Karachi",
+      });
+      expect(updated).not.toBeNull();
+      expect(updated!.latitude).toBe("");
+      expect(updated!.longitude).toBe("");
+      expect(updated!.address).toBe("House 1");
+    });
   });
 
   describe("what a read gives back", () => {

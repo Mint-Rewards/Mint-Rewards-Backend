@@ -1,3 +1,4 @@
+import { blobToken } from "@/lib/blob";
 import { put } from "@vercel/blob";
 import connectToDatabase from "@/lib/mongodb";
 import {
@@ -89,7 +90,7 @@ export async function POST(req: Request) {
       const blob = await put(`brands/${uniqueName}`, fileBuffer, {
         access: "public",
         contentType: logoFile.type || "application/octet-stream",
-        token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
+        token: blobToken(),
       });
 
       logoUrl = blob.url;

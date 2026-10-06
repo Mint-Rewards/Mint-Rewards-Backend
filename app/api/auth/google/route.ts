@@ -4,6 +4,7 @@ import dbConnect from "@/lib/mongodb";
 import {
   addPoints,
   createUser,
+  reviveUser,
   findUserByEmail,
   findUserByMintId,
 } from "@/lib/repositories/users";
@@ -35,7 +36,21 @@ const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
 
 export async function POST(req: NextRequest) {
   try {
-    const { idToken } = await req.json();
+    const { idToken, intent } = await req.json();
+
+    /*
+     * Whether this caller is allowed to create an account.
+     *
+     * Both buttons hit this route with the same payload, so "Sign in with
+     * Google" on the login screen silently created accounts — a person who had
+     * never registered was signed up by a button that said sign IN, and
+     * counted in the analytics as a login.
+     *
+     * `intent: "login"` refuses to create. Absent, it still creates, because
+     * every build already on a phone sends no intent at all and making the
+     * default strict would break Sign Up with Google for all of them.
+     */
+    const mayCreate = intent !== "login";
 
     /*
      * Verification is the only gate. An `if (!idToken)` used to stand here
@@ -79,6 +94,31 @@ export async function POST(req: NextRequest) {
     // Find or create user
     let user = email ? await findUserByEmail(email) : null;
 
+    if (!user && !mayCreate) {
+      return NextResponse.json(
+        {
+          Status: "Error",
+          ErrorCode: "NO_ACCOUNT",
+          ErrorMessage:
+            "No Mint Rewards account uses this Google address yet. Create one from Sign Up.",
+        },
+        { status: 404 },
+      );
+    }
+
+    /*
+     * Somebody coming back, before anybody is created.
+     *
+     * findUserByEmail excludes deleted rows, so a returning person reads as
+     * absent above. Reviving the row keeps their id — which is what stops them
+     * claiming a deal they have already claimed — and withholds the hundred
+     * points, because those are for joining and they joined once already.
+     */
+    if (!user && email) {
+      user = await reviveUser(email, { userName: name || undefined });
+    }
+
+    const created = !user;
     if (!user) {
       const mintId = await generateMintId();
       const randomPassword = await bcrypt.hash(
@@ -110,6 +150,10 @@ export async function POST(req: NextRequest) {
       data: {
         ...userResponse,
         token: `Bearer ${token}`,
+        // Whether this call made the account. The screen a person happened to
+        // start on is not the event that occurred, and the client was firing
+        // one based on the other.
+        created,
         picture, // from Google, in case you want to use it as fallback avatar
       },
     });

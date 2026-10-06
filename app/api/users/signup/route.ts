@@ -2,9 +2,11 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import connectToDatabase from "@/lib/mongodb";
+import { inTransaction } from "@/lib/repositories/brandhub";
 import {
   addPoints,
   createUser,
+  reviveUser,
   findUserByEmail,
   findUserByMintId,
   setUserOtp,
@@ -137,6 +139,25 @@ export async function POST(req: Request) {
       );
     }
 
+    /*
+     * Only what was actually sent. A missing coordinate is absent, not null:
+     * `latitude` and `longitude` are NOT NULL text columns, and passing null
+     * threw AFTER the row was created — a 500 with an account behind it.
+     */
+    const placeFrom = (): Record<string, unknown> => {
+      const place: Record<string, unknown> = { address, province, city, town };
+      if (latitude !== null && latitude !== undefined) place.latitude = latitude;
+      if (longitude !== null && longitude !== undefined) place.longitude = longitude;
+      return place;
+    };
+
+    const otpBlock = (code: string) => ({
+      otpHash: hashOtp(code),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      attempts: 0,
+      lastSentAt: new Date().toISOString(),
+    });
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -144,32 +165,66 @@ export async function POST(req: Request) {
 
     const otp = generateOtp();
 
-    const newUser = await createUser({
-      userName,
-      email,
-      password: hashedPassword,
-      phone,
-      mintId,
+    /*
+     * All of it, or none of it.
+     *
+     * These ran as four separate statements, and the second one threw on a
+     * signup that carried no pin: `latitude` and `longitude` are NOT NULL text
+     * columns, the destructure above defaults them to `null`, and updateUser
+     * skips `undefined` but passes `null` straight through. The row was
+     * already created by then, so the caller got a 500 and an account —
+     * signed up, no points, no verification code, able to log in and unable to
+     * verify. Signing up again said "email already in use", which is how this
+     * reached us as a bug about deleted accounts.
+     *
+     * inTransaction exists for precisely this and its own comment says so: it
+     * was written after BrandHub signup left people with an org and a login
+     * and no brand. Consumer signup had the same shape and never got it.
+     */
+    /*
+     * Somebody coming back.
+     *
+     * findUserByEmail excludes deleted rows, so the 409 above did not fire for
+     * them — and this is where they are recognised. The row is revived rather
+     * than replaced, which is the whole point: the id is what every
+     * one-per-person guard is written against, and a new one would let them
+     * claim the same deal a second time.
+     *
+     * They return as themselves with nothing. No points, no history, and no
+     * second signup grant — the hundred are for joining, and they have joined
+     * before. The verification code is reissued because the password is new.
+     */
+    const revived = await inTransaction(async (tx) => {
+      const back = await reviveUser(
+        email,
+        { userName, password: hashedPassword, phone },
+        tx,
+      );
+      if (!back) return null;
+      await updateUser(back._id, placeFrom(), tx);
+      await setUserOtp(back._id, "emailVerification", otpBlock(otp), tx);
+      return back;
     });
 
-    // The address block and the starting points are not createUser's to
-    // accept: points are server-granted, and a signup that could set them is
-    // a signup that could mint them.
-    await updateUser(newUser._id, {
-      address,
-      province,
-      city,
-      town,
-      latitude,
-      longitude,
-    });
-    await addPoints(newUser._id, 100);
-    await setUserOtp(newUser._id, "emailVerification", {
-      otpHash: hashOtp(otp),
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-      attempts: 0,
-      lastSentAt: new Date().toISOString(),
-    });
+    const newUser = revived ?? (await inTransaction(async (tx) => {
+      const created = await createUser(
+        { userName, email, password: hashedPassword, phone, mintId },
+        tx,
+      );
+
+      // The address block and the starting points are not createUser's to
+      // accept: points are server-granted, and a signup that could set them is
+      // a signup that could mint them.
+      //
+      // Only what was actually sent. A missing coordinate is absent, not null:
+      // these columns cannot hold null, and the empty string is what "no pin
+      // yet" means everywhere else in this table.
+      await updateUser(created._id, placeFrom(), tx);
+
+      await addPoints(created._id, 100, tx);
+      await setUserOtp(created._id, "emailVerification", otpBlock(otp), tx);
+      return created;
+    }));
 
     try {
       await sendSignupEmail(email, otp);

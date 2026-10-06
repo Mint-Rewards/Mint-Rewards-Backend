@@ -17,6 +17,7 @@ import connectToDatabase from "@/lib/mongodb";
 import {
   createUser,
   deleteUser,
+  purgeUser,
   findUserById,
   updateUser,
 } from "@/lib/repositories/users";
@@ -124,7 +125,7 @@ describe("pickupHistory.addressSnapshot persistence", () => {
   });
 
   afterAll(async () => {
-    await deleteUser(userId);
+    await purgeUser(userId);
     const { closePostgres } = await import("@/lib/postgres");
     await closePostgres();
     await mongoose.connection.close();

@@ -121,6 +121,20 @@ export const users = consumer.table(
       .default(0),
 
     /**
+     * When they asked to be forgotten, or null.
+     *
+     * The row survives so the id survives, because the id is what every
+     * one-per-person guard is written against — a deal's code, the referral
+     * reward, the signup grant. A hard delete issued a new id and let the same
+     * person claim all of them again.
+     *
+     * Every read excludes these rows, so a deleted account cannot log in, does
+     * not appear on the ops map and is not collected from. Coming back revives
+     * this row rather than making another.
+     */
+    deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "date" }),
+
+    /**
      * Every address this user has referred.
      *
      * Unbounded in Mongo, where it counted against the 16MB document cap. It

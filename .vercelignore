@@ -12,6 +12,15 @@
 .env.*
 !.env.example
 
+# The provisioning credentials, for the same reason and a worse one.
+#
+# .gitignore already keeps these out of the repo, which is exactly what makes
+# them easy to forget here: a file git never shows you is a file you stop
+# seeing. This directory holds the production database URL, the admin API
+# token and fourteen brand owner logins, and it was created two days after the
+# last deploy — so the only reason it has not already been uploaded is timing.
+secrets/
+
 node_modules
 .next
 .git

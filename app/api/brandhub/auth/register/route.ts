@@ -1,3 +1,4 @@
+import { blobToken } from "@/lib/blob";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { put } from "@vercel/blob";
@@ -130,16 +131,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const uniqueName = `${Date.now()}-${Math.random()
       .toString(36)
       .slice(2)}${extension || ".png"}`;
-    const blob = await put(
-      `brands/${uniqueName}`,
-      Buffer.from(await logoFile.arrayBuffer()),
-      {
-        access: "public",
-        contentType: logoFile.type || "application/octet-stream",
-        token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
-      },
-    );
-    logoUrl = blob.url;
+    /*
+     * A logo that will not upload must not cost somebody their registration.
+     *
+     * This threw straight out of the route: storage answered "Access denied"
+     * on a stale token and the caller got an opaque failure with no org, no
+     * brand and no hint that the picture was the problem. The validation above
+     * already refuses a file that is wrong — too big, not an image — so
+     * everything reaching here is a storage fault on our side, and failing
+     * their signup for it is the wrong trade.
+     *
+     * They register without a logo and can add one from settings. The error is
+     * logged because a silent fallback would hide a broken token for weeks.
+     */
+    try {
+      const blob = await put(
+        `brands/${uniqueName}`,
+        Buffer.from(await logoFile.arrayBuffer()),
+        {
+          access: "public",
+          contentType: logoFile.type || "application/octet-stream",
+          token: blobToken(),
+        },
+      );
+      logoUrl = blob.url;
+    } catch (blobErr) {
+      console.error(
+        "[brandhub:register] logo upload failed, registering without it:",
+        blobErr instanceof Error ? blobErr.message : blobErr,
+      );
+    }
   }
 
   const normalizedEmail = email.toLowerCase().trim();

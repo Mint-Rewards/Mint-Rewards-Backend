@@ -40,6 +40,25 @@ function required(key: string): string {
  * present. A 4-character JWT_SECRET is a misconfiguration, and the whole point
  * of this file is to catch it at boot rather than in production traffic.
  */
+/**
+ * The first of these names that is set, or undefined.
+ *
+ * Exists for one pair. The store injects a differently prefixed name into each
+ * connected project — `BLOB_READ_WRITE_TOKEN` for the admin API,
+ * `BLOB_PUBLIC_*` for the production backend, and for the dev backend no token
+ * at all, because connected projects authenticate over OIDC.
+ *
+ * Undefined is a valid answer and the usual one on Vercel. See
+ * `blobReadWriteToken` below for what passing a stale token instead cost.
+ */
+function optionalEither(...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value !== undefined && value.trim() !== "") return value.trim();
+  }
+  return undefined;
+}
+
 function requiredSecret(key: string, minLength = 16): string {
   const value = required(key);
   if (value && value.length < minLength) {
@@ -445,7 +464,28 @@ const parsed = {
   ),
 
   // Storage
-  blobReadWriteToken: required("BLOB_PUBLIC_READ_WRITE_TOKEN"),
+  /*
+   * Optional, because on Vercel there is nothing to supply.
+   *
+   * The Blob store authenticates connected projects over OIDC — the store page
+   * says so, and `mint-rewards-backend-dev` is connected with no read-write
+   * token injected at all, only a store id and a webhook key. @vercel/blob
+   * picks that up on its own when no token is passed.
+   *
+   * Required is how this broke. A hand-added BLOB_PUBLIC_READ_WRITE_TOKEN was
+   * left on the dev project from before OIDC, the SDK used it because it was
+   * there, and the store refused it: "Access denied", which reached QA as a
+   * 403 on BrandHub registration. The stale token was worse than no token.
+   *
+   * Still read when set, because a local machine has no OIDC and needs one.
+   */
+  // Same order as lib/blob.ts, and for the same reason: on production
+  // BLOB_READ_WRITE_TOKEN belongs to a different, dead store.
+  blobReadWriteToken: optionalEither(
+    "BLOB_PUBLIC_READ_WRITE_TOKEN",
+    "BLOB_DEV_READ_WRITE_TOKEN",
+    "BLOB_READ_WRITE_TOKEN",
+  ),
 
   // CORS
   allowedOrigins: requiredOriginList("ALLOWED_ORIGINS"),

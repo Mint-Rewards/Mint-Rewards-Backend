@@ -4,6 +4,7 @@ import dbConnect from "@/lib/mongodb";
 import {
   addPoints,
   createUser,
+  reviveUser,
   findUserByAppleId,
   findUserByEmail,
   findUserByMintId,
@@ -34,7 +35,16 @@ async function generateMintId(): Promise<string> {
 
 export async function POST(req: NextRequest) {
   try {
-    const { identityToken, fullName } = await req.json();
+    const { identityToken, fullName, intent } = await req.json();
+
+    /*
+     * Whether this caller is allowed to create an account. See the same guard
+     * in the Google route: "Sign in with Apple" on the login screen was
+     * registering people who had never signed up.
+     *
+     * Absent means yes, so the builds already on phones keep working.
+     */
+    const mayCreate = intent !== "login";
 
     /*
      * Verification is the only gate.
@@ -92,6 +102,28 @@ export async function POST(req: NextRequest) {
       if (user) user = await updateUser(user._id, { appleId: sub });
     }
 
+    if (!user && !mayCreate) {
+      return NextResponse.json(
+        {
+          Status: "Error",
+          ErrorCode: "NO_ACCOUNT",
+          ErrorMessage:
+            "No Mint Rewards account uses this Apple ID yet. Create one from Sign Up.",
+        },
+        { status: 404 },
+      );
+    }
+
+    /*
+     * 2b. Somebody coming back. See the Google route: the row is revived so the
+     * id survives, and no signup grant is paid a second time.
+     */
+    if (!user && email) {
+      user = await reviveUser(email, { appleId: sub });
+    }
+
+    const created = !user;
+
     // 3. Create a new user if none found
     if (!user) {
       const givenName = fullName?.givenName ?? "";
@@ -135,6 +167,9 @@ export async function POST(req: NextRequest) {
       data: {
         ...userResponse,
         token: `Bearer ${token}`,
+        // Whether this call made the account, so the client reports what
+        // actually happened rather than which screen it was on.
+        created,
       },
     });
   } catch (error: any) {

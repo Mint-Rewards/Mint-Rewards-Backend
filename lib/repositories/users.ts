@@ -16,7 +16,7 @@
  * is a single statement whose WHERE clause carries the guard, so a second
  * concurrent call matches nothing rather than doing the work twice.
  */
-import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/postgres";
 import { users } from "@/lib/db/schema";
 import type { Executor } from "@/lib/repositories/brandhub";
@@ -66,6 +66,8 @@ export interface UserDoc {
   points: number;
   totalCollections: string;
   totalWasteCollected: string;
+  /** CO2 avoided, from the bench's per-material sum. Not derived by clients. */
+  totalCo2Kg: number;
   referrals: string[];
   referralRewardGranted: boolean;
   /**
@@ -126,6 +128,7 @@ const PUBLIC = {
   points: users.points,
   totalCollections: users.totalCollections,
   totalWasteCollected: users.totalWasteCollected,
+  totalCo2Kg: users.totalCo2Kg,
   referrals: users.referrals,
   referralRewardGranted: users.referralRewardGranted,
   // geography is not readable as text without help; ST_X/ST_Y give the pair
@@ -178,6 +181,7 @@ function toUser(row: PublicRow): UserDoc {
     points: row.points as number,
     totalCollections: row.totalCollections as string,
     totalWasteCollected: row.totalWasteCollected as string,
+    totalCo2Kg: Number(row.totalCo2Kg ?? 0),
     referrals: (row.referrals as string[]) ?? [],
     referralRewardGranted: row.referralRewardGranted as boolean,
     ...(typeof lng === "number" && typeof lat === "number"
@@ -236,6 +240,20 @@ function toUser(row: PublicRow): UserDoc {
 // Reads
 // ---------------------------------------------------------------------------
 
+/**
+ * The rows a reader is allowed to see.
+ *
+ * A deleted account is absent, not hidden: it cannot log in, cannot be found
+ * by email, does not appear on the ops map and is not collected from. The row
+ * survives only so the ID survives — every one-per-person guard in this system
+ * is written against that id, and issuing a new one let somebody delete, sign
+ * up again and claim the same deal twice.
+ *
+ * Declared once and spread into every finder, because the one finder somebody
+ * forgets is a way back in.
+ */
+const ALIVE = isNull(users.deletedAt);
+
 export async function findUserById(
   id: string,
   tx?: Executor,
@@ -244,7 +262,7 @@ export async function findUserById(
   const rows = await exec(tx)
     .select(PUBLIC)
     .from(users)
-    .where(eq(users.id, id))
+    .where(and(eq(users.id, id), ALIVE))
     .limit(1);
   return rows[0] ? toUser(rows[0]) : null;
 }
@@ -256,7 +274,7 @@ export async function findUserByEmail(
   const rows = await exec(tx)
     .select(PUBLIC)
     .from(users)
-    .where(eq(users.email, email.toLowerCase()))
+    .where(and(eq(users.email, email.toLowerCase()), ALIVE))
     .limit(1);
   return rows[0] ? toUser(rows[0]) : null;
 }
@@ -268,7 +286,7 @@ export async function findUserByMintId(
   const rows = await exec(tx)
     .select(PUBLIC)
     .from(users)
-    .where(eq(users.mintId, mintId))
+    .where(and(eq(users.mintId, mintId), ALIVE))
     .limit(1);
   return rows[0] ? toUser(rows[0]) : null;
 }
@@ -280,7 +298,7 @@ export async function findUserByAppleId(
   const rows = await exec(tx)
     .select(PUBLIC)
     .from(users)
-    .where(eq(users.appleId, appleId))
+    .where(and(eq(users.appleId, appleId), ALIVE))
     .limit(1);
   return rows[0] ? toUser(rows[0]) : null;
 }
@@ -298,7 +316,7 @@ export async function findUserByEmailForLogin(
   const rows = await exec(tx)
     .select({ ...PUBLIC, password: users.password })
     .from(users)
-    .where(eq(users.email, email.toLowerCase()))
+    .where(and(eq(users.email, email.toLowerCase()), ALIVE))
     .limit(1);
   if (!rows[0]) return null;
   return { ...toUser(rows[0]), password: rows[0].password as string };
@@ -315,7 +333,7 @@ export async function findUserByEmailWithOtp(
   const rows = await exec(tx)
     .select({ ...PUBLIC, otp: column })
     .from(users)
-    .where(eq(users.email, email.toLowerCase()))
+    .where(and(eq(users.email, email.toLowerCase()), ALIVE))
     .limit(1);
   if (!rows[0]) return null;
   return { ...toUser(rows[0]), otp: (rows[0].otp as OtpBlock | null) ?? null };
@@ -324,7 +342,8 @@ export async function findUserByEmailWithOtp(
 export async function countUsers(tx?: Executor): Promise<number> {
   const rows = await exec(tx)
     .select({ n: sql<number>`count(*)::int` })
-    .from(users);
+    .from(users)
+    .where(ALIVE);
   return rows[0]?.n ?? 0;
 }
 
@@ -336,7 +355,7 @@ export async function findUserByReferral(
   const rows = await exec(tx)
     .select(PUBLIC)
     .from(users)
-    .where(sql`${email.toLowerCase()} = ANY(${users.referrals})`)
+    .where(and(sql`${email.toLowerCase()} = ANY(${users.referrals})`, ALIVE))
     .limit(1);
   return rows[0] ? toUser(rows[0]) : null;
 }
@@ -360,8 +379,11 @@ export async function findUsersHoldingEmails(
     .select(PUBLIC)
     .from(users)
     .where(
-      sql`${users.email} = ANY(${sql.param(wanted)}::text[])
-          OR ${users.referrals} && ${sql.param(wanted)}::text[]`,
+      and(
+        sql`${users.email} = ANY(${sql.param(wanted)}::text[])
+            OR ${users.referrals} && ${sql.param(wanted)}::text[]`,
+        ALIVE,
+      ),
     );
   return rows.map(toUser);
 }
@@ -376,7 +398,7 @@ export async function findUsersByEmails(
   const rows = await exec(tx)
     .select(PUBLIC)
     .from(users)
-    .where(sql`${users.email} = ANY(${sql.param(wanted)}::text[])`);
+    .where(and(sql`${users.email} = ANY(${sql.param(wanted)}::text[])`, ALIVE));
   return rows.map(toUser);
 }
 
@@ -442,6 +464,7 @@ export type UserPatch = Partial<
     | "points"
     | "totalCollections"
     | "totalWasteCollected"
+    | "totalCo2Kg"
     | "referrals"
     | "locationVersion"
     | "locationCompletedAt"
@@ -592,13 +615,105 @@ export async function setUserOtp(
   return rows.length === 1;
 }
 
+/**
+ * Forgets somebody, without losing who they were.
+ *
+ * A soft delete, and the reason is a hole the hard one opened. A deal hands
+ * out one code per USER ID — `AND NOT (user_id = ANY(users))` in
+ * claimDealCode — so destroying the row issued a new id and let the same
+ * person claim the same deal again, as often as they cared to repeat it. The
+ * referral reward and the hundred-point signup grant were open the same way.
+ *
+ * Keeping the row keeps the id, and the id is what all of those are written
+ * against. Everything that made it *their* account is cleared: the points,
+ * the waste, the collections, the CO2, the pin and the device token. What is
+ * left is an identity with nothing attached to it, which is what lets us
+ * recognise them if they come back without being able to tell anyone anything
+ * about them.
+ *
+ * Every read excludes these rows — see ALIVE — so from the outside the account
+ * is gone: it cannot log in, cannot be found, and is off the ops map.
+ */
 export async function deleteUser(id: string, tx?: Executor): Promise<boolean> {
+  if (!OBJECT_ID.test(id)) return false;
+  const rows = await exec(tx)
+    .update(users)
+    .set({
+      deletedAt: new Date(),
+      // The balance and the record of what they recycled. Zeroed rather than
+      // kept, because coming back must not restore a balance they asked us to
+      // destroy — and must not hand them a second signup grant on top of it.
+      points: 0,
+      totalCollections: "",
+      totalWasteCollected: "",
+      totalCo2Kg: 0,
+      // Nothing should reach them after this.
+      deviceToken: "",
+      // The pin, so no captain is ever sent to a door that asked us to forget
+      // them. The directory excludes deleted rows anyway; this is the belt to
+      // that braces.
+      latitude: "",
+      longitude: "",
+      geog: null,
+    })
+    .where(and(eq(users.id, id), isNull(users.deletedAt)))
+    .returning({ id: users.id });
+  return rows.length === 1;
+}
+
+/**
+ * Removes the row for good. Not what the app's "delete account" does.
+ *
+ * `deleteUser` is a soft delete, because the id has to survive — it is what
+ * stops somebody deleting their account to claim the same deal a second time.
+ * This is the other thing: the row genuinely goes, the id is released, and
+ * every guard written against it forgets them.
+ *
+ * Two callers are legitimate. A test that created a fixture and must leave the
+ * database as it found it — soft-deleting there leaks a row and its unique
+ * mint_id into the next run, which is how this function came to exist. And a
+ * real erasure request, where keeping an identity to recognise somebody by is
+ * the thing being objected to.
+ *
+ * Nothing in the app should call it. Deleting an account is `deleteUser`.
+ */
+export async function purgeUser(id: string, tx?: Executor): Promise<boolean> {
   if (!OBJECT_ID.test(id)) return false;
   const rows = await exec(tx)
     .delete(users)
     .where(eq(users.id, id))
     .returning({ id: users.id });
   return rows.length === 1;
+}
+
+/**
+ * Brings a deleted account back, as itself and with nothing.
+ *
+ * Returns null when the address belongs to nobody or to a live account — the
+ * caller then creates or refuses as it would have.
+ *
+ * No signup grant is paid here, deliberately. The hundred points are for
+ * joining, and somebody who has already joined once has already had them;
+ * paying again is the loop this whole change exists to close.
+ */
+export async function reviveUser(
+  email: string,
+  fields: { userName?: string; password?: string; phone?: string; appleId?: string },
+  tx?: Executor,
+): Promise<UserDoc | null> {
+  const rows = await exec(tx)
+    .update(users)
+    .set({
+      deletedAt: null,
+      ...(fields.userName ? { userName: fields.userName } : {}),
+      ...(fields.password ? { password: fields.password } : {}),
+      ...(fields.phone ? { phone: fields.phone } : {}),
+      ...(fields.appleId ? { appleId: fields.appleId } : {}),
+    })
+    .where(and(eq(users.email, email.toLowerCase()), isNotNull(users.deletedAt)))
+    .returning({ id: users.id });
+  if (rows.length !== 1) return null;
+  return findUserById(rows[0]!.id, tx);
 }
 
 // ---------------------------------------------------------------------------

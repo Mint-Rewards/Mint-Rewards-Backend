@@ -1,3 +1,4 @@
+import { blobToken } from "@/lib/blob";
 import { put } from "@vercel/blob";
 
 export const MAX_LOGO_BYTES = 5 * 1024 * 1024; // 5 MB — matches registration's limit
@@ -33,7 +34,7 @@ export async function uploadBrandLogo(
     {
       access: "public",
       contentType: logoFile.type || "application/octet-stream",
-      token: process.env.BLOB_PUBLIC_READ_WRITE_TOKEN,
+      token: blobToken(),
     },
   );
 

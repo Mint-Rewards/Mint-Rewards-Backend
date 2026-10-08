@@ -32,6 +32,7 @@ import {
   addPoints,
   createUser,
   deleteUser,
+  purgeUser,
   findUserById,
   startBonusWindow,
   updateUser,
@@ -120,7 +121,7 @@ describe("profile-completion bonus", () => {
   });
 
   afterAll(async () => {
-    for (const id of createdIds) await deleteUser(id);
+    for (const id of createdIds) await purgeUser(id);
     const { closePostgres } = await import("../lib/postgres");
     await closePostgres();
     await mongoose.connection.close();

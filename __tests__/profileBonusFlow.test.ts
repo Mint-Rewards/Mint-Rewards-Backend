@@ -45,6 +45,7 @@ import {
   addPoints,
   createUser,
   deleteUser,
+  purgeUser,
   updateUser,
 } from "../lib/repositories/users";
 
@@ -151,7 +152,7 @@ describe("profile-completion bonus — end to end", () => {
 
   afterAll(async () => {
     if (createdIds.length) {
-      for (const id of createdIds) await deleteUser(id);
+      for (const id of createdIds) await purgeUser(id);
     }
     const { closePostgres } = await import("../lib/postgres");
     await closePostgres();

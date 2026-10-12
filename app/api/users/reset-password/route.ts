@@ -63,7 +63,14 @@ export async function POST(req: Request) {
 
     const user = await findUserByEmailWithOtp(normalizedEmail, "passwordReset");
 
-    if (!user) {
+    /*
+     * No address is the same answer as no account.
+     *
+     * Unreachable today, since the lookup is by email — but an account that
+     * signed up with a phone number genuinely cannot reset a password this
+     * way, and saying "no account found for that email" is true of it.
+     */
+    if (!user || !user.email) {
       return Response.json(
         // `code` is part of the client contract, not decoration: the client
         // requires status 404 AND this code before it tells the user no account

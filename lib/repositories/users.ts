@@ -48,7 +48,15 @@ export interface OtpBlock {
 export interface UserDoc {
   _id: string;
   userName: string;
-  email: string;
+  /**
+   * Null for an account that signed up with a phone number.
+   *
+   * Typed honestly rather than cast, because the cast that used to sit here
+   * asserted a string the column can no longer promise — and the failure
+   * would have been an `undefined` reaching a mail template or a
+   * `.toLowerCase()`, far from the cause.
+   */
+  email: string | null;
   mintId: string;
   role: string;
   phone: string;
@@ -163,7 +171,7 @@ function toUser(row: PublicRow): UserDoc {
   return {
     _id: row.id as string,
     userName: row.userName as string,
-    email: row.email as string,
+    email: (row.email as string | null) ?? null,
     mintId: row.mintId as string,
     role: row.role as string,
     phone: row.phone as string,
@@ -322,14 +330,44 @@ export async function findUserByEmailForLogin(
   return { ...toUser(rows[0]), password: rows[0].password as string };
 }
 
+/**
+ * Which secret is being handled.
+ *
+ * A phone code is a third case of the existing mechanism, not a new one: the
+ * same hashing, the same atomic burn guarded on the hash, the same column
+ * shape. Adding a member here is the whole of what the phone flow needed from
+ * this file.
+ */
+export type OtpKind =
+  | "passwordReset"
+  | "emailVerification"
+  | "phoneVerification";
+
+/** For the Drizzle query builder. */
+const OTP_FIELD = {
+  passwordReset: users.passwordReset,
+  emailVerification: users.emailVerification,
+  phoneVerification: users.phoneVerification,
+} as const;
+
+/**
+ * For the raw statements. Kept beside the field map above so the two cannot
+ * drift — a mismatch would read one column and write another, and the symptom
+ * would be a code that never verifies.
+ */
+const OTP_COLUMN: Record<OtpKind, string> = {
+  passwordReset: "password_reset",
+  emailVerification: "email_verification",
+  phoneVerification: "phone_verification",
+};
+
 /** The OTP blocks, for the reset and verification flows only. */
 export async function findUserByEmailWithOtp(
   email: string,
-  which: "passwordReset" | "emailVerification",
+  which: OtpKind,
   tx?: Executor,
 ): Promise<(UserDoc & { otp: OtpBlock | null }) | null> {
-  const column =
-    which === "passwordReset" ? users.passwordReset : users.emailVerification;
+  const column = OTP_FIELD[which];
   const rows = await exec(tx)
     .select({ ...PUBLIC, otp: column })
     .from(users)
@@ -600,16 +638,14 @@ export async function setUserPassword(
 
 export async function setUserOtp(
   id: string,
-  which: "passwordReset" | "emailVerification",
+  which: OtpKind,
   block: OtpBlock | null,
   tx?: Executor,
 ): Promise<boolean> {
   if (!OBJECT_ID.test(id)) return false;
-  const column =
-    which === "passwordReset" ? "passwordReset" : "emailVerification";
   const rows = await exec(tx)
     .update(users)
-    .set({ [column]: block })
+    .set({ [which]: block })
     .where(eq(users.id, id))
     .returning({ id: users.id });
   return rows.length === 1;
@@ -823,13 +859,12 @@ export async function addPoints(
  */
 export async function recordOtpAttempt(
   userId: string,
-  which: "passwordReset" | "emailVerification",
+  which: OtpKind,
   otpHash: string,
   tx?: Executor,
 ): Promise<boolean> {
   if (!OBJECT_ID.test(userId)) return false;
-  const column =
-    which === "passwordReset" ? "password_reset" : "email_verification";
+  const column = OTP_COLUMN[which];
   const result = await exec(tx).execute(sql`
     UPDATE consumer.users
        SET ${sql.raw(column)} = jsonb_set(
@@ -851,18 +886,86 @@ export async function recordOtpAttempt(
  */
 export async function consumeOtp(
   userId: string,
-  which: "passwordReset" | "emailVerification",
+  which: OtpKind,
   otpHash: string,
   tx?: Executor,
 ): Promise<boolean> {
   if (!OBJECT_ID.test(userId)) return false;
-  const column =
-    which === "passwordReset" ? "password_reset" : "email_verification";
+  const column = OTP_COLUMN[which];
   const result = await exec(tx).execute(sql`
     UPDATE consumer.users
        SET ${sql.raw(column)} = NULL
      WHERE id = ${userId}
        AND ${sql.raw(column)}->>'otpHash' = ${otpHash}
+    RETURNING id
+  `);
+  return ((result as unknown as { rows: unknown[] }).rows ?? []).length === 1;
+}
+
+/**
+ * The account that has PROVED this number, if there is one.
+ *
+ * Only verified rows. An unverified `phone_e164` is somebody mid-signup who
+ * never finished, and treating that as an identity would let the first person
+ * to type a number hold it against the person who actually owns the SIM.
+ */
+export async function findUserByPhone(
+  e164: string,
+  tx?: Executor,
+): Promise<UserDoc | null> {
+  const rows = await exec(tx)
+    .select(PUBLIC)
+    .from(users)
+    .where(
+      and(eq(users.phoneE164, e164), sql`${users.phoneVerifiedAt} IS NOT NULL`, ALIVE),
+    )
+    .limit(1);
+  return rows[0] ? toUser(rows[0]) : null;
+}
+
+/**
+ * The row holding this number mid-verification, verified or not.
+ *
+ * The signing-in counterpart to `findUserByEmailWithOtp`. Unlike the lookup
+ * above this one DOES return unverified rows, because the whole point is to
+ * read back the code somebody was just sent — before they have proved
+ * anything.
+ */
+export async function findUserByPhoneWithOtp(
+  e164: string,
+  tx?: Executor,
+): Promise<(UserDoc & { otp: OtpBlock | null }) | null> {
+  const rows = await exec(tx)
+    .select({ ...PUBLIC, otp: users.phoneVerification })
+    .from(users)
+    .where(and(eq(users.phoneE164, e164), ALIVE))
+    .limit(1);
+  if (!rows[0]) return null;
+  return { ...toUser(rows[0]), otp: (rows[0].otp as OtpBlock | null) ?? null };
+}
+
+/**
+ * Marks the number proved and burns the code in one statement.
+ *
+ * The mirror of `markEmailVerified`, and atomic for the same reason: a code
+ * must not be spendable twice, so the burn is guarded on the hash that was
+ * verified rather than on the row.
+ *
+ * The unique index on verified numbers is what this can collide with — two
+ * people racing to prove the same SIM. The caller gets `false` and should say
+ * the number is already in use rather than retry, because a retry cannot win.
+ */
+export async function markPhoneVerified(
+  userId: string,
+  otpHash: string,
+  tx?: Executor,
+): Promise<boolean> {
+  if (!OBJECT_ID.test(userId)) return false;
+  const result = await exec(tx).execute(sql`
+    UPDATE consumer.users
+       SET phone_verification = NULL, phone_verified_at = now()
+     WHERE id = ${userId}
+       AND phone_verification->>'otpHash' = ${otpHash}
     RETURNING id
   `);
   return ((result as unknown as { rows: unknown[] }).rows ?? []).length === 1;

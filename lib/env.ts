@@ -404,6 +404,24 @@ const parsed = {
   // empty HMAC key, which made stored OTP hashes trivially reversible.
   otpPepper: requiredSecret("OTP_PEPPER"),
 
+  /*
+   * WhatsApp, for phone-number one-time codes.
+   *
+   * Optional, because the business number, the verified Meta account and the
+   * approved authentication template do not exist yet — and a required key
+   * would stop every deployment booting over a feature nothing uses. When
+   * both the id and the token are absent the sender falls back to a stub that
+   * logs the code, and that stub REFUSES to construct in production, so a
+   * misconfigured live deployment fails at the first send rather than quietly
+   * writing customers' codes into a log.
+   */
+  whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID?.trim() || null,
+  whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN?.trim() || null,
+  /** Meta fixes the wording; we supply only the code. */
+  whatsappOtpTemplate: process.env.WHATSAPP_OTP_TEMPLATE?.trim() || "mint_otp",
+  /** Approved per language, so changing this needs a separate approval. */
+  whatsappOtpLanguage: process.env.WHATSAPP_OTP_LANGUAGE?.trim() || "en",
+
   // Identity providers
   googleIosClientId: required("GOOGLE_IOS_CLIENT_ID"),
   googleWebClientId: required("GOOGLE_WEB_CLIENT_ID"),

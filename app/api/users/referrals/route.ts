@@ -72,7 +72,9 @@ export async function POST(req: Request) {
     // It discloses nothing the caller does not already know — they are the
     // authenticated owner of this address — and it is a client bug rather
     // than an ordinary batch outcome.
-    if (normalizedEmails.includes(user.email)) {
+    // A phone-only account has no address of its own to refer, so it cannot
+    // be referring itself.
+    if (user.email !== null && normalizedEmails.includes(user.email)) {
       return Response.json(
         { error: "You cannot refer your own email address." },
         { status: 400 },
@@ -89,6 +91,9 @@ export async function POST(req: Request) {
     const registered = new Set(
       matches
         .map((match) => match.email)
+        // An account with no address cannot be one of the addresses asked
+        // about, so it is not a match — the narrowing is the point, not tidying.
+        .filter((email): email is string => email !== null)
         .filter((email) => normalizedEmails.includes(email)),
     );
 

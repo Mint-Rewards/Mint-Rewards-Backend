@@ -58,7 +58,15 @@ export const users = consumer.table(
     id: text("id").primaryKey(),
 
     userName: text("user_name").notNull(),
-    email: text("email").notNull(),
+    /**
+     * Nullable since 0011: a phone-first signup has no address to put here.
+     *
+     * The unique index below is unaffected — Postgres treats NULLs as
+     * distinct — so any number of accounts may have none while two still
+     * cannot share one. A row must carry an email or a verified phone; the
+     * `users_need_a_credential` CHECK enforces it.
+     */
+    email: text("email"),
     /** bcrypt hash. Never projected by the default read. */
     password: text("password").notNull(),
     mintId: text("mint_id").notNull(),
@@ -87,7 +95,21 @@ export const users = consumer.table(
      * would put a family's waste on a company's ESG report.
      */
     brandId: text("brand_id"),
+    /**
+     * Whatever the person typed. Displayed, never authenticated against.
+     *
+     * Holds everything ever entered, including the 212 rows that are just
+     * "+92". The captain app and the ops console show this one.
+     */
     phone: text("phone").notNull().default(""),
+    /**
+     * The verified number, E.164. Written only after an OTP is answered.
+     *
+     * This is the one anything signs in against — see 0010 and
+     * docs/specs/phone-and-whatsapp-signup.md.
+     */
+    phoneE164: text("phone_e164"),
+    phoneVerifiedAt: timestamp("phone_verified_at", { withTimezone: true }),
     avatar: text("avatar").notNull().default(""),
 
     // ---- Legacy address strings ------------------------------------------
@@ -209,6 +231,8 @@ export const users = consumer.table(
     /** OTP hashes. Never in the default projection — see the file header. */
     passwordReset: jsonb("password_reset"),
     emailVerification: jsonb("email_verification"),
+    /** The same shape as emailVerification; a third case, not a new one. */
+    phoneVerification: jsonb("phone_verification"),
 
     emailVerified: boolean("email_verified").notNull().default(false),
     appleId: text("apple_id"),
@@ -222,6 +246,17 @@ export const users = consumer.table(
       .on(table.appleId)
       .where(sql`${table.appleId} IS NOT NULL`),
     index("users_email_verified_idx").on(table.emailVerified),
+    /*
+     * One VERIFIED number, one account. Partial on purpose: unverified
+     * numbers are not identities, thousands of duplicates already exist, and
+     * a full unique index could not be created without deleting real rows.
+     */
+    uniqueIndex("users_phone_e164_verified_key")
+      .on(table.phoneE164)
+      .where(sql`${table.phoneVerifiedAt} IS NOT NULL`),
+    index("users_phone_e164_idx")
+      .on(table.phoneE164)
+      .where(sql`${table.phoneE164} IS NOT NULL`),
     index("users_location_version_idx").on(table.locationVersion),
   ],
 );

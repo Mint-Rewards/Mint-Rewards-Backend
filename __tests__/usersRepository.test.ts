@@ -35,7 +35,17 @@ async function makeUser(over: Partial<repo.NewUser> = {}) {
     ...over,
   });
   made.push(user._id);
-  return user;
+  /*
+   * Narrowed here rather than at each of the sixteen call sites below.
+   *
+   * `email` became nullable when an account could first be created from a
+   * phone number alone. This fixture always supplies one, so saying that once
+   * keeps every test about the thing it is actually testing — and the throw
+   * means a future change to the fixture fails loudly rather than handing a
+   * null to a lookup that quietly finds nobody.
+   */
+  if (!user.email) throw new Error("fixture user was created without an email");
+  return { ...user, email: user.email };
 }
 
 whenLive("consumer accounts", () => {

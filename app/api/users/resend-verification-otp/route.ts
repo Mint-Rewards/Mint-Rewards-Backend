@@ -62,7 +62,14 @@ export async function POST(req: Request) {
       "emailVerification",
     );
 
-    if (!user || user.emailVerified) {
+    /*
+     * `!user.email` is unreachable by this path — the lookup above was BY an
+     * address, so anything it returns has one. It is written rather than
+     * asserted because a cast here would rot the day somebody adds a second
+     * way into this branch, and the failure would be an `undefined` arriving
+     * at the mail provider.
+     */
+    if (!user || user.emailVerified || !user.email) {
       return Response.json(GENERIC_RESPONSE);
     }
 

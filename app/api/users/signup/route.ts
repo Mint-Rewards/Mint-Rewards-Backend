@@ -6,6 +6,7 @@ import { inTransaction } from "@/lib/repositories/brandhub";
 import {
   addPoints,
   createUser,
+  generateMintId,
   reviveUser,
   findUserByEmail,
   findUserByMintId,
@@ -26,18 +27,6 @@ import { validatePasswordLength } from "@/lib/password";
 
 const JWT_SECRET = serverEnv.jwtSecret;
 const JWT_EXPIRES_IN = serverEnv.jwtExpiresIn;
-
-async function generateMintId() {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
-    const existingUser = await findUserByMintId(mintId);
-    if (!existingUser) {
-      return mintId;
-    }
-  }
-
-  throw new Error("Unable to generate a unique mint ID after 20 attempts.");
-}
 
 export async function GET() {
   return Response.json({ message: "SignUp API is alive" });

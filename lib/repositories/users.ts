@@ -320,14 +320,22 @@ export async function findUserByAppleId(
 export async function findUserByEmailForLogin(
   email: string,
   tx?: Executor,
-): Promise<(UserDoc & { password: string }) | null> {
+): Promise<(UserDoc & { password: string | null }) | null> {
   const rows = await exec(tx)
     .select({ ...PUBLIC, password: users.password })
     .from(users)
     .where(and(eq(users.email, email.toLowerCase()), ALIVE))
     .limit(1);
   if (!rows[0]) return null;
-  return { ...toUser(rows[0]), password: rows[0].password as string };
+  /*
+   * Null for an account that signed up by phone and has no password.
+   *
+   * The login route already copes — it compares against a dummy hash when
+   * there is none, so such an account simply fails with the generic message
+   * and the timing stays constant. Typed honestly anyway: the cast that used
+   * to sit here asserted a string the column stopped promising.
+   */
+  return { ...toUser(rows[0]), password: (rows[0].password as string | null) ?? null };
 }
 
 /**
@@ -447,14 +455,35 @@ export async function findUsersByEmails(
 export interface NewUser {
   _id?: string;
   userName: string;
-  email: string;
-  password: string;
-  mintId: string;
+  /** Null for a phone-first signup. */
+  email: string | null;
+  /** Null for an account that signs in by proving a number each time. */
+  password?: string | null;
+  /** Generated when absent, so two signup paths cannot disagree about it. */
+  mintId?: string;
   phone?: string;
+  /** The verified number, E.164. Written unverified until the code lands. */
+  phoneE164?: string | null;
   avatar?: string;
   emailVerified?: boolean;
   appleId?: string | null;
   role?: string;
+}
+
+/**
+ * A free Mint ID.
+ *
+ * Lived in the signup route until a second signup path needed one. Two
+ * copies of a uniqueness routine is two routines that drift, and the symptom
+ * would be a collision nobody could reproduce — so there is one, here, beside
+ * the insert that depends on it.
+ */
+export async function generateMintId(tx?: Executor): Promise<string> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const mintId = (Math.floor(Math.random() * 90000000) + 10000000).toString();
+    if (!(await findUserByMintId(mintId, tx))) return mintId;
+  }
+  throw new Error("Unable to generate a unique mint ID after 20 attempts.");
 }
 
 export async function createUser(
@@ -468,10 +497,11 @@ export async function createUser(
     .values({
       id,
       userName: input.userName,
-      email: input.email.toLowerCase(),
-      password: input.password,
-      mintId: input.mintId,
+      email: input.email === null ? null : input.email.toLowerCase(),
+      password: input.password ?? null,
+      mintId: input.mintId ?? (await generateMintId(tx)),
       phone: input.phone ?? "",
+      phoneE164: input.phoneE164 ?? null,
       avatar: input.avatar ?? "",
       emailVerified: input.emailVerified ?? false,
       appleId: input.appleId ?? null,

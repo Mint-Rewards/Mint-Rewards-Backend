@@ -67,8 +67,13 @@ export const users = consumer.table(
      * `users_need_a_credential` CHECK enforces it.
      */
     email: text("email"),
-    /** bcrypt hash. Never projected by the default read. */
-    password: text("password").notNull(),
+    /**
+     * bcrypt hash. Never projected by the default read.
+     *
+     * Null for an account that signed up by phone: it proves a number each
+     * time and has no password to store. See 0012.
+     */
+    password: text("password"),
     mintId: text("mint_id").notNull(),
     role: text("role").notNull().default("MEMBER"),
 
